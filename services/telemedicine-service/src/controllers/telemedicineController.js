@@ -13,6 +13,14 @@ const createSession = async (req, res) => {
     const roomName = `healthcare-${appointmentId}`;
     const meetingLink = `https://meet.jit.si/${roomName}`;
 
+    const existingSession = await TelemedicineSession.findOne({ appointmentId });
+
+    if (existingSession) {
+      return res.status(400).json({
+        message: "Session already exists for this appointment",
+      });
+    }
+
     const session = await TelemedicineSession.create({
       appointmentId,
       patientId,
@@ -38,6 +46,7 @@ const createSession = async (req, res) => {
 const getAllSessions = async (req, res) => {
   try {
     const sessions = await TelemedicineSession.find().sort({ createdAt: -1 });
+
     res.status(200).json(sessions);
   } catch (error) {
     res.status(500).json({
@@ -52,7 +61,9 @@ const getSessionById = async (req, res) => {
     const session = await TelemedicineSession.findById(req.params.id);
 
     if (!session) {
-      return res.status(404).json({ message: "Session not found" });
+      return res.status(404).json({
+        message: "Session not found",
+      });
     }
 
     res.status(200).json(session);
@@ -71,71 +82,15 @@ const getSessionByAppointmentId = async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ message: "Session not found" });
+      return res.status(404).json({
+        message: "Session not found",
+      });
     }
 
     res.status(200).json(session);
   } catch (error) {
     res.status(500).json({
       message: "Failed to fetch session",
-      error: error.message,
-    });
-  }
-};
-
-const updateSessionStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-
-    const validStatuses = ["scheduled", "active", "completed", "cancelled"];
-
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status value" });
-    }
-
-    const session = await TelemedicineSession.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true, runValidators: true }
-    );
-
-    if (!session) {
-      return res.status(404).json({ message: "Session not found" });
-    }
-
-    res.status(200).json({
-      message: "Session status updated successfully",
-      session,
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to update session status",
-      error: error.message,
-    });
-  }
-};
-
-const updateSessionNotes = async (req, res) => {
-  try {
-    const { notes } = req.body;
-
-    const session = await TelemedicineSession.findByIdAndUpdate(
-      req.params.id,
-      { notes },
-      { new: true, runValidators: true }
-    );
-
-    if (!session) {
-      return res.status(404).json({ message: "Session not found" });
-    }
-
-    res.status(200).json({
-      message: "Session notes updated successfully",
-      session,
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to update session notes",
       error: error.message,
     });
   }
@@ -166,6 +121,70 @@ const getSessionsByPatientId = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Failed to fetch patient sessions",
+      error: error.message,
+    });
+  }
+};
+
+const updateSessionStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    const validStatuses = ["scheduled", "active", "completed", "cancelled"];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        message: "Invalid status value",
+      });
+    }
+
+    const updatedSession = await TelemedicineSession.findOneAndUpdate(
+      { appointmentId: req.params.appointmentId },
+      { status },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedSession) {
+      return res.status(404).json({
+        message: "Session not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Session status updated successfully",
+      session: updatedSession,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to update session status",
+      error: error.message,
+    });
+  }
+};
+
+const updateSessionNotes = async (req, res) => {
+  try {
+    const { notes } = req.body;
+
+    const updatedSession = await TelemedicineSession.findOneAndUpdate(
+      { appointmentId: req.params.appointmentId },
+      { notes },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedSession) {
+      return res.status(404).json({
+        message: "Session not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Session notes updated successfully",
+      session: updatedSession,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to update session notes",
       error: error.message,
     });
   }
