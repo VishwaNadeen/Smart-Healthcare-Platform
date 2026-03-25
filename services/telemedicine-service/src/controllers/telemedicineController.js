@@ -1,4 +1,4 @@
-const TelemedicineSession = require("../models/telemedicineModel");
+const TelemedicineSession = require("../models/telemedicineSession");
 
 const createSession = async (req, res) => {
   try {
@@ -141,11 +141,43 @@ const updateSessionNotes = async (req, res) => {
   }
 };
 
+const getSessionsByDoctorId = async (req, res) => {
+  try {
+    const sessions = await TelemedicineSession.find({
+      doctorId: req.params.doctorId,
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json(sessions);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch doctor sessions",
+      error: error.message,
+    });
+  }
+};
+
+const getSessionsByPatientId = async (req, res) => {
+  try {
+    const sessions = await TelemedicineSession.find({
+      patientId: req.params.patientId,
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json(sessions);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch patient sessions",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createSession,
   getAllSessions,
   getSessionById,
   getSessionByAppointmentId,
+  getSessionsByDoctorId,
+  getSessionsByPatientId,
   updateSessionStatus,
   updateSessionNotes,
 };
