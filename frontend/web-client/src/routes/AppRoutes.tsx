@@ -4,11 +4,14 @@ import MainLayout from "../layouts/mainLayout";
 import FullScreenLayout from "../layouts/fullScreenLayout";
 
 import Consultation from "../pages/telemedicine/consultation";
-import DoctorSessions from "../pages/telemedicine/doctorSessions";
+import DoctorSessions from "../pages/telemedicine/doctorsessions";
 import PatientSessions from "../pages/telemedicine/Patientsessions";
-import SessionDetails from "../pages/telemedicine/sessionDetails";
-import WaitingRoom from "../pages/telemedicine/waitingRoom";
-import SessionSummary from "../pages/telemedicine/sessionSummary";
+import SessionDetails from "../pages/telemedicine/sessiondetails";
+import WaitingRoom from "../pages/telemedicine/waitingroom";
+import SessionSummary from "../pages/telemedicine/sessionsummary";
+import SessionHistory from "../pages/telemedicine/sessionHistory";
+import Dashboard from "../pages/telemedicine/dashboard";
+import Statistics from "../pages/telemedicine/statistics";
 
 export default function AppRoutes() {
   return (
@@ -75,6 +78,33 @@ export default function AppRoutes() {
           </MainLayout>
         }
       />
+
+      <Route
+        path="/session-history"
+        element={
+          <MainLayout>
+            <SessionHistory />
+          </MainLayout>
+        }
+      />
+
+      <Route
+      path="/telemedicine-dashboard"
+      element={
+        <MainLayout>
+          <Dashboard />
+        </MainLayout>
+      }
+    />
+
+    <Route
+      path="/telemedicine-statistics"
+      element={
+        <MainLayout>
+          <Statistics />
+        </MainLayout>
+      }
+    />
     </Routes>
   );
 }

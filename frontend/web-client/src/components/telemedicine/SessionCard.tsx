@@ -5,12 +5,12 @@ import StatusBadge from "./StatusBadge";
 
 type SessionCardProps = {
   session: TelemedicineSession;
-  role: "doctor" | "patient";
+  role?: "doctor" | "patient";
 };
 
 export default function SessionCard({
   session,
-  role,
+  role = "patient",
 }: SessionCardProps) {
   const canJoin = canJoinMeeting(
     session.scheduledDate,
@@ -62,7 +62,7 @@ export default function SessionCard({
         </p>
       </div>
 
-      {session.notes && (
+      {session.notes?.trim() && (
         <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
           <span className="font-semibold">Notes:</span> {session.notes}
         </div>
@@ -78,7 +78,7 @@ export default function SessionCard({
 
         {canJoin ? (
           <Link
-            to={`/consultation/${session.appointmentId}`}
+            to={`/consultation/${session.appointmentId}?role=${role}`}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
           >
             Join Consultation
@@ -91,6 +91,15 @@ export default function SessionCard({
             Consultation not available yet
           </button>
         )}
+
+        <a
+          href={session.meetingLink}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+        >
+          Meeting Link
+        </a>
       </div>
     </div>
   );

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import ChatPanel from "../../components/telemedicine/ChatPanel";
+import FileUploadPanel from "../../components/telemedicine/FileUploadPanel";
+import PrescriptionForm from "../../components/telemedicine/PrescriptionForm";
 import {
   getSessionByAppointmentId,
   updateSessionNotes,
   updateSessionStatus,
 } from "../../services/telemedicineApi";
-import type {
-  TelemedicineSession,
-  SessionResponse,
-} from "../../services/telemedicineApi";
+import type { TelemedicineSession } from "../../services/telemedicineApi";
 
 export default function Consultation() {
   const { appointmentId } = useParams<{ appointmentId: string }>();
@@ -57,11 +57,7 @@ export default function Consultation() {
         setNotes(response.notes || "");
 
         if (response.status === "scheduled") {
-          const updated: SessionResponse = await updateSessionStatus(
-            response._id,
-            "active"
-          );
-
+          const updated = await updateSessionStatus(appointmentId, "active");
           setSession(updated.session);
         }
       } catch (error) {
@@ -75,15 +71,12 @@ export default function Consultation() {
   }, [appointmentId]);
 
   async function handleSaveNotes() {
-    if (!session) return;
+    if (!appointmentId || !session) return;
 
     try {
       setSavingNotes(true);
 
-      const updated: SessionResponse = await updateSessionNotes(
-        session._id,
-        notes
-      );
+      const updated = await updateSessionNotes(appointmentId, notes);
 
       setSession(updated.session);
       setNotes(updated.session.notes || "");
@@ -101,11 +94,11 @@ export default function Consultation() {
   }
 
   async function handleEndCall() {
-    if (!session) return;
+    if (!appointmentId || !session) return;
 
     try {
-      await updateSessionNotes(session._id, notes);
-      await updateSessionStatus(session._id, "completed");
+      await updateSessionNotes(appointmentId, notes);
+      await updateSessionStatus(appointmentId, "completed");
       navigate(`/session-summary/${session.appointmentId}`);
     } catch (error) {
       console.error("Failed to end call:", error);
@@ -126,7 +119,7 @@ export default function Consultation() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <p className="text-lg font-medium text-slate-700">
           Loading consultation...
         </p>
@@ -136,7 +129,7 @@ export default function Consultation() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <p className="text-lg font-medium text-red-600">Session not found</p>
       </div>
     );
@@ -144,126 +137,130 @@ export default function Consultation() {
 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6 md:px-8">
-      <div className="mx-auto max-w-7xl grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 rounded-2xl bg-white shadow-lg overflow-hidden">
-          <div className="flex items-center justify-between border-b px-4 py-4 md:px-6">
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-slate-800">
-                Online Consultation
-              </h1>
-              <p className="text-sm text-slate-500 mt-1">
-                Appointment ID: {session.appointmentId}
-              </p>
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="overflow-hidden rounded-2xl bg-white shadow-lg">
+            <div className="flex items-center justify-between border-b px-4 py-4 md:px-6">
+              <div>
+                <h1 className="text-xl font-bold text-slate-800 md:text-2xl">
+                  Online Consultation
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Appointment ID: {session.appointmentId}
+                </p>
+              </div>
+
+              <div className="text-right">
+                <p className="text-sm text-slate-500">Meeting Timer</p>
+                <p className="text-lg font-bold text-blue-600">
+                  {formatTime(seconds)}
+                </p>
+              </div>
             </div>
 
-            <div className="text-right">
-              <p className="text-sm text-slate-500">Meeting Timer</p>
-              <p className="text-lg font-bold text-blue-600">
-                {formatTime(seconds)}
-              </p>
+            <div className="flex aspect-video items-center justify-center bg-slate-900 text-center text-white">
+              Video Call Area
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 p-4 md:p-6">
+              <a
+                href={session.meetingLink}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+              >
+                Open Meeting Link
+              </a>
+
+              <button
+                onClick={handleEndCall}
+                className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
+              >
+                End Call
+              </button>
             </div>
           </div>
 
-          <div className="aspect-video bg-slate-900 flex items-center justify-center text-white text-center px-4">
-            <div>
-              <p className="text-2xl font-semibold mb-2">Video Call Area</p>
-              <p className="text-sm md:text-base text-slate-300">
-                Replace this section later with Jitsi / Zoom / WebRTC video UI
-              </p>
-            </div>
+          <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
+            <h2 className="mb-4 text-xl font-bold text-slate-800">
+              Consultation Chat
+            </h2>
+            <ChatPanel role={role} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 p-4 md:p-6">
-            <a
-              href={session.meetingLink}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 transition"
-            >
-              Open Meeting Link
-            </a>
+          <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
+            <h2 className="mb-4 text-xl font-bold text-slate-800">
+              Upload Medical Files
+            </h2>
+            <FileUploadPanel />
+          </div>
 
-            <button
-              onClick={handleEndCall}
-              className="rounded-lg bg-red-600 px-4 py-2 text-white font-medium hover:bg-red-700 transition"
-            >
-              End Call
-            </button>
+          <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
+            <h2 className="mb-4 text-xl font-bold text-slate-800">
+              Prescription
+            </h2>
+            <PrescriptionForm role={role} />
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white shadow-lg p-4 md:p-6">
-          <h2 className="text-xl font-bold text-slate-800 mb-4">
+        <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
+          <h2 className="mb-4 text-xl font-bold text-slate-800">
             Session Details
           </h2>
 
           <div className="space-y-3 text-sm md:text-base">
             <div>
-              <span className="font-semibold text-slate-700">Doctor ID: </span>
-              <span className="text-slate-600">{session.doctorId}</span>
+              <span className="font-semibold">Doctor ID: </span>
+              {session.doctorId}
             </div>
-
             <div>
-              <span className="font-semibold text-slate-700">Patient ID: </span>
-              <span className="text-slate-600">{session.patientId}</span>
+              <span className="font-semibold">Patient ID: </span>
+              {session.patientId}
             </div>
-
             <div>
-              <span className="font-semibold text-slate-700">Date: </span>
-              <span className="text-slate-600">{session.scheduledDate}</span>
+              <span className="font-semibold">Date: </span>
+              {session.scheduledDate}
             </div>
-
             <div>
-              <span className="font-semibold text-slate-700">Time: </span>
-              <span className="text-slate-600">{session.scheduledTime}</span>
+              <span className="font-semibold">Time: </span>
+              {session.scheduledTime}
             </div>
-
             <div>
-              <span className="font-semibold text-slate-700">Status: </span>
-              <span className="inline-flex rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700">
-                {session.status}
-              </span>
+              <span className="font-semibold">Status: </span>
+              {session.status}
             </div>
           </div>
 
           {role === "doctor" ? (
             <div className="mt-6">
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
-                Doctor Notes
-              </label>
+              <label className="mb-2 block font-semibold">Doctor Notes</label>
 
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Write doctor notes here..."
-                className="min-h-[180px] w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-blue-500"
+                className="min-h-[180px] w-full rounded-xl border p-3"
               />
 
               <div className="mt-3 flex items-center gap-3">
                 <button
                   onClick={handleSaveNotes}
                   disabled={savingNotes}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-white font-medium hover:bg-emerald-700 disabled:opacity-60"
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-white disabled:opacity-60"
                 >
                   {savingNotes ? "Saving..." : "Save Notes"}
                 </button>
 
                 {noteSavedMessage && (
-                  <span className="text-sm font-medium text-emerald-600">
+                  <span className="text-sm text-emerald-600">
                     {noteSavedMessage}
                   </span>
                 )}
               </div>
             </div>
           ) : (
-            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">
-                Patient View
-              </h3>
-              <p className="text-sm text-slate-600">
-                Patients can join the consultation and view session details, but
-                cannot edit doctor notes.
-              </p>
+            <div className="mt-6 rounded-xl bg-slate-50 p-4">
+              Patients cannot edit doctor notes.
             </div>
           )}
         </div>

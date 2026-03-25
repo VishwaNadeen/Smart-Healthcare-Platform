@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import StatusBadge from "../../components/ui/StatusBadge";
+import StatusBadge from "../../components/telemedicine/StatusBadge";
 import {
   getSessionByAppointmentId,
   type TelemedicineSession,
