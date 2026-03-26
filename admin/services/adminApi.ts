@@ -1,6 +1,7 @@
 import type { AdminDashboardStats } from "../types/admin";
+import { ADMIN_API_URL } from "../src/config/api";
 
-const ADMIN_API_BASE = "http://localhost:5007/api/admin";
+const ADMIN_API_BASE = ADMIN_API_URL;
 
 export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   try {
