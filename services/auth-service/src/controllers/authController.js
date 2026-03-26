@@ -2,49 +2,62 @@ const {
   registerUser,
   loginUser,
   logoutUser,
+  deleteUserAccount,
   requestLoginOtp,
   verifyLoginOtp,
   requestPasswordResetOtp,
   resetPasswordWithOtp
 } = require("../services/authService");
 
+const serializeUser = (user) => ({
+  id: user._id,
+  username: user.username,
+  email: user.email,
+  role: user.role,
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt
+});
+
 const register = async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
 
     if (!username || !email || !password || !role) {
-      return res.status(400).json({ message: "All fields are required" });
+      return res.status(400).json({
+        message: "All fields are required",
+      });
     }
 
     if (!["doctor", "patient"].includes(role)) {
-      return res.status(400).json({ message: "Role must be doctor or patient" });
+      return res.status(400).json({
+        message: "Role must be doctor or patient",
+      });
     }
 
     const user = await registerUser({ username, email, password, role });
 
     res.status(201).json({
-      message: "User registered successfully",
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
+      message: "User created successfully",
+      user: serializeUser(user),
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    const isConflict = error.message && error.message.includes("already exists");
+    res.status(isConflict ? 400 : 500).json({
+      message: isConflict ? error.message : "Failed to register user",
+      error: error.message,
+    });
   }
 };
 
 const login = async (req, res) => {
   try {
-    const { username, password, role } = req.body;
+    const { email, password, role } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ message: "Username and password are required" });
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
     }
 
-    const result = await loginUser({ username, password, role });
+    const result = await loginUser({ email, password, role });
 
     res.status(200).json({
       message: "Login successful",
@@ -63,6 +76,18 @@ const logout = async (req, res) => {
     await logoutUser(userId, token);
 
     res.status(200).json({ message: "Logout successful" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteMe = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    await deleteUserAccount(userId);
+
+    res.status(200).json({ message: "User account deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -152,6 +177,7 @@ module.exports = {
   register,
   login,
   logout,
+  deleteMe,
   me,
   requestLoginOtpController,
   verifyLoginOtpController,

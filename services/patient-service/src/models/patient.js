@@ -22,12 +22,6 @@ const patientSchema = new mongoose.Schema(
       lowercase: true,
     },
 
-    password: {
-      type: String,
-      required: true,
-      minlength: 6,
-    },
-
     countryCode: {
       type: String,
       required: true,

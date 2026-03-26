@@ -72,8 +72,10 @@ const deliverOtp = async ({ user, otp, purpose }) => {
 };
 
 const registerUser = async ({ username, email, password, role }) => {
+  const normalizedEmail = email.toLowerCase().trim();
+
   const existingUser = await User.findOne({
-    $or: [{ email }, { username }]
+    $or: [{ email: normalizedEmail }, { username }]
   });
 
   if (existingUser) {
@@ -84,7 +86,7 @@ const registerUser = async ({ username, email, password, role }) => {
 
   const user = await User.create({
     username,
-    email,
+    email: normalizedEmail,
     password: hashedPassword,
     role
   });
@@ -92,17 +94,17 @@ const registerUser = async ({ username, email, password, role }) => {
   return user;
 };
 
-const loginUser = async ({ username, password, role }) => {
-  const user = await User.findOne({ username });
+const loginUser = async ({ email, password, role }) => {
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
 
   if (!user) {
-    throw new Error("Invalid username or password");
+    throw new Error("Invalid email or password");
   }
 
   const isPasswordMatch = await bcrypt.compare(password, user.password);
 
   if (!isPasswordMatch) {
-    throw new Error("Invalid username or password");
+    throw new Error("Invalid email or password");
   }
 
   if (role && user.role !== role) {
@@ -133,6 +135,14 @@ const logoutUser = async (userId, token) => {
 
   user.tokens = user.tokens.filter((item) => item.token !== token);
   await user.save();
+};
+
+const deleteUserAccount = async (userId) => {
+  const user = await User.findByIdAndDelete(userId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
 };
 
 const requestLoginOtp = async ({ identifier, role }) => {
@@ -240,6 +250,7 @@ module.exports = {
   registerUser,
   loginUser,
   logoutUser,
+  deleteUserAccount,
   requestLoginOtp,
   verifyLoginOtp,
   requestPasswordResetOtp,
