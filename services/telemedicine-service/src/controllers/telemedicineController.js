@@ -1,4 +1,4 @@
-const TelemedicineSession = require("../models/telemedicineModel");
+const TelemedicineSession = require("../models/telemedicineSession");
 
 const createSession = async (req, res) => {
   try {
@@ -12,6 +12,14 @@ const createSession = async (req, res) => {
 
     const roomName = `healthcare-${appointmentId}`;
     const meetingLink = `https://meet.jit.si/${roomName}`;
+
+    const existingSession = await TelemedicineSession.findOne({ appointmentId });
+
+    if (existingSession) {
+      return res.status(400).json({
+        message: "Session already exists for this appointment",
+      });
+    }
 
     const session = await TelemedicineSession.create({
       appointmentId,
@@ -38,6 +46,7 @@ const createSession = async (req, res) => {
 const getAllSessions = async (req, res) => {
   try {
     const sessions = await TelemedicineSession.find().sort({ createdAt: -1 });
+
     res.status(200).json(sessions);
   } catch (error) {
     res.status(500).json({
@@ -52,7 +61,9 @@ const getSessionById = async (req, res) => {
     const session = await TelemedicineSession.findById(req.params.id);
 
     if (!session) {
-      return res.status(404).json({ message: "Session not found" });
+      return res.status(404).json({
+        message: "Session not found",
+      });
     }
 
     res.status(200).json(session);
@@ -71,13 +82,45 @@ const getSessionByAppointmentId = async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ message: "Session not found" });
+      return res.status(404).json({
+        message: "Session not found",
+      });
     }
 
     res.status(200).json(session);
   } catch (error) {
     res.status(500).json({
       message: "Failed to fetch session",
+      error: error.message,
+    });
+  }
+};
+
+const getSessionsByDoctorId = async (req, res) => {
+  try {
+    const sessions = await TelemedicineSession.find({
+      doctorId: req.params.doctorId,
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json(sessions);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch doctor sessions",
+      error: error.message,
+    });
+  }
+};
+
+const getSessionsByPatientId = async (req, res) => {
+  try {
+    const sessions = await TelemedicineSession.find({
+      patientId: req.params.patientId,
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json(sessions);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch patient sessions",
       error: error.message,
     });
   }
@@ -90,22 +133,26 @@ const updateSessionStatus = async (req, res) => {
     const validStatuses = ["scheduled", "active", "completed", "cancelled"];
 
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Invalid status value" });
+      return res.status(400).json({
+        message: "Invalid status value",
+      });
     }
 
-    const session = await TelemedicineSession.findByIdAndUpdate(
-      req.params.id,
+    const updatedSession = await TelemedicineSession.findOneAndUpdate(
+      { appointmentId: req.params.appointmentId },
       { status },
       { new: true, runValidators: true }
     );
 
-    if (!session) {
-      return res.status(404).json({ message: "Session not found" });
+    if (!updatedSession) {
+      return res.status(404).json({
+        message: "Session not found",
+      });
     }
 
     res.status(200).json({
       message: "Session status updated successfully",
-      session,
+      session: updatedSession,
     });
   } catch (error) {
     res.status(500).json({
@@ -119,19 +166,21 @@ const updateSessionNotes = async (req, res) => {
   try {
     const { notes } = req.body;
 
-    const session = await TelemedicineSession.findByIdAndUpdate(
-      req.params.id,
+    const updatedSession = await TelemedicineSession.findOneAndUpdate(
+      { appointmentId: req.params.appointmentId },
       { notes },
       { new: true, runValidators: true }
     );
 
-    if (!session) {
-      return res.status(404).json({ message: "Session not found" });
+    if (!updatedSession) {
+      return res.status(404).json({
+        message: "Session not found",
+      });
     }
 
     res.status(200).json({
       message: "Session notes updated successfully",
-      session,
+      session: updatedSession,
     });
   } catch (error) {
     res.status(500).json({
@@ -146,6 +195,8 @@ module.exports = {
   getAllSessions,
   getSessionById,
   getSessionByAppointmentId,
+  getSessionsByDoctorId,
+  getSessionsByPatientId,
   updateSessionStatus,
   updateSessionNotes,
 };

@@ -7,11 +7,13 @@ const patientSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+
     lastName: {
       type: String,
       required: true,
       trim: true,
     },
+
     email: {
       type: String,
       required: true,
@@ -19,27 +21,41 @@ const patientSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+
+    countryCode: {
+      type: String,
+      required: true,
+      trim: true,
+      default: "+94",
+    },
+
     phone: {
       type: String,
       required: true,
       trim: true,
     },
-    age: {
-      type: Number,
+
+    birthday: {
+      type: Date,
       required: true,
     },
+
     gender: {
       type: String,
       enum: ["male", "female", "other"],
       required: true,
     },
+
     address: {
       type: String,
       trim: true,
-    },
-    medicalHistory: {
-      type: String,
       default: "",
+    },
+
+    country: {
+      type: String,
+      required: true,
+      trim: true,
     },
   },
   {

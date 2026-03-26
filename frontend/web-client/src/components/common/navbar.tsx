@@ -83,7 +83,7 @@ export default function Navbar() {
             />
             <span
               className={`absolute left-0 top-4 h-0.5 w-5 rounded bg-current transition-all duration-300 ${
-                isOpen ? "-translate-y-1 rotate-[-45deg]" : ""
+                isOpen ? "-translate-y-1 -rotate-45" : ""
               }`}
             />
           </div>
@@ -92,7 +92,7 @@ export default function Navbar() {
 
       <div
         className={`overflow-hidden border-t border-blue-100 bg-white/95 backdrop-blur-md transition-all duration-300 md:hidden ${
-          isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+          isOpen ? "max-h-125 opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 sm:px-6">
