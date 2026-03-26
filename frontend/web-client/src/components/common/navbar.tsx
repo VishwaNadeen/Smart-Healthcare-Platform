@@ -83,7 +83,7 @@ export default function Navbar() {
             />
             <span
               className={`absolute left-0 top-4 h-0.5 w-5 rounded bg-current transition-all duration-300 ${
-                isOpen ? "-translate-y-1 rotate-[-45deg]" : ""
+                isOpen ? "-translate-y-1 -rotate-45" : ""
               }`}
             />
           </div>
