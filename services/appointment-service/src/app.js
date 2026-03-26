@@ -2,7 +2,7 @@
 
 const express = require("express");
 const cors = require("cors");
-const patientRoutes = require("./routes/appointmentRoutes");
+const appointmentRoutes = require("./routes/appointmentRoutes");
 
 const app = express();
 
@@ -12,10 +12,10 @@ app.use(express.json());
 
 // test route
 app.get("/", (req, res) => {
-  res.send("Patient Service is running");
+  res.send("Appointment Service is running");
 });
 
-// patient routes
-app.use("/api/patients", patientRoutes);
+// appointment routes
+app.use("/api/appointments", appointmentRoutes);
 
 module.exports = app;
