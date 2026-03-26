@@ -1,11 +1,11 @@
 const dotenv = require("dotenv");
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const express = require("express");
 const cors = require("cors");
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
-connectDB();
+const { ensureAdminUser } = require("./services/authService");
 
 const app = express();
 
@@ -20,6 +20,16 @@ app.use("/api/auth", authRoutes);
 
 const PORT = process.env.PORT || 5001;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const startServer = async () => {
+  await connectDB();
+  await ensureAdminUser();
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+};
+
+startServer().catch((error) => {
+  console.error("Failed to start auth service:", error.message);
+  process.exit(1);
 });
