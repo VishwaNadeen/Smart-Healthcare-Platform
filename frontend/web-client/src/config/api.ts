@@ -1,5 +1,5 @@
 const AUTH_SERVICE_URL =
-  import.meta.env.VITE_AUTH_SERVICE_URL || "http://localhost:5001";
+  import.meta.env.VITE_AUTH_SERVICE_URL || "http://localhost:5002";
 const TELEMEDICINE_SERVICE_URL =
   import.meta.env.VITE_TELEMEDICINE_SERVICE_URL || "http://localhost:5007";
 
