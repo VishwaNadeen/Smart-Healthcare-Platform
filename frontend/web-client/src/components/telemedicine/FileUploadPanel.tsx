@@ -1,25 +1,80 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  getFilesByAppointmentId,
+  uploadTelemedicineFile,
+} from "../../services/telemedicineApi";
+import type { TelemedicineFile } from "../../services/telemedicineApi";
 
-export default function FileUploadPanel() {
+type FileUploadPanelProps = {
+  appointmentId: string;
+  role: "doctor" | "patient";
+};
+
+const API_BASE = "http://localhost:5007";
+
+export default function FileUploadPanel({
+  appointmentId,
+  role,
+}: FileUploadPanelProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<TelemedicineFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    async function loadFiles() {
+      try {
+        const response = await getFilesByAppointmentId(appointmentId);
+        setFiles(response.data || []);
+      } catch (error) {
+        console.error("Failed to load files:", error);
+        setFiles([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (appointmentId) {
+      loadFiles();
+    } else {
+      setLoading(false);
+    }
+  }, [appointmentId]);
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] || null;
     setSelectedFile(file);
   }
 
-  function handleUpload() {
+  async function handleUpload() {
     if (!selectedFile) {
       alert("Please select a file first");
       return;
     }
 
-    alert(`File selected: ${selectedFile.name}`);
+    try {
+      setUploading(true);
+
+      const response = await uploadTelemedicineFile({
+        appointmentId,
+        uploadedByRole: role,
+        file: selectedFile,
+      });
+
+      setFiles((prev) => [response.data, ...prev]);
+      setSelectedFile(null);
+      alert("File uploaded successfully");
+    } catch (error) {
+      console.error("Upload failed:", error);
+      alert("Failed to upload file");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
-    <div className="rounded-2xl bg-white shadow-lg p-4 md:p-6">
-      <h2 className="text-xl font-bold text-slate-800 mb-4">File Upload</h2>
+    <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
+      <h2 className="mb-4 text-xl font-bold text-slate-800">File Upload</h2>
 
       <input
         type="file"
@@ -28,19 +83,41 @@ export default function FileUploadPanel() {
       />
 
       {selectedFile && (
-        <div className="mt-3 rounded-lg bg-slate-50 p-3 border border-slate-200">
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
           <p className="text-sm text-slate-700">
-            Selected File: <span className="font-semibold">{selectedFile.name}</span>
+            Selected File:{" "}
+            <span className="font-semibold">{selectedFile.name}</span>
           </p>
         </div>
       )}
 
       <button
         onClick={handleUpload}
-        className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-white font-medium hover:bg-emerald-700"
+        disabled={uploading || !selectedFile}
+        className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Upload File
+        {uploading ? "Uploading..." : "Upload File"}
       </button>
+
+      <div className="mt-6 space-y-3">
+        {loading ? (
+          <p className="text-sm text-slate-500">Loading files...</p>
+        ) : files.length === 0 ? (
+          <p className="text-sm text-slate-500">No files uploaded yet.</p>
+        ) : (
+          files.map((file) => (
+            <a
+              key={file._id}
+              href={`${API_BASE}${file.filePath}`}
+              target="_blank"
+              rel="noreferrer"
+              className="block rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-blue-600 hover:underline"
+            >
+              {file.originalName}
+            </a>
+          ))
+        )}
+      </div>
     </div>
   );
 }

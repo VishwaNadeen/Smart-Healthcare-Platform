@@ -185,21 +185,28 @@ export default function Consultation() {
             <h2 className="mb-4 text-xl font-bold text-slate-800">
               Consultation Chat
             </h2>
-            <ChatPanel role={role} />
+            {appointmentId && <ChatPanel role={role} appointmentId={appointmentId} />}
           </div>
 
           <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
             <h2 className="mb-4 text-xl font-bold text-slate-800">
               Upload Medical Files
             </h2>
-            <FileUploadPanel />
+            {appointmentId && <FileUploadPanel appointmentId={appointmentId} role={role} />}
           </div>
 
           <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
             <h2 className="mb-4 text-xl font-bold text-slate-800">
               Prescription
             </h2>
-            <PrescriptionForm role={role} />
+            {appointmentId && session && (
+              <PrescriptionForm
+                role={role}
+                appointmentId={appointmentId}
+                doctorId={session.doctorId}
+                patientId={session.patientId}
+              />
+            )}
           </div>
         </div>
 

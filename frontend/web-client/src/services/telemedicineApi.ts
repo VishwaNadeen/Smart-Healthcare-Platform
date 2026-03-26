@@ -122,3 +122,178 @@ export async function updateSessionNotes(
 
   return handleResponse<SessionResponse>(response);
 }
+
+export type TelemedicineMessage = {
+  _id: string;
+  appointmentId: string;
+  senderRole: "doctor" | "patient" | "system";
+  senderName: string;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MessagesResponse = {
+  success: boolean;
+  data: TelemedicineMessage[];
+  message?: string;
+};
+
+export type MessageResponse = {
+  success: boolean;
+  data: TelemedicineMessage;
+  message?: string;
+};
+
+export async function getMessagesByAppointmentId(
+  appointmentId: string
+): Promise<MessagesResponse> {
+  const response = await fetch(
+    `${TELEMEDICINE_API}/chat/${appointmentId}`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch messages");
+  }
+
+  return response.json();
+}
+
+export async function sendTelemedicineMessage(payload: {
+  appointmentId: string;
+  senderRole: "doctor" | "patient" | "system";
+  senderName: string;
+  message: string;
+}): Promise<MessageResponse> {
+  const response = await fetch(`${TELEMEDICINE_API}/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to send message");
+  }
+
+  return response.json();
+}
+
+export type TelemedicineFile = {
+  _id: string;
+  appointmentId: string;
+  originalName: string;
+  fileName: string;
+  filePath: string;
+  uploadedByRole: "doctor" | "patient";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FilesResponse = {
+  success: boolean;
+  data: TelemedicineFile[];
+  message?: string;
+};
+
+export type FileResponse = {
+  success: boolean;
+  data: TelemedicineFile;
+  message?: string;
+};
+
+export async function getFilesByAppointmentId(
+  appointmentId: string
+): Promise<FilesResponse> {
+  const response = await fetch(`${TELEMEDICINE_API}/files/${appointmentId}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch files");
+  }
+
+  return response.json();
+}
+
+export async function uploadTelemedicineFile(payload: {
+  appointmentId: string;
+  uploadedByRole: "doctor" | "patient";
+  file: File;
+}): Promise<FileResponse> {
+  const formData = new FormData();
+  formData.append("appointmentId", payload.appointmentId);
+  formData.append("uploadedByRole", payload.uploadedByRole);
+  formData.append("file", payload.file);
+
+  const response = await fetch(`${TELEMEDICINE_API}/files`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to upload file");
+  }
+
+  return response.json();
+}
+
+export type TelemedicinePrescription = {
+  _id: string;
+  appointmentId: string;
+  doctorId: string;
+  patientId: string;
+  medicineName: string;
+  dosage: string;
+  instructions: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PrescriptionsResponse = {
+  success: boolean;
+  data: TelemedicinePrescription[];
+  message?: string;
+};
+
+export type PrescriptionResponse = {
+  success: boolean;
+  data: TelemedicinePrescription;
+  message?: string;
+};
+
+export async function getPrescriptionsByAppointmentId(
+  appointmentId: string
+): Promise<PrescriptionsResponse> {
+  const response = await fetch(
+    `${TELEMEDICINE_API}/prescriptions/${appointmentId}`
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch prescriptions");
+  }
+
+  return response.json();
+}
+
+export async function createPrescription(payload: {
+  appointmentId: string;
+  doctorId: string;
+  patientId: string;
+  medicineName: string;
+  dosage: string;
+  instructions: string;
+}): Promise<PrescriptionResponse> {
+  const response = await fetch(`${TELEMEDICINE_API}/prescriptions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to save prescription");
+  }
+
+  return response.json();
+}

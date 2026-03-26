@@ -1,61 +1,114 @@
-import { useState } from "react";
-
-type ChatMessage = {
-  id: number;
-  sender: string;
-  text: string;
-  time: string;
-};
+import { useEffect, useState } from "react";
+import {
+  getMessagesByAppointmentId,
+  sendTelemedicineMessage,
+} from "../../services/telemedicineApi";
+import type { TelemedicineMessage } from "../../services/telemedicineApi";
 
 type ChatPanelProps = {
   role: "doctor" | "patient";
+  appointmentId: string;
 };
 
-export default function ChatPanel({ role }: ChatPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 1,
-      sender: "System",
-      text: "Consultation chat started.",
-      time: new Date().toLocaleTimeString(),
-    },
-  ]);
-
+export default function ChatPanel({
+  role,
+  appointmentId,
+}: ChatPanelProps) {
+  const [messages, setMessages] = useState<TelemedicineMessage[]>([]);
   const [messageInput, setMessageInput] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
-  function handleSendMessage() {
+  useEffect(() => {
+    async function loadMessages() {
+      try {
+        const response = await getMessagesByAppointmentId(appointmentId);
+        setMessages(response.data || []);
+      } catch (error) {
+        console.error("Failed to load messages:", error);
+        setMessages([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (appointmentId) {
+      loadMessages();
+    } else {
+      setLoading(false);
+    }
+  }, [appointmentId]);
+
+  async function handleSendMessage() {
     if (!messageInput.trim()) return;
 
-    const newMessage: ChatMessage = {
-      id: Date.now(),
-      sender: role === "doctor" ? "Doctor" : "Patient",
-      text: messageInput,
-      time: new Date().toLocaleTimeString(),
-    };
+    try {
+      setSending(true);
 
-    setMessages((prev) => [...prev, newMessage]);
-    setMessageInput("");
+      const response = await sendTelemedicineMessage({
+        appointmentId,
+        senderRole: role,
+        senderName: role === "doctor" ? "Doctor" : "Patient",
+        message: messageInput.trim(),
+      });
+
+      setMessages((prev) => [...prev, response.data]);
+      setMessageInput("");
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      alert("Failed to send message");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      handleSendMessage();
+    }
   }
 
   return (
-    <div className="rounded-2xl bg-white shadow-lg p-4 md:p-6">
-      <h2 className="text-xl font-bold text-slate-800 mb-4">Chat Panel</h2>
+    <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
+      <h2 className="mb-4 text-xl font-bold text-slate-800">Chat Panel</h2>
 
-      <div className="h-72 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className="rounded-lg bg-white border border-slate-200 p-3"
-          >
-            <div className="flex items-center justify-between mb-1">
+      <div className="h-72 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+        {loading ? (
+          <p className="text-sm text-slate-500">Loading messages...</p>
+        ) : messages.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="mb-1 flex items-center justify-between">
               <span className="text-sm font-semibold text-slate-700">
-                {message.sender}
+                System
               </span>
-              <span className="text-xs text-slate-500">{message.time}</span>
+              <span className="text-xs text-slate-500">
+                {new Date().toLocaleTimeString()}
+              </span>
             </div>
-            <p className="text-sm text-slate-600">{message.text}</p>
+            <p className="text-sm text-slate-600">
+              Consultation chat started.
+            </p>
           </div>
-        ))}
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message._id}
+              className="rounded-lg border border-slate-200 bg-white p-3"
+            >
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-700">
+                  {message.senderName}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {message.createdAt
+                    ? new Date(message.createdAt).toLocaleTimeString()
+                    : ""}
+                </span>
+              </div>
+              <p className="text-sm text-slate-600">{message.message}</p>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="mt-4 flex gap-2">
@@ -63,15 +116,17 @@ export default function ChatPanel({ role }: ChatPanelProps) {
           type="text"
           value={messageInput}
           onChange={(e) => setMessageInput(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           className="flex-1 rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-blue-500"
         />
 
         <button
           onClick={handleSendMessage}
-          className="rounded-xl bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700"
+          disabled={sending || !messageInput.trim()}
+          className="rounded-xl bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Send
+          {sending ? "Sending..." : "Send"}
         </button>
       </div>
     </div>

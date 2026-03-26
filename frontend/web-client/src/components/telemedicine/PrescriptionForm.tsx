@@ -1,38 +1,64 @@
 import { useState } from "react";
+import { createPrescription } from "../../services/telemedicineApi";
 
 type PrescriptionFormProps = {
   role: "doctor" | "patient";
+  appointmentId: string;
+  doctorId: string;
+  patientId: string;
 };
 
 export default function PrescriptionForm({
   role,
+  appointmentId,
+  doctorId,
+  patientId,
 }: PrescriptionFormProps) {
   const [medicineName, setMedicineName] = useState("");
   const [dosage, setDosage] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState("");
 
-  function handleSavePrescription() {
+  async function handleSavePrescription() {
     if (!medicineName.trim() || !dosage.trim() || !instructions.trim()) {
       alert("Please fill all prescription fields");
       return;
     }
 
-    setSavedMessage("Prescription saved successfully");
+    try {
+      setSaving(true);
 
-    setTimeout(() => {
-      setSavedMessage("");
-    }, 2000);
+      await createPrescription({
+        appointmentId,
+        doctorId,
+        patientId,
+        medicineName: medicineName.trim(),
+        dosage: dosage.trim(),
+        instructions: instructions.trim(),
+      });
 
-    setMedicineName("");
-    setDosage("");
-    setInstructions("");
+      setSavedMessage("Prescription saved successfully");
+
+      setMedicineName("");
+      setDosage("");
+      setInstructions("");
+
+      setTimeout(() => {
+        setSavedMessage("");
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to save prescription:", error);
+      alert("Failed to save prescription");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (role !== "doctor") {
     return (
-      <div className="rounded-2xl bg-white shadow-lg p-4 md:p-6">
-        <h2 className="text-xl font-bold text-slate-800 mb-4">
+      <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
+        <h2 className="mb-4 text-xl font-bold text-slate-800">
           Prescription
         </h2>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -45,8 +71,8 @@ export default function PrescriptionForm({
   }
 
   return (
-    <div className="rounded-2xl bg-white shadow-lg p-4 md:p-6">
-      <h2 className="text-xl font-bold text-slate-800 mb-4">
+    <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
+      <h2 className="mb-4 text-xl font-bold text-slate-800">
         Prescription Form
       </h2>
 
@@ -91,9 +117,10 @@ export default function PrescriptionForm({
 
         <button
           onClick={handleSavePrescription}
-          className="rounded-xl bg-purple-600 px-4 py-2 text-white font-medium hover:bg-purple-700"
+          disabled={saving}
+          className="rounded-xl bg-purple-600 px-4 py-2 font-medium text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Save Prescription
+          {saving ? "Saving..." : "Save Prescription"}
         </button>
 
         {savedMessage && (
