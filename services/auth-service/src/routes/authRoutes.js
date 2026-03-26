@@ -39,4 +39,11 @@ router.get("/patient/dashboard", authMiddleware, roleMiddleware("patient"), (req
   });
 });
 
+router.get("/admin/dashboard", authMiddleware, roleMiddleware("admin"), (req, res) => {
+  res.status(200).json({
+    message: "Welcome Admin",
+    user: req.fullUser
+  });
+});
+
 module.exports = router;

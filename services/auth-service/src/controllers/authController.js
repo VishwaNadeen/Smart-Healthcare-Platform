@@ -51,13 +51,13 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-    const result = await loginUser({ email, password, role });
+    const result = await loginUser({ email, password });
 
     res.status(200).json({
       message: "Login successful",
@@ -101,6 +101,10 @@ const requestLoginOtpController = async (req, res) => {
       return res.status(400).json({ message: "Identifier is required" });
     }
 
+    if (role && !["doctor", "patient", "admin"].includes(role)) {
+      return res.status(400).json({ message: "Role must be doctor, patient or admin" });
+    }
+
     const result = await requestLoginOtp({ identifier, role });
 
     res.status(200).json({
@@ -118,6 +122,10 @@ const verifyLoginOtpController = async (req, res) => {
 
     if (!identifier || !otp) {
       return res.status(400).json({ message: "Identifier and OTP are required" });
+    }
+
+    if (role && !["doctor", "patient", "admin"].includes(role)) {
+      return res.status(400).json({ message: "Role must be doctor, patient or admin" });
     }
 
     const result = await verifyLoginOtp({ identifier, otp, role });
