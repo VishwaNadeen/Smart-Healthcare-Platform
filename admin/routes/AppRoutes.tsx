@@ -1,52 +1,65 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import AdminLayout from "../components/layout/AdminLayout";
+import RequireAdminAuth from "../src/components/auth/RequireAdminAuth";
 import AdminDashboard from "../pages/dashboard/AdminDashboard";
 import AdminSessions from "../pages/sessions/AdminSessions";
 import AdminPrescriptions from "../pages/prescriptions/AdminPrescriptions";
 import AdminFiles from "../pages/files/AdminFiles";
 import AdminUsers from "../pages/users/AdminUsers";
+import AdminLogin from "../pages/auth/AdminLogin";
 
 export default function AppRoutes() {
   return (
     <Routes>
+      <Route path="/login" element={<AdminLogin />} />
       <Route
         path="/"
         element={
-          <AdminLayout>
-            <AdminDashboard />
-          </AdminLayout>
+          <RequireAdminAuth>
+            <AdminLayout>
+              <AdminDashboard />
+            </AdminLayout>
+          </RequireAdminAuth>
         }
       />
       <Route
         path="/sessions"
         element={
-          <AdminLayout>
-            <AdminSessions />
-          </AdminLayout>
+          <RequireAdminAuth>
+            <AdminLayout>
+              <AdminSessions />
+            </AdminLayout>
+          </RequireAdminAuth>
         }
       />
       <Route
         path="/prescriptions"
         element={
-          <AdminLayout>
-            <AdminPrescriptions />
-          </AdminLayout>
+          <RequireAdminAuth>
+            <AdminLayout>
+              <AdminPrescriptions />
+            </AdminLayout>
+          </RequireAdminAuth>
         }
       />
       <Route
         path="/files"
         element={
-          <AdminLayout>
-            <AdminFiles />
-          </AdminLayout>
+          <RequireAdminAuth>
+            <AdminLayout>
+              <AdminFiles />
+            </AdminLayout>
+          </RequireAdminAuth>
         }
       />
       <Route
         path="/users"
         element={
-          <AdminLayout>
-            <AdminUsers />
-          </AdminLayout>
+          <RequireAdminAuth>
+            <AdminLayout>
+              <AdminUsers />
+            </AdminLayout>
+          </RequireAdminAuth>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
