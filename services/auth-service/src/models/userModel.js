@@ -1,0 +1,65 @@
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema(
+  {
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+    email: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+    role: {
+      type: String,
+      enum: ["patient", "doctor"],
+      required: true,
+    },
+    tokens: [
+      {
+        token: {
+          type: String,
+          required: true
+        }
+      }
+    ],
+    otpLogin: {
+      codeHash: {
+        type: String,
+        default: ""
+      },
+      expiresAt: {
+        type: Date
+      },
+      attempts: {
+        type: Number,
+        default: 0
+      }
+    },
+    otpReset: {
+      codeHash: {
+        type: String,
+        default: ""
+      },
+      expiresAt: {
+        type: Date
+      },
+      attempts: {
+        type: Number,
+        default: 0
+      }
+    }
+  },
+  {
+    timestamps: true
+  }
+);
+
+module.exports = mongoose.model("User", userSchema);
