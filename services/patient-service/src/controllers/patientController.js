@@ -1,18 +1,133 @@
-const Patient = require("../models/Patient");
+const util = require("util");
+const Patient = require("../models/patient");
+const { registerPatientAuth, deleteAuthAccount } = require("../services/authService");
+
+const buildPatientPayload = (payload = {}) => {
+  const {
+    firstName,
+    lastName,
+    email,
+    countryCode,
+    phone,
+    birthday,
+    gender,
+    address,
+    country,
+  } = payload;
+
+  return {
+    firstName,
+    lastName,
+    email,
+    countryCode,
+    phone,
+    birthday,
+    gender,
+    address,
+    country,
+  };
+};
+
+const extractErrorMessage = (error) => {
+  if (typeof error === "string") {
+    return error || "Unknown error";
+  }
+
+  if (!error || typeof error !== "object") {
+    return "Unknown error";
+  }
+
+  return (
+    error.response?.data?.message ||
+    error.response?.data?.error ||
+    error.message ||
+    "Unknown error"
+  );
+};
+
+const findAuthenticatedPatient = async (req) => {
+  const email = req.authUser?.email;
+
+  if (!email) {
+    const error = new Error("Authenticated user email not found");
+    error.status = 401;
+    throw error;
+  }
+
+  const patient = await Patient.findOne({ email });
+
+  if (!patient) {
+    const error = new Error("Patient not found");
+    error.status = 404;
+    throw error;
+  }
+
+  return patient;
+};
 
 // Create patient
 const createPatient = async (req, res) => {
   try {
-    const patient = await Patient.create(req.body);
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      countryCode,
+      phone,
+      birthday,
+      gender,
+      address,
+      country,
+    } = req.body;
+
+    // check existing patient in patient DB
+    const existingPatient = await Patient.findOne({ email });
+    if (existingPatient) {
+      return res.status(400).json({
+        message: "Patient already exists",
+      });
+    }
+
+    // 1. create auth user through auth service
+    await registerPatientAuth({
+      firstName,
+      lastName,
+      email,
+      password,
+    });
+
+    // 2. save patient in patient DB
+    const patient = await Patient.create(
+      buildPatientPayload({
+        firstName,
+        lastName,
+        email,
+        countryCode,
+        phone,
+        birthday,
+        gender,
+        address,
+        country,
+      })
+    );
 
     res.status(201).json({
       message: "Patient created successfully",
       patient,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("createPatient failed:", {
+      rawError: util.inspect(error, { depth: 5 }),
+      errorType: typeof error,
+      message: error.message,
+      responseStatus: error.response?.status,
+      responseData: error.response?.data,
+    });
+
+    res.status(error.response?.status || 500).json({
       message: "Failed to create patient",
-      error: error.message,
+      error: extractErrorMessage(error),
     });
   }
 };
@@ -49,50 +164,56 @@ const getPatientById = async (req, res) => {
   }
 };
 
-// Update patient
-const updatePatient = async (req, res) => {
+// Get current patient
+const getCurrentPatient = async (req, res) => {
   try {
-    const patient = await Patient.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
+    const patient = await findAuthenticatedPatient(req);
 
-    if (!patient) {
-      return res.status(404).json({ message: "Patient not found" });
-    }
+    res.status(200).json(patient);
+  } catch (error) {
+    res.status(error.status || 500).json({
+      message: "Failed to fetch patient profile",
+      error: error.message,
+    });
+  }
+};
+
+// Update current patient
+const updateCurrentPatient = async (req, res) => {
+  try {
+    const currentPatient = await findAuthenticatedPatient(req);
+
+    const patient = await Patient.findByIdAndUpdate(currentPatient._id, buildPatientPayload(req.body), {
+      new: true,
+      runValidators: true,
+    });
 
     res.status(200).json({
       message: "Patient updated successfully",
       patient,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(error.status || 500).json({
       message: "Failed to update patient",
       error: error.message,
     });
   }
 };
 
-// Delete patient
-const deletePatient = async (req, res) => {
+// Delete current patient
+const deleteCurrentPatient = async (req, res) => {
   try {
-    const patient = await Patient.findByIdAndDelete(req.params.id);
-
-    if (!patient) {
-      return res.status(404).json({ message: "Patient not found" });
-    }
+    const currentPatient = await findAuthenticatedPatient(req);
+    await deleteAuthAccount(req.token);
+    await Patient.findByIdAndDelete(currentPatient._id);
 
     res.status(200).json({
-      message: "Patient deleted successfully",
+      message: "Patient account deleted successfully",
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(error.response?.status || error.status || 500).json({
       message: "Failed to delete patient",
-      error: error.message,
+      error: extractErrorMessage(error),
     });
   }
 };
@@ -100,7 +221,8 @@ const deletePatient = async (req, res) => {
 module.exports = {
   createPatient,
   getAllPatients,
+  getCurrentPatient,
   getPatientById,
-  updatePatient,
-  deletePatient,
+  updateCurrentPatient,
+  deleteCurrentPatient,
 };

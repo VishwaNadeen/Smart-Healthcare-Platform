@@ -1,0 +1,258 @@
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const User = require("../models/userModel");
+
+const OTP_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES || 10);
+const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
+
+const generateToken = (user) => {
+  return jwt.sign(
+    {
+      userId: user._id,
+      username: user.username,
+      role: user.role
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || "1d"
+    }
+  );
+};
+
+const generateOtp = () => String(crypto.randomInt(100000, 1000000));
+
+const hashOtp = (otp) => {
+  const secret = process.env.OTP_SECRET || process.env.JWT_SECRET || "otp_secret";
+  return crypto.createHmac("sha256", secret).update(otp).digest("hex");
+};
+
+const setOtp = (user, field, otp) => {
+  const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
+  user[field] = {
+    codeHash: hashOtp(otp),
+    expiresAt,
+    attempts: 0
+  };
+};
+
+const clearOtp = (user, field) => {
+  user[field] = {
+    codeHash: "",
+    expiresAt: undefined,
+    attempts: 0
+  };
+};
+
+const verifyOtp = (user, field, otp) => {
+  const data = user[field];
+
+  if (!data || !data.codeHash || !data.expiresAt) {
+    throw new Error("OTP not requested");
+  }
+
+  if (data.expiresAt.getTime() < Date.now()) {
+    throw new Error("OTP expired");
+  }
+
+  if (data.attempts >= OTP_MAX_ATTEMPTS) {
+    throw new Error("OTP attempts exceeded");
+  }
+
+  const isMatch = hashOtp(otp) === data.codeHash;
+  if (!isMatch) {
+    data.attempts += 1;
+  }
+
+  return isMatch;
+};
+
+const deliverOtp = async ({ user, otp, purpose }) => {
+  console.log(`[OTP:${purpose}] user=${user.username} otp=${otp}`);
+};
+
+const registerUser = async ({ username, email, password, role }) => {
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const existingUser = await User.findOne({
+    $or: [{ email: normalizedEmail }, { username }]
+  });
+
+  if (existingUser) {
+    throw new Error("User already exists with this email or username");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const user = await User.create({
+    username,
+    email: normalizedEmail,
+    password: hashedPassword,
+    role
+  });
+
+  return user;
+};
+
+const loginUser = async ({ email, password, role }) => {
+  const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+  if (!user) {
+    throw new Error("Invalid email or password");
+  }
+
+  const isPasswordMatch = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordMatch) {
+    throw new Error("Invalid email or password");
+  }
+
+  if (role && user.role !== role) {
+    throw new Error(`This account is not registered as ${role}`);
+  }
+
+  const token = generateToken(user);
+  user.tokens.push({ token });
+  await user.save();
+
+  return {
+    user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role
+    },
+    token
+  };
+};
+
+const logoutUser = async (userId, token) => {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  user.tokens = user.tokens.filter((item) => item.token !== token);
+  await user.save();
+};
+
+const deleteUserAccount = async (userId) => {
+  const user = await User.findByIdAndDelete(userId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+};
+
+const requestLoginOtp = async ({ identifier, role }) => {
+  const user = await User.findOne({
+    $or: [{ username: identifier }, { email: identifier }]
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (role && user.role !== role) {
+    throw new Error(`This account is not registered as ${role}`);
+  }
+
+  const otp = generateOtp();
+  setOtp(user, "otpLogin", otp);
+  await user.save();
+  await deliverOtp({ user, otp, purpose: "login" });
+
+  return {
+    otp: process.env.NODE_ENV === "production" ? undefined : otp,
+    expiresInMinutes: OTP_TTL_MINUTES
+  };
+};
+
+const verifyLoginOtp = async ({ identifier, otp, role }) => {
+  const user = await User.findOne({
+    $or: [{ username: identifier }, { email: identifier }]
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (role && user.role !== role) {
+    throw new Error(`This account is not registered as ${role}`);
+  }
+
+  const isValid = verifyOtp(user, "otpLogin", otp);
+  if (!isValid) {
+    await user.save();
+    throw new Error("Invalid OTP");
+  }
+
+  clearOtp(user, "otpLogin");
+
+  const token = generateToken(user);
+  user.tokens.push({ token });
+  await user.save();
+
+  return {
+    user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role
+    },
+    token
+  };
+};
+
+const requestPasswordResetOtp = async ({ identifier }) => {
+  const user = await User.findOne({
+    $or: [{ username: identifier }, { email: identifier }]
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const otp = generateOtp();
+  setOtp(user, "otpReset", otp);
+  await user.save();
+  await deliverOtp({ user, otp, purpose: "reset" });
+
+  return {
+    otp: process.env.NODE_ENV === "production" ? undefined : otp,
+    expiresInMinutes: OTP_TTL_MINUTES
+  };
+};
+
+const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
+  const user = await User.findOne({
+    $or: [{ username: identifier }, { email: identifier }]
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const isValid = verifyOtp(user, "otpReset", otp);
+  if (!isValid) {
+    await user.save();
+    throw new Error("Invalid OTP");
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  user.password = hashedPassword;
+  clearOtp(user, "otpReset");
+  await user.save();
+};
+
+module.exports = {
+  registerUser,
+  loginUser,
+  logoutUser,
+  deleteUserAccount,
+  requestLoginOtp,
+  verifyLoginOtp,
+  requestPasswordResetOtp,
+  resetPasswordWithOtp
+};
