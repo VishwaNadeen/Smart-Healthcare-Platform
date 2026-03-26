@@ -2,6 +2,10 @@ import { Routes, Route } from "react-router-dom";
 import HomePage from "../pages/home/homePage";
 import MainLayout from "../layouts/mainLayout";
 import FullScreenLayout from "../layouts/fullScreenLayout";
+import AuthRoute from "./authRoute";
+import LoginPage from "../pages/auth/LoginPage";
+import RegisterPage from "../pages/auth/RegisterPage";
+import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage";
 
 import Consultation from "../pages/telemedicine/consultation";
 import DoctorSessions from "../pages/telemedicine/doctorsessions";
@@ -16,6 +20,12 @@ import Statistics from "../pages/telemedicine/statistics";
 export default function AppRoutes() {
   return (
     <Routes>
+      <Route element={<AuthRoute />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      </Route>
+
       <Route
         path="/"
         element={
