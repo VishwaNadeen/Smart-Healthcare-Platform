@@ -5,6 +5,7 @@ const {
   register,
   login,
   logout,
+  deleteMe,
   me,
   requestLoginOtpController,
   verifyLoginOtpController,
@@ -22,6 +23,7 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.post("/logout", authMiddleware, logout);
 router.get("/me", authMiddleware, me);
+router.delete("/me", authMiddleware, deleteMe);
 
 router.get("/doctor/dashboard", authMiddleware, roleMiddleware("doctor"), (req, res) => {
   res.status(200).json({
