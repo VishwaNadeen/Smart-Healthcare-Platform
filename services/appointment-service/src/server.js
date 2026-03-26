@@ -1,30 +1,17 @@
-const express = require("express");
-const dotenv = require("dotenv");
-const cors = require("cors");
-const connectDB = require("./config/db");
-const patientRoutes = require("./routes/appointmentRoutes");
+// services/appointment-service/src/server.js
 
+const dotenv = require("dotenv");
+const connectDB = require("./config/db");
+const app = require("./app");
+
+// Load environment variables
 dotenv.config();
 
-const app = express();
-
-// connect database
+// Connect to MongoDB
 connectDB();
 
-// middleware
-app.use(cors());
-app.use(express.json());
-
-// test route
-app.get("/", (req, res) => {
-  res.send("Patient Service is running");
-});
-
-// patient routes
-app.use("/api/patients", patientRoutes);
-
+// Start server
 const PORT = process.env.PORT || 5002;
-
 app.listen(PORT, () => {
   console.log(`Patient Service running on port ${PORT}`);
 });
