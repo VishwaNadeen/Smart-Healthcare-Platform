@@ -1,4 +1,4 @@
-const TELEMEDICINE_API = "http://localhost:5007/api/telemedicine";
+import { TELEMEDICINE_API_URL } from "../config/api";
 
 export type TelemedicineSession = {
   _id: string;
@@ -19,7 +19,7 @@ export async function getSessionByAppointmentId(
   appointmentId: string
 ): Promise<TelemedicineSession> {
   const response = await fetch(
-    `${TELEMEDICINE_API}/appointment/${appointmentId}`
+    `${TELEMEDICINE_API_URL}/appointment/${appointmentId}`
   );
 
   if (!response.ok) {
@@ -32,7 +32,7 @@ export async function getSessionByAppointmentId(
 export async function getSessionsByDoctorId(
   doctorId: string
 ): Promise<TelemedicineSession[]> {
-  const response = await fetch(`${TELEMEDICINE_API}/doctor/${doctorId}`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/doctor/${doctorId}`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch doctor sessions");
@@ -44,7 +44,7 @@ export async function getSessionsByDoctorId(
 export async function getSessionsByPatientId(
   patientId: string
 ): Promise<TelemedicineSession[]> {
-  const response = await fetch(`${TELEMEDICINE_API}/patient/${patientId}`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/patient/${patientId}`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch patient sessions");
@@ -60,7 +60,7 @@ export async function createSession(data: {
   scheduledDate: string;
   scheduledTime: string;
 }): Promise<{ message: string; session: TelemedicineSession }> {
-  const response = await fetch(TELEMEDICINE_API, {
+  const response = await fetch(TELEMEDICINE_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

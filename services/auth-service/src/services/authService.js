@@ -5,6 +5,9 @@ const User = require("../models/userModel");
 
 const OTP_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES || 10);
 const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -94,7 +97,36 @@ const registerUser = async ({ username, email, password, role }) => {
   return user;
 };
 
-const loginUser = async ({ email, password, role }) => {
+const ensureAdminUser = async () => {
+  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    return null;
+  }
+
+  const normalizedEmail = ADMIN_EMAIL.toLowerCase().trim();
+  const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, 10);
+
+  const adminUser = await User.findOneAndUpdate(
+    { email: normalizedEmail },
+    {
+      $set: {
+        username: ADMIN_USERNAME,
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: "admin",
+      },
+    },
+    {
+      returnDocument: "after",
+      upsert: true,
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    }
+  );
+
+  return adminUser;
+};
+
+const loginUser = async ({ email, password }) => {
   const user = await User.findOne({ email: email.toLowerCase().trim() });
 
   if (!user) {
@@ -107,21 +139,15 @@ const loginUser = async ({ email, password, role }) => {
     throw new Error("Invalid email or password");
   }
 
-  if (role && user.role !== role) {
-    throw new Error(`This account is not registered as ${role}`);
-  }
-
   const token = generateToken(user);
   user.tokens.push({ token });
   await user.save();
 
   return {
-    user: {
-      id: user._id,
-      username: user.username,
-      email: user.email,
-      role: user.role
-    },
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
     token
   };
 };
@@ -249,6 +275,7 @@ const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
 module.exports = {
   registerUser,
   loginUser,
+  ensureAdminUser,
   logoutUser,
   deleteUserAccount,
   requestLoginOtp,
