@@ -56,6 +56,39 @@ const getAllSessions = async (req, res) => {
   }
 };
 
+const getSessionStats = async (_req, res) => {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+
+    const [
+      totalSessions,
+      activeSessions,
+      completedSessions,
+      cancelledSessions,
+      todaySessions,
+    ] = await Promise.all([
+      TelemedicineSession.countDocuments(),
+      TelemedicineSession.countDocuments({ status: "active" }),
+      TelemedicineSession.countDocuments({ status: "completed" }),
+      TelemedicineSession.countDocuments({ status: "cancelled" }),
+      TelemedicineSession.countDocuments({ scheduledDate: today }),
+    ]);
+
+    res.status(200).json({
+      totalSessions,
+      activeSessions,
+      completedSessions,
+      cancelledSessions,
+      todaySessions,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch telemedicine statistics",
+      error: error.message,
+    });
+  }
+};
+
 const getSessionById = async (req, res) => {
   try {
     const session = await TelemedicineSession.findById(req.params.id);
@@ -193,6 +226,7 @@ const updateSessionNotes = async (req, res) => {
 module.exports = {
   createSession,
   getAllSessions,
+  getSessionStats,
   getSessionById,
   getSessionByAppointmentId,
   getSessionsByDoctorId,

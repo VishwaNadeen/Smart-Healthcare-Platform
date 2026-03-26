@@ -272,6 +272,22 @@ const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
   await user.save();
 };
 
+const getUserStats = async () => {
+  const [totalUsers, doctorCount, patientCount, adminCount] = await Promise.all([
+    User.countDocuments(),
+    User.countDocuments({ role: "doctor" }),
+    User.countDocuments({ role: "patient" }),
+    User.countDocuments({ role: "admin" }),
+  ]);
+
+  return {
+    totalUsers,
+    doctorCount,
+    patientCount,
+    adminCount,
+  };
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -281,5 +297,6 @@ module.exports = {
   requestLoginOtp,
   verifyLoginOtp,
   requestPasswordResetOtp,
-  resetPasswordWithOtp
+  resetPasswordWithOtp,
+  getUserStats,
 };

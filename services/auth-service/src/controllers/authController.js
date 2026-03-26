@@ -6,7 +6,8 @@ const {
   requestLoginOtp,
   verifyLoginOtp,
   requestPasswordResetOtp,
-  resetPasswordWithOtp
+  resetPasswordWithOtp,
+  getUserStats,
 } = require("../services/authService");
 
 const serializeUser = (user) => ({
@@ -181,12 +182,29 @@ const me = async (req, res) => {
   });
 };
 
+const stats = async (_req, res) => {
+  try {
+    const data = await getUserStats();
+
+    res.status(200).json({
+      message: "User statistics fetched successfully",
+      ...data,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch user statistics",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
   logout,
   deleteMe,
   me,
+  stats,
   requestLoginOtpController,
   verifyLoginOtpController,
   forgotPassword,

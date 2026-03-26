@@ -7,6 +7,7 @@ const {
   logout,
   deleteMe,
   me,
+  stats,
   requestLoginOtpController,
   verifyLoginOtpController,
   forgotPassword,
@@ -21,6 +22,7 @@ router.post("/login-otp/request", requestLoginOtpController);
 router.post("/login-otp/verify", verifyLoginOtpController);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
+router.get("/stats", stats);
 router.post("/logout", authMiddleware, logout);
 router.get("/me", authMiddleware, me);
 router.delete("/me", authMiddleware, deleteMe);

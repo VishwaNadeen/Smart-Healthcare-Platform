@@ -1,11 +1,17 @@
-import { useState } from "react";
-import { createPrescription } from "../../services/telemedicineApi";
+import { useEffect, useState } from "react";
+import {
+  createPrescription,
+  getPrescriptionsByAppointmentId,
+  type TelemedicinePrescription,
+} from "../../services/telemedicineApi";
+import type { TelemedicineActorRole } from "../../utils/telemedicineAuth";
 
 type PrescriptionFormProps = {
-  role: "doctor" | "patient";
+  role: TelemedicineActorRole;
   appointmentId: string;
   doctorId: string;
   patientId: string;
+  readOnly?: boolean;
 };
 
 export default function PrescriptionForm({
@@ -13,12 +19,38 @@ export default function PrescriptionForm({
   appointmentId,
   doctorId,
   patientId,
+  readOnly = false,
 }: PrescriptionFormProps) {
   const [medicineName, setMedicineName] = useState("");
   const [dosage, setDosage] = useState("");
   const [instructions, setInstructions] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState("");
+  const [prescriptions, setPrescriptions] = useState<TelemedicinePrescription[]>(
+    []
+  );
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadPrescriptions() {
+      try {
+        setLoading(true);
+        const response = await getPrescriptionsByAppointmentId(appointmentId);
+        setPrescriptions(response.data || []);
+      } catch (error) {
+        console.error("Failed to load prescriptions:", error);
+        setPrescriptions([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (appointmentId) {
+      loadPrescriptions();
+    } else {
+      setLoading(false);
+    }
+  }, [appointmentId]);
 
   async function handleSavePrescription() {
     if (!medicineName.trim() || !dosage.trim() || !instructions.trim()) {
@@ -29,7 +61,7 @@ export default function PrescriptionForm({
     try {
       setSaving(true);
 
-      await createPrescription({
+      const response = await createPrescription({
         appointmentId,
         doctorId,
         patientId,
@@ -37,6 +69,8 @@ export default function PrescriptionForm({
         dosage: dosage.trim(),
         instructions: instructions.trim(),
       });
+
+      setPrescriptions((prev) => [response.data, ...prev]);
 
       setSavedMessage("Prescription saved successfully");
 
@@ -55,26 +89,54 @@ export default function PrescriptionForm({
     }
   }
 
-  if (role !== "doctor") {
+  const title = readOnly ? "Prescription" : "Prescription Form";
+  const canCreatePrescription = role === "doctor" && !readOnly;
+
+  if (!canCreatePrescription) {
     return (
-      <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
-        <h2 className="mb-4 text-xl font-bold text-slate-800">
-          Prescription
-        </h2>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm text-slate-600">
-            Only doctors can create prescriptions.
-          </p>
-        </div>
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold text-slate-800">{title}</h2>
+
+        {loading ? (
+          <p className="text-sm text-slate-500">Loading prescriptions...</p>
+        ) : prescriptions.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm text-slate-600">
+              No prescription has been shared for this consultation yet.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {prescriptions.map((prescription) => (
+              <div
+                key={prescription._id}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+              >
+                <p className="font-semibold text-slate-800">
+                  {prescription.medicineName}
+                </p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Dosage: {prescription.dosage}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+                  Instructions: {prescription.instructions}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-lg md:p-6">
-      <h2 className="mb-4 text-xl font-bold text-slate-800">
-        Prescription Form
-      </h2>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-slate-800">{title}</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Create a prescription for this patient and review saved items below.
+        </p>
+      </div>
 
       <div className="space-y-4">
         <div>
@@ -127,6 +189,37 @@ export default function PrescriptionForm({
           <p className="text-sm font-medium text-emerald-600">
             {savedMessage}
           </p>
+        )}
+      </div>
+
+      <div className="space-y-3 border-t border-slate-200 pt-4">
+        <h3 className="text-lg font-semibold text-slate-800">
+          Saved Prescriptions
+        </h3>
+
+        {loading ? (
+          <p className="text-sm text-slate-500">Loading prescriptions...</p>
+        ) : prescriptions.length === 0 ? (
+          <p className="text-sm text-slate-500">
+            No prescription has been saved yet.
+          </p>
+        ) : (
+          prescriptions.map((prescription) => (
+            <div
+              key={prescription._id}
+              className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+            >
+              <p className="font-semibold text-slate-800">
+                {prescription.medicineName}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Dosage: {prescription.dosage}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+                Instructions: {prescription.instructions}
+              </p>
+            </div>
+          ))
         )}
       </div>
     </div>

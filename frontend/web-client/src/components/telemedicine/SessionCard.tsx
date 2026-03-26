@@ -2,10 +2,11 @@ import { Link } from "react-router-dom";
 import { canJoinMeeting } from "../../utils/time";
 import type { TelemedicineSession } from "../../services/telemedicineApi";
 import StatusBadge from "./StatusBadge";
+import type { TelemedicineActorRole } from "../../utils/telemedicineAuth";
 
 type SessionCardProps = {
   session: TelemedicineSession;
-  role?: "doctor" | "patient";
+  role?: TelemedicineActorRole;
 };
 
 export default function SessionCard({
@@ -16,6 +17,77 @@ export default function SessionCard({
     session.scheduledDate,
     session.scheduledTime
   );
+  const isDoctor = role === "doctor";
+  const isCompleted = session.status === "completed";
+  const isCancelled = session.status === "cancelled";
+  const isScheduled = session.status === "scheduled";
+  const isActive = session.status === "active";
+
+  function renderPrimaryAction() {
+    if (isCompleted) {
+      return (
+        <Link
+          to={`/session-summary/${session.appointmentId}`}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+        >
+          View Summary
+        </Link>
+      );
+    }
+
+    if (isCancelled) {
+      return (
+        <button
+          disabled
+          className="cursor-not-allowed rounded-lg bg-gray-300 px-4 py-2 text-sm font-medium text-gray-600"
+        >
+          Session Cancelled
+        </button>
+      );
+    }
+
+    if (!isDoctor && isScheduled) {
+      return (
+        <Link
+          to={`/waiting-room/${session.appointmentId}`}
+          className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-600"
+        >
+          Open Waiting Room
+        </Link>
+      );
+    }
+
+    if (isDoctor && isScheduled) {
+      return (
+        <Link
+          to={`/consultation/${session.appointmentId}`}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+        >
+          Open Consultation Room
+        </Link>
+      );
+    }
+
+    if (isActive || canJoin) {
+      return (
+        <Link
+          to={`/consultation/${session.appointmentId}`}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+        >
+          Join Consultation
+        </Link>
+      );
+    }
+
+    return (
+      <button
+        disabled
+        className="cursor-not-allowed rounded-lg bg-gray-300 px-4 py-2 text-sm font-medium text-gray-600"
+      >
+        Consultation not available yet
+      </button>
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -39,7 +111,7 @@ export default function SessionCard({
           <span className="font-semibold">Time:</span> {session.scheduledTime}
         </p>
 
-        {role === "doctor" ? (
+        {isDoctor ? (
           <p>
             <span className="font-semibold">Patient ID:</span> {session.patientId}
           </p>
@@ -76,21 +148,7 @@ export default function SessionCard({
           View Details
         </Link>
 
-        {canJoin ? (
-          <Link
-            to={`/consultation/${session.appointmentId}?role=${role}`}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
-          >
-            Join Consultation
-          </Link>
-        ) : (
-          <button
-            disabled
-            className="cursor-not-allowed rounded-lg bg-gray-300 px-4 py-2 text-sm font-medium text-gray-600"
-          >
-            Consultation not available yet
-          </button>
-        )}
+        {renderPrimaryAction()}
 
         <a
           href={session.meetingLink}

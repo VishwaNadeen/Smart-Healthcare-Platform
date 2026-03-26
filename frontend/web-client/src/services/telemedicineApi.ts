@@ -26,6 +26,14 @@ export type SessionResponse = {
   session: TelemedicineSession;
 };
 
+export type TelemedicineStatsResponse = {
+  totalSessions: number;
+  activeSessions: number;
+  completedSessions: number;
+  cancelledSessions: number;
+  todaySessions: number;
+};
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
@@ -38,6 +46,11 @@ async function handleResponse<T>(response: Response): Promise<T> {
 export async function getAllSessions(): Promise<TelemedicineSession[]> {
   const response = await fetch(TELEMEDICINE_API_URL);
   return handleResponse<TelemedicineSession[]>(response);
+}
+
+export async function getTelemedicineStats(): Promise<TelemedicineStatsResponse> {
+  const response = await fetch(`${TELEMEDICINE_API_URL}/stats`);
+  return handleResponse<TelemedicineStatsResponse>(response);
 }
 
 // Get one session by MongoDB _id
@@ -91,34 +104,40 @@ export async function createSession(data: {
   return handleResponse<SessionResponse>(response);
 }
 
-// Update session status by MongoDB _id
+// Update session status by appointmentId
 export async function updateSessionStatus(
-  sessionId: string,
+  appointmentId: string,
   status: TelemedicineStatus
 ): Promise<SessionResponse> {
-  const response = await fetch(`${TELEMEDICINE_API_URL}/${sessionId}/status`, {
+  const response = await fetch(
+    `${TELEMEDICINE_API_URL}/appointment/${appointmentId}/status`,
+    {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ status }),
-  });
+    }
+  );
 
   return handleResponse<SessionResponse>(response);
 }
 
-// Update session notes by MongoDB _id
+// Update session notes by appointmentId
 export async function updateSessionNotes(
-  sessionId: string,
+  appointmentId: string,
   notes: string
 ): Promise<SessionResponse> {
-  const response = await fetch(`${TELEMEDICINE_API_URL}/${sessionId}/notes`, {
+  const response = await fetch(
+    `${TELEMEDICINE_API_URL}/appointment/${appointmentId}/notes`,
+    {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ notes }),
-  });
+    }
+  );
 
   return handleResponse<SessionResponse>(response);
 }
