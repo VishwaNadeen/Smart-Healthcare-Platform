@@ -2,7 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./config/db");
-const patientRoutes = require("./routes/appointmentRoutes");
+const appointmentRoutes = require("./routes/appointmentRoutes");
 
 dotenv.config();
 
@@ -17,14 +17,14 @@ app.use(express.json());
 
 // test route
 app.get("/", (req, res) => {
-  res.send("Patient Service is running");
+  res.send("Appointment Service is running");
 });
 
-// patient routes
-app.use("/api/patients", patientRoutes);
+// appointment routes
+app.use("/api/appointments", appointmentRoutes);
 
 const PORT = process.env.PORT || 5002;
 
 app.listen(PORT, () => {
-  console.log(`Patient Service running on port ${PORT}`);
+  console.log(`Appointment Service running on port ${PORT}`);
 });

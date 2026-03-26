@@ -14,11 +14,11 @@ const generateToken = (user) => {
     {
       userId: user._id,
       username: user.username,
-      role: user.role
+      role: user.role,
     },
     process.env.JWT_SECRET,
     {
-      expiresIn: process.env.JWT_EXPIRES_IN || "1d"
+      expiresIn: process.env.JWT_EXPIRES_IN || "1d",
     }
   );
 };
@@ -35,7 +35,7 @@ const setOtp = (user, field, otp) => {
   user[field] = {
     codeHash: hashOtp(otp),
     expiresAt,
-    attempts: 0
+    attempts: 0,
   };
 };
 
@@ -43,7 +43,7 @@ const clearOtp = (user, field) => {
   user[field] = {
     codeHash: "",
     expiresAt: undefined,
-    attempts: 0
+    attempts: 0,
   };
 };
 
@@ -78,7 +78,7 @@ const registerUser = async ({ username, email, password, role }) => {
   const normalizedEmail = email.toLowerCase().trim();
 
   const existingUser = await User.findOne({
-    $or: [{ email: normalizedEmail }, { username }]
+    $or: [{ email: normalizedEmail }, { username }],
   });
 
   if (existingUser) {
@@ -91,7 +91,7 @@ const registerUser = async ({ username, email, password, role }) => {
     username,
     email: normalizedEmail,
     password: hashedPassword,
-    role
+    role,
   });
 
   return user;
@@ -148,7 +148,7 @@ const loginUser = async ({ email, password }) => {
     username: user.username,
     email: user.email,
     role: user.role,
-    token
+    token,
   };
 };
 
@@ -171,9 +171,23 @@ const deleteUserAccount = async (userId) => {
   }
 };
 
+const deleteUserByEmail = async (email) => {
+  const normalizedEmail = String(email || "").toLowerCase().trim();
+
+  if (!normalizedEmail) {
+    throw new Error("Email is required");
+  }
+
+  const user = await User.findOneAndDelete({ email: normalizedEmail });
+
+  return {
+    deleted: Boolean(user),
+  };
+};
+
 const requestLoginOtp = async ({ identifier, role }) => {
   const user = await User.findOne({
-    $or: [{ username: identifier }, { email: identifier }]
+    $or: [{ username: identifier }, { email: identifier }],
   });
 
   if (!user) {
@@ -191,13 +205,13 @@ const requestLoginOtp = async ({ identifier, role }) => {
 
   return {
     otp: process.env.NODE_ENV === "production" ? undefined : otp,
-    expiresInMinutes: OTP_TTL_MINUTES
+    expiresInMinutes: OTP_TTL_MINUTES,
   };
 };
 
 const verifyLoginOtp = async ({ identifier, otp, role }) => {
   const user = await User.findOne({
-    $or: [{ username: identifier }, { email: identifier }]
+    $or: [{ username: identifier }, { email: identifier }],
   });
 
   if (!user) {
@@ -225,15 +239,15 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
       id: user._id,
       username: user.username,
       email: user.email,
-      role: user.role
+      role: user.role,
     },
-    token
+    token,
   };
 };
 
 const requestPasswordResetOtp = async ({ identifier }) => {
   const user = await User.findOne({
-    $or: [{ username: identifier }, { email: identifier }]
+    $or: [{ username: identifier }, { email: identifier }],
   });
 
   if (!user) {
@@ -247,13 +261,13 @@ const requestPasswordResetOtp = async ({ identifier }) => {
 
   return {
     otp: process.env.NODE_ENV === "production" ? undefined : otp,
-    expiresInMinutes: OTP_TTL_MINUTES
+    expiresInMinutes: OTP_TTL_MINUTES,
   };
 };
 
 const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
   const user = await User.findOne({
-    $or: [{ username: identifier }, { email: identifier }]
+    $or: [{ username: identifier }, { email: identifier }],
   });
 
   if (!user) {
@@ -294,6 +308,7 @@ module.exports = {
   ensureAdminUser,
   logoutUser,
   deleteUserAccount,
+  deleteUserByEmail,
   requestLoginOtp,
   verifyLoginOtp,
   requestPasswordResetOtp,
