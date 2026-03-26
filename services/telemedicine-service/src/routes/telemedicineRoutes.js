@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   createSession,
   getAllSessions,
+  getSessionStats,
   getSessionById,
   getSessionByAppointmentId,
   getSessionsByDoctorId,
@@ -14,6 +15,7 @@ const {
 
 router.post("/", createSession);
 router.get("/", getAllSessions);
+router.get("/stats", getSessionStats);
 
 router.get("/appointment/:appointmentId", getSessionByAppointmentId);
 router.get("/doctor/:doctorId", getSessionsByDoctorId);

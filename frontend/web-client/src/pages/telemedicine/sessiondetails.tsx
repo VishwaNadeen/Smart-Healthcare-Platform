@@ -1,17 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
 import StatusBadge from "../../components/telemedicine/StatusBadge";
 import {
   getSessionByAppointmentId,
   type TelemedicineSession,
   updateSessionStatus,
 } from "../../services/telemedicineApi";
+import {
+  canAccessTelemedicineSession,
+  getStoredTelemedicineAuth,
+} from "../../utils/telemedicineAuth";
 
 export default function SessionDetails() {
   const { appointmentId } = useParams();
   const [session, setSession] = useState<TelemedicineSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const auth = getStoredTelemedicineAuth();
+  const role = auth.actorRole;
+  const isDoctor = role === "doctor";
 
   useEffect(() => {
     async function loadSession() {
@@ -38,12 +46,11 @@ export default function SessionDetails() {
   }, [appointmentId]);
 
   async function handleStartSession() {
-    if (!session) return;
+    if (!session || !isDoctor) return;
 
     try {
-      await updateSessionStatus(session._id, "active");
-      alert("Session started");
-      window.location.reload();
+      const updated = await updateSessionStatus(session.appointmentId, "active");
+      setSession(updated.session);
     } catch (err) {
       console.error("Failed to start session:", err);
       alert("Failed to start session");
@@ -51,16 +58,39 @@ export default function SessionDetails() {
   }
 
   async function handleCancelSession() {
-    if (!session) return;
+    if (!session || !isDoctor) return;
 
     try {
-      await updateSessionStatus(session._id, "cancelled");
-      alert("Session cancelled");
-      window.location.reload();
+      const updated = await updateSessionStatus(
+        session.appointmentId,
+        "cancelled"
+      );
+      setSession(updated.session);
     } catch (err) {
       console.error("Failed to cancel session:", err);
       alert("Failed to cancel session");
     }
+  }
+
+  if (!auth.userId || !role) {
+    return (
+      <TelemedicineAccessNotice
+        title="Session details need login data"
+        description="This page needs a valid login session with both role and user id. Please sign in again."
+        actionLabel="Go to Login"
+      />
+    );
+  }
+
+  if (!loading && session && !canAccessTelemedicineSession(auth, session)) {
+    return (
+      <TelemedicineAccessNotice
+        title="Session access denied"
+        description="This appointment belongs to a different doctor or patient account."
+        actionLabel={isDoctor ? "Doctor Sessions" : "Patient Sessions"}
+        actionTo={isDoctor ? "/doctor-sessions" : "/patient-sessions"}
+      />
+    );
   }
 
   return (
@@ -129,43 +159,57 @@ export default function SessionDetails() {
 
             <div className="mt-6 rounded-2xl border border-gray-200 p-5">
               <h2 className="mb-3 text-lg font-semibold text-gray-800">
-                Notes
+                Consultation Notes
               </h2>
               <p className="text-sm text-gray-600">
                 {session.notes?.trim()
                   ? session.notes
-                  : "No notes added for this session yet."}
+                  : "No notes have been shared for this session yet."}
               </p>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                to={`/waiting-room/${session.appointmentId}`}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
-              >
-                Go to Waiting Room
-              </Link>
+              {session.status === "completed" ? (
+                <Link
+                  to={`/session-summary/${session.appointmentId}`}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                >
+                  View Session Summary
+                </Link>
+              ) : null}
 
-              <Link
-                to={`/consultation/${session.appointmentId}`}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-              >
-                Open Consultation
-              </Link>
+              {session.status !== "completed" && session.status !== "cancelled" ? (
+                <Link
+                  to={
+                    !isDoctor && session.status === "scheduled"
+                      ? `/waiting-room/${session.appointmentId}`
+                      : `/consultation/${session.appointmentId}`
+                  }
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                >
+                  {!isDoctor && session.status === "scheduled"
+                    ? "Open Waiting Room"
+                    : "Open Consultation"}
+                </Link>
+              ) : null}
 
-              <button
-                onClick={handleStartSession}
-                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
-              >
-                Start Session
-              </button>
+              {isDoctor && session.status === "scheduled" ? (
+                <button
+                  onClick={handleStartSession}
+                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-700"
+                >
+                  Start Session
+                </button>
+              ) : null}
 
-              <button
-                onClick={handleCancelSession}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
-              >
-                Cancel Session
-              </button>
+              {isDoctor && session.status === "scheduled" ? (
+                <button
+                  onClick={handleCancelSession}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+                >
+                  Cancel Session
+                </button>
+              ) : null}
             </div>
           </div>
         )}

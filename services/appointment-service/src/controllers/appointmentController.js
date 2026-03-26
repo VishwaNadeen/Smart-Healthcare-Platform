@@ -1,4 +1,5 @@
 const Appointment = require("../models/appointmentModel");
+const mongoose = require("mongoose");
 
 // Create appointment
 const createAppointment = async (req, res) => {
@@ -34,6 +35,12 @@ const getAllAppointments = async (req, res) => {
 // Get appointment by ID
 const getAppointmentById = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        message: "Invalid appointment id. Use the appointment document _id value.",
+      });
+    }
+
     const appointment = await Appointment.findById(req.params.id);
 
     if (!appointment) {

@@ -1,4 +1,4 @@
-const TelemedicineMessage = require("../models/TelemedicineMessage");
+const TelemedicineMessage = require("../models/telemedicineMessage");
 
 exports.getMessagesByAppointmentId = async (req, res) => {
   try {

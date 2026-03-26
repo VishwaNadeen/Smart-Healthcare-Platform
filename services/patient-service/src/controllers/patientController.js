@@ -1,6 +1,10 @@
 const util = require("util");
 const Patient = require("../models/patient");
-const { registerPatientAuth, deleteAuthAccount } = require("../services/authService");
+const {
+  registerPatientAuth,
+  deleteAuthAccount,
+  deleteAuthAccountByEmail,
+} = require("../services/authService");
 
 const buildPatientPayload = (payload = {}) => {
   const {
@@ -67,6 +71,9 @@ const findAuthenticatedPatient = async (req) => {
 
 // Create patient
 const createPatient = async (req, res) => {
+  let authCreated = false;
+  let createdEmail = "";
+
   try {
     const {
       firstName,
@@ -81,8 +88,10 @@ const createPatient = async (req, res) => {
       country,
     } = req.body;
 
+    createdEmail = String(email || "").toLowerCase().trim();
+
     // check existing patient in patient DB
-    const existingPatient = await Patient.findOne({ email });
+    const existingPatient = await Patient.findOne({ email: createdEmail });
     if (existingPatient) {
       return res.status(400).json({
         message: "Patient already exists",
@@ -93,16 +102,18 @@ const createPatient = async (req, res) => {
     await registerPatientAuth({
       firstName,
       lastName,
-      email,
+      email: createdEmail,
       password,
     });
+
+    authCreated = true;
 
     // 2. save patient in patient DB
     const patient = await Patient.create(
       buildPatientPayload({
         firstName,
         lastName,
-        email,
+        email: createdEmail,
         countryCode,
         phone,
         birthday,
@@ -117,6 +128,20 @@ const createPatient = async (req, res) => {
       patient,
     });
   } catch (error) {
+    if (authCreated && createdEmail) {
+      try {
+        await deleteAuthAccountByEmail(createdEmail);
+      } catch (rollbackError) {
+        console.error("Patient create rollback failed:", {
+          email: createdEmail,
+          rawError: util.inspect(rollbackError, { depth: 5 }),
+          message: rollbackError.message,
+          responseStatus: rollbackError.response?.status,
+          responseData: rollbackError.response?.data,
+        });
+      }
+    }
+
     console.error("createPatient failed:", {
       rawError: util.inspect(error, { depth: 5 }),
       errorType: typeof error,
@@ -183,10 +208,14 @@ const updateCurrentPatient = async (req, res) => {
   try {
     const currentPatient = await findAuthenticatedPatient(req);
 
-    const patient = await Patient.findByIdAndUpdate(currentPatient._id, buildPatientPayload(req.body), {
-      new: true,
-      runValidators: true,
-    });
+    const patient = await Patient.findByIdAndUpdate(
+      currentPatient._id,
+      buildPatientPayload(req.body),
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     res.status(200).json({
       message: "Patient updated successfully",

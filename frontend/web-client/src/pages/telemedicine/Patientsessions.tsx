@@ -1,19 +1,28 @@
 import { useEffect, useState } from "react";
 import SessionCard from "../../components/telemedicine/SessionCard";
+import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
 import {
   getSessionsByPatientId,
   type TelemedicineSession,
 } from "../../services/telemedicineApi";
+import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
 export default function PatientSessions() {
   const [sessions, setSessions] = useState<TelemedicineSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const auth = getStoredTelemedicineAuth();
 
-  const patientId = "PAT001";
+  const patientId = auth.userId;
 
   useEffect(() => {
     async function loadSessions() {
+      if (!patientId) {
+        setError("Patient ID not found in stored login data.");
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -31,6 +40,16 @@ export default function PatientSessions() {
     loadSessions();
   }, [patientId]);
 
+  if (!patientId) {
+    return (
+      <TelemedicineAccessNotice
+        title="Patient session access needs a user id"
+        description="Your login session is missing the patient id returned by the backend. Please sign in again."
+        actionLabel="Go to Login"
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
@@ -39,7 +58,7 @@ export default function PatientSessions() {
             Patient Sessions
           </h1>
           <p className="mt-2 text-sm text-gray-600">
-            View all telemedicine sessions assigned to this patient.
+            View all telemedicine sessions assigned to patient {patientId}.
           </p>
         </div>
 
