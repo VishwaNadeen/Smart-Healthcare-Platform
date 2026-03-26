@@ -1,4 +1,4 @@
-const TELEMEDICINE_API = "http://localhost:5007/api/telemedicine";
+import { TELEMEDICINE_API_URL } from "../config/api";
 
 export type TelemedicineStatus =
   | "scheduled"
@@ -36,13 +36,13 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 // Get all sessions
 export async function getAllSessions(): Promise<TelemedicineSession[]> {
-  const response = await fetch(TELEMEDICINE_API);
+  const response = await fetch(TELEMEDICINE_API_URL);
   return handleResponse<TelemedicineSession[]>(response);
 }
 
 // Get one session by MongoDB _id
 export async function getSessionById(id: string): Promise<TelemedicineSession> {
-  const response = await fetch(`${TELEMEDICINE_API}/${id}`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/${id}`);
   return handleResponse<TelemedicineSession>(response);
 }
 
@@ -51,7 +51,7 @@ export async function getSessionByAppointmentId(
   appointmentId: string
 ): Promise<TelemedicineSession> {
   const response = await fetch(
-    `${TELEMEDICINE_API}/appointment/${appointmentId}`
+    `${TELEMEDICINE_API_URL}/appointment/${appointmentId}`
   );
   return handleResponse<TelemedicineSession>(response);
 }
@@ -60,7 +60,7 @@ export async function getSessionByAppointmentId(
 export async function getSessionsByDoctorId(
   doctorId: string
 ): Promise<TelemedicineSession[]> {
-  const response = await fetch(`${TELEMEDICINE_API}/doctor/${doctorId}`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/doctor/${doctorId}`);
   return handleResponse<TelemedicineSession[]>(response);
 }
 
@@ -68,7 +68,7 @@ export async function getSessionsByDoctorId(
 export async function getSessionsByPatientId(
   patientId: string
 ): Promise<TelemedicineSession[]> {
-  const response = await fetch(`${TELEMEDICINE_API}/patient/${patientId}`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/patient/${patientId}`);
   return handleResponse<TelemedicineSession[]>(response);
 }
 
@@ -80,7 +80,7 @@ export async function createSession(data: {
   scheduledDate: string;
   scheduledTime: string;
 }): Promise<SessionResponse> {
-  const response = await fetch(TELEMEDICINE_API, {
+  const response = await fetch(TELEMEDICINE_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -96,7 +96,7 @@ export async function updateSessionStatus(
   sessionId: string,
   status: TelemedicineStatus
 ): Promise<SessionResponse> {
-  const response = await fetch(`${TELEMEDICINE_API}/${sessionId}/status`, {
+  const response = await fetch(`${TELEMEDICINE_API_URL}/${sessionId}/status`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -112,7 +112,7 @@ export async function updateSessionNotes(
   sessionId: string,
   notes: string
 ): Promise<SessionResponse> {
-  const response = await fetch(`${TELEMEDICINE_API}/${sessionId}/notes`, {
+  const response = await fetch(`${TELEMEDICINE_API_URL}/${sessionId}/notes`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -149,7 +149,7 @@ export async function getMessagesByAppointmentId(
   appointmentId: string
 ): Promise<MessagesResponse> {
   const response = await fetch(
-    `${TELEMEDICINE_API}/chat/${appointmentId}`
+    `${TELEMEDICINE_API_URL}/chat/${appointmentId}`
   );
 
   if (!response.ok) {
@@ -165,7 +165,7 @@ export async function sendTelemedicineMessage(payload: {
   senderName: string;
   message: string;
 }): Promise<MessageResponse> {
-  const response = await fetch(`${TELEMEDICINE_API}/chat`, {
+  const response = await fetch(`${TELEMEDICINE_API_URL}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -206,7 +206,7 @@ export type FileResponse = {
 export async function getFilesByAppointmentId(
   appointmentId: string
 ): Promise<FilesResponse> {
-  const response = await fetch(`${TELEMEDICINE_API}/files/${appointmentId}`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/files/${appointmentId}`);
 
   if (!response.ok) {
     throw new Error("Failed to fetch files");
@@ -225,7 +225,7 @@ export async function uploadTelemedicineFile(payload: {
   formData.append("uploadedByRole", payload.uploadedByRole);
   formData.append("file", payload.file);
 
-  const response = await fetch(`${TELEMEDICINE_API}/files`, {
+  const response = await fetch(`${TELEMEDICINE_API_URL}/files`, {
     method: "POST",
     body: formData,
   });
@@ -265,7 +265,7 @@ export async function getPrescriptionsByAppointmentId(
   appointmentId: string
 ): Promise<PrescriptionsResponse> {
   const response = await fetch(
-    `${TELEMEDICINE_API}/prescriptions/${appointmentId}`
+    `${TELEMEDICINE_API_URL}/prescriptions/${appointmentId}`
   );
 
   if (!response.ok) {
@@ -283,7 +283,7 @@ export async function createPrescription(payload: {
   dosage: string;
   instructions: string;
 }): Promise<PrescriptionResponse> {
-  const response = await fetch(`${TELEMEDICINE_API}/prescriptions`, {
+  const response = await fetch(`${TELEMEDICINE_API_URL}/prescriptions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
