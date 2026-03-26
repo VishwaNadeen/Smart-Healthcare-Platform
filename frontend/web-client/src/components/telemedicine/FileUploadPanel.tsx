@@ -3,14 +3,13 @@ import {
   getFilesByAppointmentId,
   uploadTelemedicineFile,
 } from "../../services/telemedicineApi";
+import { TELEMEDICINE_UPLOADS_BASE_URL } from "../../config/api";
 import type { TelemedicineFile } from "../../services/telemedicineApi";
 
 type FileUploadPanelProps = {
   appointmentId: string;
   role: "doctor" | "patient";
 };
-
-const API_BASE = "http://localhost:5007";
 
 export default function FileUploadPanel({
   appointmentId,
@@ -108,7 +107,7 @@ export default function FileUploadPanel({
           files.map((file) => (
             <a
               key={file._id}
-              href={`${API_BASE}${file.filePath}`}
+              href={`${TELEMEDICINE_UPLOADS_BASE_URL}${file.filePath}`}
               target="_blank"
               rel="noreferrer"
               className="block rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-blue-600 hover:underline"
