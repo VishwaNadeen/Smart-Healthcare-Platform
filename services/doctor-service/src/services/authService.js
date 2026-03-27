@@ -14,6 +14,21 @@ const registerDoctorAuth = async ({ fullName, email, password }) => {
   return response.data;
 };
 
+const deleteDoctorAuthByEmail = async (email) => {
+  const headers = {};
+  if (process.env.INTERNAL_SERVICE_SECRET) {
+    headers["x-internal-service-secret"] = process.env.INTERNAL_SERVICE_SECRET;
+  }
+
+  const response = await axios.delete(`${getAuthServiceUrl()}/api/auth/internal/users/by-email`, {
+    data: { email },
+    headers,
+  });
+
+  return response.data;
+};
+
 module.exports = {
   registerDoctorAuth,
+  deleteDoctorAuthByEmail,
 };
