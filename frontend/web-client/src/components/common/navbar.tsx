@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { logoutUser } from "../../services/authApi";
+import {
+  clearTelemedicineAuth,
+  getStoredTelemedicineAuth,
+} from "../../utils/telemedicineAuth";
 
 const navLinks = [
   { name: "Home", path: "/" },
@@ -8,8 +13,60 @@ const navLinks = [
   { name: "Consultation", path: "/consultation" },
 ];
 
+function getProfileImage() {
+  return localStorage.getItem("patientProfileImage") || "";
+}
+
+function getInitials(name?: string, email?: string) {
+  if (name && name.trim()) {
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  }
+
+  if (email && email.trim()) {
+    return email[0].toUpperCase();
+  }
+
+  return "U";
+}
+
 export default function Navbar() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const auth = getStoredTelemedicineAuth();
+
+  const storedPatientName =
+    localStorage.getItem("patientProfileName") ||
+    auth.username ||
+    "";
+
+  const profileImage = getProfileImage();
+  const initials = getInitials(storedPatientName, auth.email ?? undefined);
+
+  async function handleLogout() {
+    setActionError("");
+    setIsSubmitting(true);
+
+    try {
+      if (auth.token) {
+        await logoutUser(auth.token);
+      }
+    } catch (error: unknown) {
+      setActionError(
+        error instanceof Error ? error.message : "Failed to log out cleanly."
+      );
+    } finally {
+      clearTelemedicineAuth();
+      setIsSubmitting(false);
+      setIsOpen(false);
+      navigate("/login", { replace: true });
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-blue-200/40 bg-white/80 backdrop-blur-md shadow-sm">
@@ -49,19 +106,59 @@ export default function Navbar() {
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
-          <Link
-            to="/signup"
-            className="rounded-full border border-blue-200 bg-white px-5 py-2 text-sm font-semibold text-blue-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
-          >
-            Sign Up
-          </Link>
+          {auth.isAuthenticated ? (
+            <>
+              <Link
+                to={auth.role === "patient" ? "/patient/profile" : "/"}
+                className="group flex items-center gap-3 rounded-full px-2 py-1 transition hover:bg-blue-50"
+                title="My Profile"
+              >
+                {profileImage ? (
+                  <img
+                    src={profileImage}
+                    alt="Profile"
+                    className="h-11 w-11 rounded-full object-cover ring-2 ring-blue-200"
+                  />
+                ) : (
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white ring-2 ring-blue-200">
+                    {initials}
+                  </div>
+                )}
 
-          <Link
-            to="/login"
-            className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg"
-          >
-            Login
-          </Link>
+                <div className="hidden lg:block">
+                  <p className="text-sm font-semibold text-slate-800">
+                    {storedPatientName || "My Profile"}
+                  </p>
+                  <p className="text-xs text-slate-500">View profile</p>
+                </div>
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isSubmitting}
+                className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg disabled:opacity-70"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/signup"
+                className="rounded-full border border-blue-200 bg-white px-5 py-2 text-sm font-semibold text-blue-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
+              >
+                Sign Up
+              </Link>
+
+              <Link
+                to="/login"
+                className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg"
+              >
+                Login
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -92,7 +189,7 @@ export default function Navbar() {
 
       <div
         className={`overflow-hidden border-t border-blue-100 bg-white/95 backdrop-blur-md transition-all duration-300 md:hidden ${
-          isOpen ? "max-h-125 opacity-100" : "max-h-0 opacity-0"
+          isOpen ? "max-h-[32rem] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 sm:px-6">
@@ -113,23 +210,67 @@ export default function Navbar() {
             </NavLink>
           ))}
 
-          <div className="mt-2 grid grid-cols-2 gap-3">
-            <Link
-              to="/signup"
-              onClick={() => setIsOpen(false)}
-              className="rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-semibold text-blue-700 transition-all duration-300 hover:bg-blue-50"
-            >
-              Sign Up
-            </Link>
+          {actionError && (
+            <div className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+              {actionError}
+            </div>
+          )}
 
-            <Link
-              to="/login"
-              onClick={() => setIsOpen(false)}
-              className="rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition-all duration-300 hover:bg-blue-700"
-            >
-              Login
-            </Link>
-          </div>
+          {auth.isAuthenticated ? (
+            <div className="mt-2 grid gap-3">
+              <Link
+                to={auth.role === "patient" ? "/patient/profile" : "/"}
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 transition hover:bg-blue-50"
+              >
+                {profileImage ? (
+                  <img
+                    src={profileImage}
+                    alt="Profile"
+                    className="h-12 w-12 rounded-full object-cover ring-2 ring-blue-200"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white ring-2 ring-blue-200">
+                    {initials}
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {storedPatientName || "My Profile"}
+                  </p>
+                  <p className="text-xs text-slate-500">Open profile</p>
+                </div>
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isSubmitting}
+                className="rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition-all duration-300 hover:bg-blue-700 disabled:opacity-70"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <div className="mt-2 grid grid-cols-2 gap-3">
+              <Link
+                to="/signup"
+                onClick={() => setIsOpen(false)}
+                className="rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-semibold text-blue-700 transition-all duration-300 hover:bg-blue-50"
+              >
+                Sign Up
+              </Link>
+
+              <Link
+                to="/login"
+                onClick={() => setIsOpen(false)}
+                className="rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition-all duration-300 hover:bg-blue-700"
+              >
+                Login
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>

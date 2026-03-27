@@ -9,6 +9,8 @@ const {
   deleteByEmailInternal,
   me,
   stats,
+  requestEmailVerification,
+  verifyEmail,
   requestLoginOtpController,
   verifyLoginOtpController,
   forgotPassword,
@@ -19,6 +21,8 @@ const roleMiddleware = require("../middlewares/roleMiddleware");
 
 router.post("/register", register);
 router.post("/login", login);
+router.post("/verify-email/request", requestEmailVerification);
+router.post("/verify-email/confirm", verifyEmail);
 router.post("/login-otp/request", requestLoginOtpController);
 router.post("/login-otp/verify", verifyLoginOtpController);
 router.post("/forgot-password", forgotPassword);
