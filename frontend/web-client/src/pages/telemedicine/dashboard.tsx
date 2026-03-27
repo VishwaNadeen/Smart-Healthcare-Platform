@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  getAllSessions,
-  type TelemedicineSession,
+  getTelemedicineStats,
 } from "../../services/telemedicineApi";
 
 type DashboardStats = {
@@ -9,15 +8,6 @@ type DashboardStats = {
   active: number;
   completed: number;
 };
-
-function buildDashboardStats(sessions: TelemedicineSession[]): DashboardStats {
-  return {
-    total: sessions.length,
-    active: sessions.filter((session) => session.status === "active").length,
-    completed: sessions.filter((session) => session.status === "completed")
-      .length,
-  };
-}
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
@@ -32,8 +22,12 @@ export default function Dashboard() {
     async function loadDashboard() {
       try {
         setLoading(true);
-        const sessions = await getAllSessions();
-        setStats(buildDashboardStats(sessions));
+        const data = await getTelemedicineStats();
+        setStats({
+          total: data.totalSessions,
+          active: data.activeSessions,
+          completed: data.completedSessions,
+        });
         setError(null);
       } catch (loadError) {
         console.error("Failed to load dashboard stats:", loadError);
