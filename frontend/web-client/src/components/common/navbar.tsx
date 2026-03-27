@@ -8,6 +8,10 @@ import {
   getStoredTelemedicineAuth,
 } from "../../utils/telemedicineAuth";
 
+const PROFILE_NAME_KEY = "patientProfileName";
+const PROFILE_IMAGE_KEY = "patientProfileImage";
+const PROFILE_UPDATED_EVENT = "patient-profile-updated";
+
 const navLinks = [
   { name: "Home", path: "/" },
   { name: "Doctors", path: "/doctors" },
@@ -37,11 +41,13 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [actionError, setActionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [profileImage, setProfileImage] = useState("");
+  const [profileImage, setProfileImage] = useState(
+    () => localStorage.getItem(PROFILE_IMAGE_KEY) || ""
+  );
   const auth = getStoredTelemedicineAuth();
 
   const storedPatientName =
-    localStorage.getItem("patientProfileName") ||
+    localStorage.getItem(PROFILE_NAME_KEY) ||
     auth.username ||
     "";
 
@@ -64,14 +70,16 @@ export default function Navbar() {
         }
 
         setProfileImage(patient.profileImage || "");
+        localStorage.setItem(PROFILE_IMAGE_KEY, patient.profileImage || "");
 
         const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.trim();
         if (fullName) {
-          localStorage.setItem("patientProfileName", fullName);
+          localStorage.setItem(PROFILE_NAME_KEY, fullName);
         }
       } catch {
         if (isActive) {
           setProfileImage("");
+          localStorage.removeItem(PROFILE_IMAGE_KEY);
         }
       }
     }
@@ -82,6 +90,18 @@ export default function Navbar() {
       isActive = false;
     };
   }, [auth.isAuthenticated, auth.role, auth.token]);
+
+  useEffect(() => {
+    function syncProfileFromStorage() {
+      setProfileImage(localStorage.getItem(PROFILE_IMAGE_KEY) || "");
+    }
+
+    window.addEventListener(PROFILE_UPDATED_EVENT, syncProfileFromStorage);
+
+    return () => {
+      window.removeEventListener(PROFILE_UPDATED_EVENT, syncProfileFromStorage);
+    };
+  }, []);
 
   async function handleLogout() {
     setActionError("");

@@ -6,6 +6,7 @@ import MainLayout from "../layouts/mainLayout";
 import { telemedicineRoutes } from "./telemedicineRoutes";
 import { patientRoutes } from "./patientRoutes";
 import VerifyEmailPage from "../pages/auth/VerifyEmail";
+import ForgotPasswordPage from "../pages/auth/ForgotPassword";
 
 export default function AppRoutes() {
   return (
@@ -27,6 +28,7 @@ export default function AppRoutes() {
         }
       />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
      
       {telemedicineRoutes}
       {patientRoutes}

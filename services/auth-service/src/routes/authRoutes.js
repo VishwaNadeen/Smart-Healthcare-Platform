@@ -15,6 +15,7 @@ const {
   verifyLoginOtpController,
   forgotPassword,
   resetPassword,
+  verifyPassword,
 } = require("../controllers/authController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const roleMiddleware = require("../middlewares/roleMiddleware");
@@ -27,6 +28,7 @@ router.post("/login-otp/request", requestLoginOtpController);
 router.post("/login-otp/verify", verifyLoginOtpController);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
+router.post("/verify-password", authMiddleware, verifyPassword);
 router.get("/stats", stats);
 router.post("/logout", authMiddleware, logout);
 router.get("/me", authMiddleware, me);

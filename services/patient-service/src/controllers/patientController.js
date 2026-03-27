@@ -1,6 +1,11 @@
 const Patient = require("../models/patient");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
+const {
+  registerPatientAuth,
+  verifyAuthPassword,
+  deleteAuthAccountByEmail,
+} = require("../services/authService");
 
 const deleteCloudinaryImage = async (publicId) => {
   if (!publicId) {
@@ -14,17 +19,79 @@ const deleteCloudinaryImage = async (publicId) => {
 
 // Create patient
 const createPatient = async (req, res) => {
+  let authUserCreated = false;
+
   try {
-    const patient = await Patient.create(req.body);
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      countryCode,
+      phone,
+      birthday,
+      gender,
+      address,
+      country,
+    } = req.body;
+
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !password ||
+      !countryCode ||
+      !phone ||
+      !birthday ||
+      !gender ||
+      !country
+    ) {
+      return res.status(400).json({
+        message: "All required patient registration fields must be provided",
+      });
+    }
+
+    await registerPatientAuth({ firstName, lastName, email, password });
+    authUserCreated = true;
+
+    const patient = await Patient.create({
+      firstName,
+      lastName,
+      email,
+      countryCode,
+      phone,
+      birthday,
+      gender,
+      address,
+      country,
+    });
 
     res.status(201).json({
-      message: "Patient created successfully",
+      message: "Patient created successfully. Please verify your email to continue.",
+      verificationRequired: true,
       patient,
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to create patient",
-      error: error.message,
+    if (authUserCreated && req.body?.email) {
+      try {
+        await deleteAuthAccountByEmail(req.body.email);
+      } catch (rollbackError) {
+        console.error(
+          "Failed to roll back auth user after patient registration error:",
+          rollbackError.message
+        );
+      }
+    }
+
+    const statusCode =
+      error.response?.status ||
+      (error.message && error.message.includes("already exists") ? 400 : 500);
+    const errorMessage =
+      error.response?.data?.message || error.message || "Failed to create patient";
+
+    res.status(statusCode).json({
+      message: statusCode === 400 ? errorMessage : "Failed to create patient",
+      error: errorMessage,
     });
   }
 };
@@ -223,6 +290,15 @@ const removeCurrentPatientProfileImage = async (req, res) => {
 const deleteCurrentPatient = async (req, res) => {
   try {
     const email = req.authUser.email;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        message: "Password is required to delete your profile",
+      });
+    }
+
+    await verifyAuthPassword(req.token, password);
 
     const patient = await Patient.findOne({ email });
 
@@ -242,9 +318,16 @@ const deleteCurrentPatient = async (req, res) => {
       message: "Patient account deleted successfully",
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to delete patient account",
-      error: error.message,
+    const statusCode = error.response?.status || 500;
+    const errorMessage =
+      error.response?.data?.message || error.message || "Failed to delete patient account";
+
+    res.status(statusCode).json({
+      message:
+        statusCode === 401 || statusCode === 400
+          ? errorMessage
+          : "Failed to delete patient account",
+      error: errorMessage,
     });
   }
 };

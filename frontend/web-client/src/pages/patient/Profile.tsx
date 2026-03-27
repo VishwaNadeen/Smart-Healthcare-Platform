@@ -15,6 +15,8 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "../../components/common/ToastProvider";
 
 const PROFILE_NAME_KEY = "patientProfileName";
+const PROFILE_IMAGE_KEY = "patientProfileImage";
+const PROFILE_UPDATED_EVENT = "patient-profile-updated";
 
 const PatientProfile = () => {
   const navigate = useNavigate();
@@ -37,15 +39,13 @@ const PatientProfile = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDeletePrompt, setShowDeletePrompt] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const auth = getStoredTelemedicineAuth();
   const token = auth.token || "";
-
-  useEffect(() => {
-    localStorage.removeItem("patientProfileImage");
-  }, []);
 
   const loadProfile = async () => {
     try {
@@ -72,7 +72,9 @@ const PatientProfile = () => {
 
       const fullName = `${nextForm.firstName} ${nextForm.lastName}`.trim();
       localStorage.setItem(PROFILE_NAME_KEY, fullName);
+      localStorage.setItem(PROFILE_IMAGE_KEY, data.profileImage || "");
       setProfileImage(data.profileImage || "");
+      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to load profile";
@@ -85,6 +87,7 @@ const PatientProfile = () => {
         normalizedMessage.includes("invalid token")
       ) {
         localStorage.removeItem(PROFILE_NAME_KEY);
+        localStorage.removeItem(PROFILE_IMAGE_KEY);
         clearTelemedicineAuth();
         navigate("/login", {
           replace: true,
@@ -146,8 +149,11 @@ const PatientProfile = () => {
       setSuccessMessage("");
 
       const response = await uploadCurrentPatientProfileImage(token, file);
+      const nextProfileImage = response.profileImage || response.patient.profileImage || "";
 
-      setProfileImage(response.profileImage || response.patient.profileImage || "");
+      localStorage.setItem(PROFILE_IMAGE_KEY, nextProfileImage);
+      setProfileImage(nextProfileImage);
+      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
       setSuccessMessage(response.message || "Profile picture updated successfully.");
       setErrorMessage("");
       showToast(response.message || "Profile picture updated successfully.", "success");
@@ -171,7 +177,9 @@ const PatientProfile = () => {
 
         const response = await removeCurrentPatientProfileImage(token);
 
+        localStorage.removeItem(PROFILE_IMAGE_KEY);
         setProfileImage("");
+        window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
         setSuccessMessage(response.message || "Profile picture removed.");
         showToast(response.message || "Profile picture removed.", "info");
       } catch (error) {
@@ -194,6 +202,7 @@ const PatientProfile = () => {
 
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
       localStorage.setItem(PROFILE_NAME_KEY, fullName);
+      window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
 
       setSuccessMessage(response.message || "Profile updated successfully.");
       showToast(response.message || "Profile updated successfully.", "success");
@@ -213,11 +222,9 @@ const PatientProfile = () => {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete your account? This cannot be undone."
-    );
-
-    if (!confirmed) {
+    if (!deletePassword.trim()) {
+      setErrorMessage("Enter your password to delete your profile.");
+      showToast("Enter your password to delete your profile.", "error");
       return;
     }
 
@@ -226,13 +233,16 @@ const PatientProfile = () => {
       setSuccessMessage("");
       setErrorMessage("");
 
-      const response = await deleteCurrentPatient(token);
+      const response = await deleteCurrentPatient(token, deletePassword);
       showToast(
         response.message || "Your account was deleted successfully.",
         "success"
       );
 
       localStorage.removeItem(PROFILE_NAME_KEY);
+      localStorage.removeItem(PROFILE_IMAGE_KEY);
+      setDeletePassword("");
+      setShowDeletePrompt(false);
       clearTelemedicineAuth();
 
       navigate("/", {
@@ -265,6 +275,52 @@ const PatientProfile = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
+      {showDeletePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-2xl rounded-3xl border border-red-200 bg-white p-6 shadow-2xl">
+            <h2 className="text-2xl font-semibold text-red-800">
+              Verify Password To Delete Profile
+            </h2>
+            <p className="mt-3 text-sm text-red-700">
+              Enter your current account password. If the password is wrong,
+              your profile will not be deleted.
+            </p>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(event) => setDeletePassword(event.target.value)}
+                placeholder="Enter your password"
+                className="flex-1 rounded-xl border border-red-200 bg-white px-4 py-3 outline-none focus:border-red-400"
+              />
+
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700 disabled:opacity-70"
+              >
+                {deleting ? "Verifying..." : "Delete Profile"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeletePrompt(false);
+                  setDeletePassword("");
+                  setErrorMessage("");
+                }}
+                disabled={deleting}
+                className="rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-70"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-10 text-white">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -298,11 +354,15 @@ const PatientProfile = () => {
 
                 <button
                   type="button"
-                  onClick={handleDeleteAccount}
+                  onClick={() => {
+                    setShowDeletePrompt(true);
+                    setSuccessMessage("");
+                    setErrorMessage("");
+                  }}
                   disabled={deleting}
                   className="rounded-xl border border-red-200 bg-white px-6 py-3 font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-70"
                 >
-                  {deleting ? "Deleting..." : "Delete Account"}
+                  Delete Account
                 </button>
               </div>
             )}
