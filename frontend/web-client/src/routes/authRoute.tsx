@@ -1,11 +1,17 @@
 import { Navigate, Outlet } from "react-router-dom";
+import {
+  getRoleHomePath,
+  getStoredTelemedicineAuth,
+} from "../utils/telemedicineAuth";
 
 export default function AuthRoute() {
-  const token = localStorage.getItem("token");
+  const auth = getStoredTelemedicineAuth();
 
-  if (token) {
-    return <Navigate to="/" replace />;
+  if (auth.isAuthenticated) {
+    return <Navigate to={getRoleHomePath(auth.role)} replace />;
   }
 
   return <Outlet />;
 }
+
+
