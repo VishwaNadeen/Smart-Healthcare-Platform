@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
+const { sendOtpEmail } = require("./emailService");
 
 const OTP_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES || 10);
 const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
@@ -71,30 +72,149 @@ const verifyOtp = (user, field, otp) => {
 };
 
 const deliverOtp = async ({ user, otp, purpose }) => {
-  console.log(`[OTP:${purpose}] user=${user.username} otp=${otp}`);
+  await sendOtpEmail({
+    to: user.email,
+    username: user.username,
+    otp,
+    purpose,
+    expiresInMinutes: OTP_TTL_MINUTES,
+  });
+};
+
+const normalizeUsername = (username) =>
+  String(username || "")
+    .trim()
+    .replace(/\s+/g, " ");
+
+const normalizeIdentifier = (identifier) => String(identifier || "").trim();
+
+const buildUniqueUsername = async (username) => {
+  const baseUsername = normalizeUsername(username);
+
+  if (!baseUsername) {
+    throw new Error("Username is required");
+  }
+
+  let candidate = baseUsername;
+  let suffix = 1;
+
+  while (await User.exists({ username: candidate })) {
+    suffix += 1;
+    candidate = `${baseUsername} ${suffix}`;
+  }
+
+  return candidate;
+};
+
+const findUserByIdentifier = async (identifier) => {
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+
+  if (!normalizedIdentifier) {
+    return null;
+  }
+
+  return User.findOne({
+    $or: [
+      { email: normalizedIdentifier.toLowerCase() },
+      { username: normalizedIdentifier },
+    ],
+  });
 };
 
 const registerUser = async ({ username, email, password, role }) => {
   const normalizedEmail = email.toLowerCase().trim();
+  const normalizedUsername = normalizeUsername(username);
 
-  const existingUser = await User.findOne({
-    $or: [{ email: normalizedEmail }, { username }],
-  });
+  if (!normalizedUsername) {
+    throw new Error("Username is required");
+  }
+
+  const existingUser = await User.findOne({ email: normalizedEmail });
 
   if (existingUser) {
-    throw new Error("User already exists with this email or username");
+    throw new Error("User already exists with this email");
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  const uniqueUsername = await buildUniqueUsername(normalizedUsername);
 
   const user = await User.create({
-    username,
+    username: uniqueUsername,
     email: normalizedEmail,
     password: hashedPassword,
     role,
+    isEmailVerified: false,
   });
 
   return user;
+};
+
+const requestEmailVerificationOtp = async ({ email }) => {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (user.isEmailVerified) {
+    return {
+      alreadyVerified: true,
+      expiresInMinutes: OTP_TTL_MINUTES,
+    };
+  }
+
+  const otp = generateOtp();
+  setOtp(user, "otpVerify", otp);
+  await user.save();
+  await deliverOtp({ user, otp, purpose: "verify-email" });
+
+  return {
+    alreadyVerified: false,
+    expiresInMinutes: OTP_TTL_MINUTES,
+  };
+};
+
+const verifyEmailOtp = async ({ email, otp }) => {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (user.isEmailVerified) {
+    return {
+      alreadyVerified: true,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+      },
+    };
+  }
+
+  const isValid = verifyOtp(user, "otpVerify", otp);
+
+  if (!isValid) {
+    await user.save();
+    throw new Error("Invalid OTP");
+  }
+
+  clearOtp(user, "otpVerify");
+  user.isEmailVerified = true;
+  await user.save();
+
+  return {
+    alreadyVerified: false,
+    user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    },
+  };
 };
 
 const ensureAdminUser = async () => {
@@ -137,6 +257,10 @@ const loginUser = async ({ email, password }) => {
 
   if (!isPasswordMatch) {
     throw new Error("Invalid email or password");
+  }
+
+  if (!user.isEmailVerified) {
+    throw new Error("Please verify your email before logging in");
   }
 
   const token = generateToken(user);
@@ -186,9 +310,7 @@ const deleteUserByEmail = async (email) => {
 };
 
 const requestLoginOtp = async ({ identifier, role }) => {
-  const user = await User.findOne({
-    $or: [{ username: identifier }, { email: identifier }],
-  });
+  const user = await findUserByIdentifier(identifier);
 
   if (!user) {
     throw new Error("User not found");
@@ -210,9 +332,7 @@ const requestLoginOtp = async ({ identifier, role }) => {
 };
 
 const verifyLoginOtp = async ({ identifier, otp, role }) => {
-  const user = await User.findOne({
-    $or: [{ username: identifier }, { email: identifier }],
-  });
+  const user = await findUserByIdentifier(identifier);
 
   if (!user) {
     throw new Error("User not found");
@@ -246,9 +366,7 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
 };
 
 const requestPasswordResetOtp = async ({ identifier }) => {
-  const user = await User.findOne({
-    $or: [{ username: identifier }, { email: identifier }],
-  });
+  const user = await findUserByIdentifier(identifier);
 
   if (!user) {
     throw new Error("User not found");
@@ -260,15 +378,12 @@ const requestPasswordResetOtp = async ({ identifier }) => {
   await deliverOtp({ user, otp, purpose: "reset" });
 
   return {
-    otp: process.env.NODE_ENV === "production" ? undefined : otp,
     expiresInMinutes: OTP_TTL_MINUTES,
   };
 };
 
 const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
-  const user = await User.findOne({
-    $or: [{ username: identifier }, { email: identifier }],
-  });
+  const user = await findUserByIdentifier(identifier);
 
   if (!user) {
     throw new Error("User not found");
@@ -309,6 +424,8 @@ module.exports = {
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
+  requestEmailVerificationOtp,
+  verifyEmailOtp,
   requestLoginOtp,
   verifyLoginOtp,
   requestPasswordResetOtp,

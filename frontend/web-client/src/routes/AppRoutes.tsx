@@ -1,11 +1,11 @@
-import { Route, Routes } from "react-router-dom";
-import MainLayout from "../layouts/mainLayout";
-import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage";
-import LoginPage from "../pages/auth/loginPage";
-import RegisterPage from "../pages/auth/RegisterPage";
+import { Routes, Route } from "react-router-dom";
 import HomePage from "../pages/home/homePage";
-import AuthRoute from "./authRoute";
+import LoginPage from "../pages/auth/login";
+import MainLayout from "../layouts/mainLayout";
+
 import { telemedicineRoutes } from "./telemedicineRoutes";
+import { patientRoutes } from "./patientRoutes";
+import VerifyEmailPage from "../pages/auth/VerifyEmail";
 
 export default function AppRoutes() {
   return (
@@ -18,15 +18,18 @@ export default function AppRoutes() {
           </MainLayout>
         }
       />
-
-      <Route element={<AuthRoute />}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/signup" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      </Route>
-
+      <Route
+        path="/login"
+        element={
+          <MainLayout>
+            <LoginPage />
+          </MainLayout>
+        }
+      />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+     
       {telemedicineRoutes}
+      {patientRoutes}
     </Routes>
   );
 }

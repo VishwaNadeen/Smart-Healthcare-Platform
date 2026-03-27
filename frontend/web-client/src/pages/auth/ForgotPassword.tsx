@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-
-const AUTH_SERVICE_URL = "http://localhost:5003";
+import { AUTH_API_URL } from "../../config/api";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -19,7 +18,7 @@ export default function ForgotPasswordPage() {
     setMessage("");
 
     try {
-      const response = await fetch(`${AUTH_SERVICE_URL}/api/auth/forgot-password`, {
+      const response = await fetch(`${AUTH_API_URL}/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -49,7 +48,7 @@ export default function ForgotPasswordPage() {
     setMessage("");
 
     try {
-      const response = await fetch(`${AUTH_SERVICE_URL}/api/auth/reset-password`, {
+      const response = await fetch(`${AUTH_API_URL}/reset-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

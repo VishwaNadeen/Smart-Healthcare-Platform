@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { loginUser } from "../../services/authApi";
-import {
-  getRoleHomePath,
-  saveTelemedicineAuth,
-} from "../../utils/telemedicineAuth";
+import { saveTelemedicineAuth } from "../../utils/telemedicineAuth";
 
 type LoginFormState = {
   email: string;
@@ -14,23 +11,23 @@ type LoginFormState = {
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const locationState =
+    typeof location.state === "object" && location.state !== null
+      ? (location.state as {
+          from?: { pathname?: string };
+          registeredEmail?: string;
+          successMessage?: string;
+          verificationRequired?: boolean;
+        })
+      : null;
+
   const [form, setForm] = useState<LoginFormState>({
-    email: "",
+    email: locationState?.registeredEmail || "",
     password: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const redirectPath =
-    typeof location.state === "object" &&
-    location.state !== null &&
-    "from" in location.state &&
-    typeof location.state.from === "object" &&
-    location.state.from !== null &&
-    "pathname" in location.state.from &&
-    typeof location.state.from.pathname === "string"
-      ? location.state.from.pathname
-      : null;
+  const [successMessage] = useState(locationState?.successMessage || "");
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,7 +45,7 @@ export default function LoginPage() {
         role: result.role,
       });
 
-      navigate(redirectPath || getRoleHomePath(result.role), { replace: true });
+      navigate("/", { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -102,7 +99,28 @@ export default function LoginPage() {
               </p>
             </div>
 
+            {locationState?.verificationRequired && form.email && (
+              <div className="mb-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Verify your email before logging in.{" "}
+                <Link
+                  to="/verify-email"
+                  state={{
+                    registeredEmail: form.email,
+                  }}
+                  className="font-semibold text-amber-900 underline"
+                >
+                  Verify now
+                </Link>
+              </div>
+            )}
+
             <form className="space-y-5" onSubmit={handleSubmit}>
+              {successMessage && (
+                <div className="rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
+                  {successMessage}
+                </div>
+              )}
+
               <div>
                 <label
                   htmlFor="email"
