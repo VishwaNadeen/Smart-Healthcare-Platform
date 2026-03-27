@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const telemedicineMessageSchema = new mongoose.Schema(
@@ -6,11 +7,17 @@ const telemedicineMessageSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      index: true,
     },
     senderRole: {
       type: String,
-      enum: ["doctor", "patient", "system"],
+      enum: ["doctor", "patient", "admin", "system"],
       required: true,
+    },
+    senderId: {
+      type: String,
+      default: "",
+      trim: true,
     },
     senderName: {
       type: String,

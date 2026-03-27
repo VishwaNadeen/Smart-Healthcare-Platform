@@ -2,7 +2,21 @@ const TelemedicineFile = require("../models/telemedicineFile");
 
 exports.uploadSessionFile = async (req, res) => {
   try {
-    const { appointmentId, uploadedByRole } = req.body;
+    const { appointmentId } = req.body;
+
+    if (req.user.role !== "patient") {
+      return res.status(403).json({
+        success: false,
+        message: "Only patients can upload files",
+      });
+    }
+
+    if (!appointmentId) {
+      return res.status(400).json({
+        success: false,
+        message: "appointmentId is required",
+      });
+    }
 
     if (!req.file) {
       return res.status(400).json({
@@ -16,7 +30,7 @@ exports.uploadSessionFile = async (req, res) => {
       originalName: req.file.originalname,
       fileName: req.file.filename,
       filePath: `/uploads/${req.file.filename}`,
-      uploadedByRole,
+      uploadedByRole: "patient",
     });
 
     return res.status(201).json({
