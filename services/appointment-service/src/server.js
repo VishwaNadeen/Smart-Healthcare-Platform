@@ -23,7 +23,7 @@ app.get("/", (req, res) => {
 // appointment routes
 app.use("/api/appointments", appointmentRoutes);
 
-const PORT = process.env.PORT || 5002;
+const PORT = process.env.PORT || 5001;
 
 app.listen(PORT, () => {
   console.log(`Appointment Service running on port ${PORT}`);

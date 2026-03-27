@@ -7,7 +7,7 @@ dotenv.config();
 // connect database
 connectDB();
 
-const PORT = process.env.PORT || 5005;
+const PORT = process.env.PORT || 5003;
 
 app.listen(PORT, () => {
   console.log(`Doctor Service running on port ${PORT}`);
