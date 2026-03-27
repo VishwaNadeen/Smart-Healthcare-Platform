@@ -11,7 +11,7 @@ const {
   getSessionsByPatientId,
   updateSessionStatus,
   updateSessionNotes,
-} = require("../controllers/telemedicineController");
+} = require("../controllers/telemedicine");
 const authMiddleware = require("../middleware/authMiddleware");
 
 router.use(authMiddleware);

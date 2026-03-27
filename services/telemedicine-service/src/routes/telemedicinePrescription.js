@@ -3,7 +3,7 @@ const router = express.Router();
 const {
   createPrescription,
   getPrescriptionsByAppointmentId,
-} = require("../controllers/telemedicinePrescriptionController");
+} = require("../controllers/telemedicinePrescription");
 const authMiddleware = require("../middleware/authMiddleware");
 const sessionAccessMiddleware = require("../middleware/sessionAccessMiddleware");
 

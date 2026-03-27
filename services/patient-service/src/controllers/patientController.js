@@ -1,6 +1,24 @@
 const Patient = require("../models/patient");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
+const { registerPatientAuth, deleteAuthAccountByEmail } = require("../services/authService");
+
+const extractErrorMessage = (error) => {
+  if (typeof error === "string") {
+    return error || "Unknown error";
+  }
+
+  if (!error || typeof error !== "object") {
+    return "Unknown error";
+  }
+
+  return (
+    error.response?.data?.message ||
+    error.response?.data?.error ||
+    error.message ||
+    "Unknown error"
+  );
+};
 
 const deleteCloudinaryImage = async (publicId) => {
   if (!publicId) {
@@ -14,17 +32,80 @@ const deleteCloudinaryImage = async (publicId) => {
 
 // Create patient
 const createPatient = async (req, res) => {
+  let shouldRollbackAuthUser = false;
+  let rollbackEmail = null;
+
   try {
-    const patient = await Patient.create(req.body);
+    const normalizedEmail =
+      typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const password = req.body?.password;
+
+    if (
+      !req.body?.firstName ||
+      !req.body?.lastName ||
+      !normalizedEmail ||
+      !password ||
+      !req.body?.countryCode ||
+      !req.body?.phone ||
+      !req.body?.birthday ||
+      !req.body?.gender ||
+      !req.body?.country
+    ) {
+      return res.status(400).json({
+        message: "All required patient fields must be provided",
+      });
+    }
+
+    const existingPatient = await Patient.findOne({ email: normalizedEmail });
+    if (existingPatient) {
+      return res.status(400).json({
+        message: "Patient already exists",
+      });
+    }
+
+    const authRegistration = await registerPatientAuth({
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: normalizedEmail,
+      password,
+    });
+
+    shouldRollbackAuthUser = true;
+    rollbackEmail = normalizedEmail;
+
+    const patientPayload = {
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      email: normalizedEmail,
+      countryCode: req.body.countryCode,
+      phone: req.body.phone,
+      birthday: req.body.birthday,
+      gender: req.body.gender,
+      address: req.body.address,
+      country: req.body.country,
+    };
+
+    const patient = await Patient.create(patientPayload);
+    shouldRollbackAuthUser = false;
 
     res.status(201).json({
-      message: "Patient created successfully",
+      message: "Patient account created successfully. Please verify your email to continue.",
       patient,
+      verificationRequired: authRegistration?.verificationRequired,
+      expiresInMinutes: authRegistration?.expiresInMinutes,
     });
   } catch (error) {
-    res.status(500).json({
+    if (shouldRollbackAuthUser && rollbackEmail) {
+      try {
+        await deleteAuthAccountByEmail(rollbackEmail);
+      } catch (rollbackError) {
+        console.error("createPatient rollback failed:", rollbackError.message);
+      }
+    }
+
+    res.status(error?.response?.status || 500).json({
       message: "Failed to create patient",
-      error: error.message,
+      error: extractErrorMessage(error),
     });
   }
 };

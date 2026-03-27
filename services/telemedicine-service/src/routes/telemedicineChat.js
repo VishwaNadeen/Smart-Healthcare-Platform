@@ -3,7 +3,7 @@ const router = express.Router();
 const {
   getMessagesByAppointmentId,
   sendMessage,
-} = require("../controllers/telemedicineChatController");
+} = require("../controllers/telemedicineChat");
 const authMiddleware = require("../middleware/authMiddleware");
 const sessionAccessMiddleware = require("../middleware/sessionAccessMiddleware");
 

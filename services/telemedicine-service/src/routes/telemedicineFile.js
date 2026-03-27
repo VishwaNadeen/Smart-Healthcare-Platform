@@ -5,7 +5,7 @@ const router = express.Router();
 const {
   uploadSessionFile,
   getFilesByAppointmentId,
-} = require("../controllers/telemedicineFileController");
+} = require("../controllers/telemedicineFile");
 const authMiddleware = require("../middleware/authMiddleware");
 const sessionAccessMiddleware = require("../middleware/sessionAccessMiddleware");
 
