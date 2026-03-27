@@ -420,18 +420,6 @@ const PatientProfile = () => {
           </div>
 
           <div>
-            {successMessage && (
-              <div className="mb-5 rounded-xl bg-green-100 px-4 py-3 text-green-700">
-                {successMessage}
-              </div>
-            )}
-
-            {errorMessage && (
-              <div className="mb-5 rounded-xl bg-red-100 px-4 py-3 text-red-700">
-                {errorMessage}
-              </div>
-            )}
-
             {!editing ? (
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <ProfileItem label="First Name" value={formData.firstName} />
