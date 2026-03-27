@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 const util = require("util");
 const Doctor = require("../models/doctorModel");
 const Specialty = require("../models/specialtyModel");
@@ -166,122 +165,13 @@ const deleteDoctor = async (req, res) => {
     return res.status(200).json({ message: "Deleted" });
   } catch (error) {
     return res.status(500).json({ message: "Failed to delete doctor", error: error.message });
-=======
-const Doctor = require("../models/doctorModel");
-
-// Create doctor
-const createDoctor = async (req, res) => {
-  try {
-    const doctor = await Doctor.create(req.body);
-    res.status(201).json({ message: "Doctor created successfully", doctor });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to create doctor", error: error.message });
-  }
-};
-
-// Get all doctors with optional filters
-const getDoctors = async (req, res) => {
-  try {
-    const { specialization, status, search } = req.query;
-
-    const filters = {};
-    if (specialization) filters.specialization = specialization;
-    if (status) filters.status = status;
-    if (search) filters.name = { $regex: search, $options: "i" };
-
-    const doctors = await Doctor.find(filters).sort({ createdAt: -1 });
-    res.status(200).json(doctors);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch doctors", error: error.message });
-  }
-};
-
-// Get doctor by ID
-const getDoctorById = async (req, res) => {
-  try {
-    const doctor = await Doctor.findById(req.params.id);
-    if (!doctor) return res.status(404).json({ message: "Doctor not found" });
-    res.status(200).json(doctor);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch doctor", error: error.message });
-  }
-};
-
-// Update doctor profile
-const updateDoctor = async (req, res) => {
-  try {
-    const doctor = await Doctor.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!doctor) return res.status(404).json({ message: "Doctor not found" });
-    res.status(200).json({ message: "Doctor updated successfully", doctor });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update doctor", error: error.message });
-  }
-};
-
-// Update availability
-const updateAvailability = async (req, res) => {
-  try {
-    const { availability } = req.body;
-    const doctor = await Doctor.findByIdAndUpdate(
-      req.params.id,
-      { availability },
-      { new: true, runValidators: true }
-    );
-    if (!doctor) return res.status(404).json({ message: "Doctor not found" });
-    res.status(200).json({ message: "Availability updated", doctor });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update availability", error: error.message });
-  }
-};
-
-// Update approval/status
-const updateStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-    const allowed = ["pending", "approved", "rejected"];
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ message: "Invalid status" });
-    }
-
-    const doctor = await Doctor.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true, runValidators: true }
-    );
-    if (!doctor) return res.status(404).json({ message: "Doctor not found" });
-    res.status(200).json({ message: "Status updated", doctor });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update status", error: error.message });
-  }
-};
-
-// Delete doctor
-const deleteDoctor = async (req, res) => {
-  try {
-    const doctor = await Doctor.findByIdAndDelete(req.params.id);
-    if (!doctor) return res.status(404).json({ message: "Doctor not found" });
-    res.status(200).json({ message: "Doctor deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to delete doctor", error: error.message });
->>>>>>> Stashed changes
   }
 };
 
 module.exports = {
   createDoctor,
-<<<<<<< Updated upstream
   getAllDoctors,
   getDoctorById,
   updateDoctor,
-=======
-  getDoctors,
-  getDoctorById,
-  updateDoctor,
-  updateAvailability,
-  updateStatus,
->>>>>>> Stashed changes
   deleteDoctor,
 };
