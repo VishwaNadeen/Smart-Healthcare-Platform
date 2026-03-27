@@ -1,22 +1,20 @@
 {
-  "name": "doctor-service",
+  "name": "appointment-service",
   "version": "1.0.0",
   "description": "",
-  "main": "src/server.js",
+  "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
-<<<<<<< Updated upstream
-    "start": "node src/server.js"
-=======
     "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
->>>>>>> Stashed changes
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.3.2"
   },
   "devDependencies": {

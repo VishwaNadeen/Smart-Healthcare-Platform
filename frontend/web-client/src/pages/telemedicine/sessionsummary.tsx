@@ -1,15 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import PrescriptionForm from "../../components/telemedicine/PrescriptionForm";
+import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
 import {
   getSessionByAppointmentId,
   type TelemedicineSession,
 } from "../../services/telemedicineApi";
+import {
+  canAccessTelemedicineSession,
+  getStoredTelemedicineAuth,
+} from "../../utils/telemedicineAuth";
 
 export default function SessionSummary() {
   const { appointmentId } = useParams<{ appointmentId: string }>();
   const [session, setSession] = useState<TelemedicineSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const auth = getStoredTelemedicineAuth();
+  const role = auth.actorRole;
+  const isDoctor = role === "doctor";
 
   useEffect(() => {
     async function loadSession() {
@@ -35,6 +44,16 @@ export default function SessionSummary() {
 
     loadSession();
   }, [appointmentId]);
+
+  if (!auth.userId || !role) {
+    return (
+      <TelemedicineAccessNotice
+        title="Session summary needs login data"
+        description="This page needs a valid login session with role and user id. Please sign in again."
+        actionLabel="Go to Login"
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -66,12 +85,23 @@ export default function SessionSummary() {
     );
   }
 
+  if (!canAccessTelemedicineSession(auth, session)) {
+    return (
+      <TelemedicineAccessNotice
+        title="Summary access denied"
+        description="This appointment belongs to a different doctor or patient account."
+        actionLabel={isDoctor ? "Doctor Sessions" : "Patient Sessions"}
+        actionTo={isDoctor ? "/doctor-sessions" : "/patient-sessions"}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl rounded-3xl bg-white p-8 shadow-sm">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-2xl text-green-700">
-            ✓
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-lg font-bold text-green-700">
+            OK
           </div>
 
           <h1 className="text-3xl font-bold text-gray-900">
@@ -124,20 +154,40 @@ export default function SessionSummary() {
           </p>
         </div>
 
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Link
-            to="/doctor-sessions"
-            className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
-          >
-            Doctor Sessions
-          </Link>
+        <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5">
+          <PrescriptionForm
+            role={role}
+            appointmentId={session.appointmentId}
+            doctorId={session.doctorId}
+            patientId={session.patientId}
+            readOnly
+          />
+        </div>
 
-          <Link
-            to="/patient-sessions"
-            className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
-          >
-            Patient Sessions
-          </Link>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {isDoctor ? (
+            <Link
+              to="/doctor-sessions"
+              className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              Doctor Sessions
+            </Link>
+          ) : (
+            <>
+              <Link
+                to="/patient-sessions"
+                className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
+              >
+                Patient Sessions
+              </Link>
+              <Link
+                to="/session-history"
+                className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
+              >
+                Session History
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </div>

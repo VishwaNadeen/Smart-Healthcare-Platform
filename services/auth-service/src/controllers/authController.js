@@ -3,10 +3,12 @@ const {
   loginUser,
   logoutUser,
   deleteUserAccount,
+  deleteUserByEmail,
   requestLoginOtp,
   verifyLoginOtp,
   requestPasswordResetOtp,
-  resetPasswordWithOtp
+  resetPasswordWithOtp,
+  getUserStats,
 } = require("../services/authService");
 
 const serializeUser = (user) => ({
@@ -15,8 +17,18 @@ const serializeUser = (user) => ({
   email: user.email,
   role: user.role,
   createdAt: user.createdAt,
-  updatedAt: user.updatedAt
+  updatedAt: user.updatedAt,
 });
+
+const hasValidInternalSecret = (req) => {
+  const expectedSecret = process.env.INTERNAL_SERVICE_SECRET;
+
+  if (!expectedSecret) {
+    return true;
+  }
+
+  return req.headers["x-internal-service-secret"] === expectedSecret;
+};
 
 const register = async (req, res) => {
   try {
@@ -61,7 +73,7 @@ const login = async (req, res) => {
 
     res.status(200).json({
       message: "Login successful",
-      ...result
+      ...result,
     });
   } catch (error) {
     res.status(401).json({ message: error.message });
@@ -93,6 +105,38 @@ const deleteMe = async (req, res) => {
   }
 };
 
+const deleteByEmailInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({
+        message: "Forbidden",
+      });
+    }
+
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required",
+      });
+    }
+
+    const result = await deleteUserByEmail(email);
+
+    res.status(200).json({
+      message: result.deleted
+        ? "User account deleted successfully"
+        : "No user found for the provided email",
+      ...result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to delete user by email",
+      error: error.message,
+    });
+  }
+};
+
 const requestLoginOtpController = async (req, res) => {
   try {
     const { identifier, role } = req.body;
@@ -102,14 +146,16 @@ const requestLoginOtpController = async (req, res) => {
     }
 
     if (role && !["doctor", "patient", "admin"].includes(role)) {
-      return res.status(400).json({ message: "Role must be doctor, patient or admin" });
+      return res.status(400).json({
+        message: "Role must be doctor, patient or admin",
+      });
     }
 
     const result = await requestLoginOtp({ identifier, role });
 
     res.status(200).json({
       message: "OTP sent for login",
-      ...result
+      ...result,
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -121,18 +167,22 @@ const verifyLoginOtpController = async (req, res) => {
     const { identifier, otp, role } = req.body;
 
     if (!identifier || !otp) {
-      return res.status(400).json({ message: "Identifier and OTP are required" });
+      return res.status(400).json({
+        message: "Identifier and OTP are required",
+      });
     }
 
     if (role && !["doctor", "patient", "admin"].includes(role)) {
-      return res.status(400).json({ message: "Role must be doctor, patient or admin" });
+      return res.status(400).json({
+        message: "Role must be doctor, patient or admin",
+      });
     }
 
     const result = await verifyLoginOtp({ identifier, otp, role });
 
     res.status(200).json({
       message: "OTP login successful",
-      ...result
+      ...result,
     });
   } catch (error) {
     res.status(401).json({ message: error.message });
@@ -151,7 +201,7 @@ const forgotPassword = async (req, res) => {
 
     res.status(200).json({
       message: "OTP sent for password reset",
-      ...result
+      ...result,
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -163,7 +213,9 @@ const resetPassword = async (req, res) => {
     const { identifier, otp, newPassword } = req.body;
 
     if (!identifier || !otp || !newPassword) {
-      return res.status(400).json({ message: "Identifier, OTP and new password are required" });
+      return res.status(400).json({
+        message: "Identifier, OTP and new password are required",
+      });
     }
 
     await resetPasswordWithOtp({ identifier, otp, newPassword });
@@ -177,8 +229,24 @@ const resetPassword = async (req, res) => {
 const me = async (req, res) => {
   res.status(200).json({
     message: "Profile fetched successfully",
-    user: req.fullUser
+    user: req.fullUser,
   });
+};
+
+const stats = async (_req, res) => {
+  try {
+    const data = await getUserStats();
+
+    res.status(200).json({
+      message: "User statistics fetched successfully",
+      ...data,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch user statistics",
+      error: error.message,
+    });
+  }
 };
 
 module.exports = {
@@ -186,9 +254,11 @@ module.exports = {
   login,
   logout,
   deleteMe,
+  deleteByEmailInternal,
   me,
+  stats,
   requestLoginOtpController,
   verifyLoginOtpController,
   forgotPassword,
-  resetPassword
+  resetPassword,
 };
