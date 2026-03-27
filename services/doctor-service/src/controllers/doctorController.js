@@ -1,6 +1,5 @@
 const util = require("util");
 const Doctor = require("../models/doctorModel");
-const DoctorServiceProfile = require("../models/doctorServiceProfileModel");
 const Specialty = require("../models/specialtyModel");
 const { registerDoctorAuth, deleteDoctorAuthByEmail } = require("../services/authService");
 
@@ -62,9 +61,6 @@ const doctorAllowedFields = [
   "profileImage",
   "about",
   "status",
-];
-
-const doctorServiceProfileAllowedFields = [
   "supportsDigitalPrescriptions",
   "acceptsNewAppointments",
   "availabilitySchedule",
@@ -116,14 +112,6 @@ const sanitizeDoctorPayload = (payload = {}) => {
     sanitizedPayload.availableTimeSlots = availableTimeSlots;
   }
 
-  return sanitizedPayload;
-};
-
-const sanitizeDoctorServiceProfilePayload = (payload = {}) => {
-  const sanitizedPayload = Object.fromEntries(
-    Object.entries(payload).filter(([key]) => doctorServiceProfileAllowedFields.includes(key))
-  );
-
   const availabilitySchedule = sanitizeAvailabilitySchedule(payload.availabilitySchedule);
   if (availabilitySchedule !== undefined) {
     sanitizedPayload.availabilitySchedule = availabilitySchedule;
@@ -146,26 +134,14 @@ const resolveSpecialty = async (specializationName) => {
   return specialty;
 };
 
-const findDoctorIdentityByAuthUserId = async (authUserId) => {
+const findDoctorByAuthUserId = async (authUserId) => {
   if (!authUserId) {
     return null;
   }
 
-  const doctorProfile = await DoctorServiceProfile.findOne({ authUserId }).select("+authUserId");
-  if (!doctorProfile) {
-    return null;
-  }
-
-  const doctor = await Doctor.findById(doctorProfile.doctorId).populate(
-    "specializationId",
-    "name description isActive"
-  );
-
-  if (!doctor) {
-    return null;
-  }
-
-  return { doctor, doctorProfile };
+  return Doctor.findOne({ authUserId })
+    .select("+authUserId")
+    .populate("specializationId", "name description isActive");
 };
 
 const ensureDoctorIdentity = async (req, res) => {
@@ -179,60 +155,23 @@ const ensureDoctorIdentity = async (req, res) => {
     return null;
   }
 
-  const identity = await findDoctorIdentityByAuthUserId(req.user.id);
-  if (!identity) {
+  const doctor = await findDoctorByAuthUserId(req.user.id);
+  if (!doctor) {
     res.status(404).json({ message: "Doctor profile not found for this account" });
     return null;
   }
 
-  return identity;
+  return doctor;
 };
 
-const toDoctorResponse = (doctorDocument, doctorProfileDocument = null) => {
+const toDoctorResponse = (doctorDocument) => {
   if (!doctorDocument) {
     return doctorDocument;
   }
 
   const doctor = doctorDocument.toObject ? doctorDocument.toObject() : { ...doctorDocument };
-  const doctorProfile = doctorProfileDocument
-    ? doctorProfileDocument.toObject
-      ? doctorProfileDocument.toObject()
-      : { ...doctorProfileDocument }
-    : {};
-
-  delete doctorProfile.authUserId;
-  delete doctorProfile.doctorId;
-  delete doctorProfile._id;
-  delete doctorProfile.createdAt;
-  delete doctorProfile.updatedAt;
-
-  return {
-    ...doctor,
-    supportsDigitalPrescriptions: doctorProfile.supportsDigitalPrescriptions ?? true,
-    acceptsNewAppointments: doctorProfile.acceptsNewAppointments ?? true,
-    availabilitySchedule: doctorProfile.availabilitySchedule || [],
-  };
-};
-
-const attachDoctorServiceProfile = async (doctorDocument) => {
-  if (!doctorDocument?._id) {
-    return toDoctorResponse(doctorDocument);
-  }
-
-  const doctorProfile = await DoctorServiceProfile.findOne({ doctorId: doctorDocument._id });
-  return toDoctorResponse(doctorDocument, doctorProfile);
-};
-
-const attachDoctorServiceProfiles = async (doctorDocuments) => {
-  const doctorIds = doctorDocuments.map((doctor) => doctor?._id).filter(Boolean);
-  const doctorProfiles = await DoctorServiceProfile.find({ doctorId: { $in: doctorIds } });
-  const profileByDoctorId = new Map(
-    doctorProfiles.map((profile) => [String(profile.doctorId), profile])
-  );
-
-  return doctorDocuments.map((doctor) =>
-    toDoctorResponse(doctor, profileByDoctorId.get(String(doctor._id)))
-  );
+  delete doctor.authUserId;
+  return doctor;
 };
 
 const createDoctor = async (req, res) => {
@@ -242,7 +181,6 @@ const createDoctor = async (req, res) => {
   try {
     const password = req.body?.password;
     const doctorPayload = sanitizeDoctorPayload(req.body);
-    const doctorServiceProfilePayload = sanitizeDoctorServiceProfilePayload(req.body);
     const { fullName, email } = doctorPayload;
 
     if (!fullName || !email || !password) {
@@ -259,12 +197,6 @@ const createDoctor = async (req, res) => {
       return res.status(400).json({ message: "Specialization must match an active specialty" });
     }
 
-    const doctorData = {
-      ...doctorPayload,
-      specialization: specialty.name,
-      specializationId: specialty._id,
-    };
-
     const authRegistration = await registerDoctorAuth({ fullName, email, password });
     const authUserId = authRegistration?.user?.id;
 
@@ -278,15 +210,15 @@ const createDoctor = async (req, res) => {
     shouldRollbackAuthUser = true;
     rollbackEmail = email;
 
-    const doctor = await Doctor.create(doctorData);
-    await DoctorServiceProfile.create({
-      doctorId: doctor._id,
+    const doctor = await Doctor.create({
+      ...doctorPayload,
       authUserId,
-      ...doctorServiceProfilePayload,
+      specialization: specialty.name,
+      specializationId: specialty._id,
     });
 
     shouldRollbackAuthUser = false;
-    return res.status(201).json(await attachDoctorServiceProfile(doctor));
+    return res.status(201).json(toDoctorResponse(doctor));
   } catch (error) {
     if (shouldRollbackAuthUser && rollbackEmail) {
       try {
@@ -337,17 +269,13 @@ const getAllDoctors = async (req, res) => {
       query.isAvailableForVideo = videoAvailability;
     }
 
-    const doctors = await Doctor.find(query).populate("specializationId", "name description isActive");
-    let responseDoctors = await attachDoctorServiceProfiles(doctors);
-
     const appointmentAvailability = parseBoolean(acceptsNewAppointments);
     if (appointmentAvailability !== undefined) {
-      responseDoctors = responseDoctors.filter(
-        (doctor) => Boolean(doctor.acceptsNewAppointments) === appointmentAvailability
-      );
+      query.acceptsNewAppointments = appointmentAvailability;
     }
 
-    return res.status(200).json(responseDoctors);
+    const doctors = await Doctor.find(query).populate("specializationId", "name description isActive");
+    return res.status(200).json(doctors.map(toDoctorResponse));
   } catch (error) {
     return res.status(500).json({ message: "Failed to fetch doctors", error: error.message });
   }
@@ -360,7 +288,7 @@ const getDoctorById = async (req, res) => {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
-    return res.status(200).json(await attachDoctorServiceProfile(doctor));
+    return res.status(200).json(toDoctorResponse(doctor));
   } catch (error) {
     return res.status(500).json({ message: "Failed to fetch doctor", error: error.message });
   }
@@ -369,7 +297,6 @@ const getDoctorById = async (req, res) => {
 const updateDoctor = async (req, res) => {
   try {
     const updatePayload = sanitizeDoctorPayload(req.body);
-    const serviceProfilePayload = sanitizeDoctorServiceProfilePayload(req.body);
 
     if (updatePayload.specialization !== undefined) {
       const specialty = await resolveSpecialty(updatePayload.specialization);
@@ -390,15 +317,7 @@ const updateDoctor = async (req, res) => {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
-    if (Object.keys(serviceProfilePayload).length > 0) {
-      await DoctorServiceProfile.findOneAndUpdate(
-        { doctorId: doctor._id },
-        { $set: serviceProfilePayload },
-        { new: true, runValidators: true }
-      );
-    }
-
-    return res.status(200).json(await attachDoctorServiceProfile(doctor));
+    return res.status(200).json(toDoctorResponse(doctor));
   } catch (error) {
     return res.status(500).json({ message: "Failed to update doctor", error: error.message });
   }
@@ -411,8 +330,6 @@ const deleteDoctor = async (req, res) => {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
-    await DoctorServiceProfile.findOneAndDelete({ doctorId: doctor._id });
-
     return res.status(200).json({ message: "Deleted" });
   } catch (error) {
     return res.status(500).json({ message: "Failed to delete doctor", error: error.message });
@@ -421,12 +338,12 @@ const deleteDoctor = async (req, res) => {
 
 const getMyDoctorProfile = async (req, res) => {
   try {
-    const identity = await ensureDoctorIdentity(req, res);
-    if (!identity) {
+    const doctor = await ensureDoctorIdentity(req, res);
+    if (!doctor) {
       return;
     }
 
-    return res.status(200).json(toDoctorResponse(identity.doctor, identity.doctorProfile));
+    return res.status(200).json(toDoctorResponse(doctor));
   } catch (error) {
     return res.status(500).json({ message: "Failed to fetch doctor profile", error: error.message });
   }
@@ -434,13 +351,12 @@ const getMyDoctorProfile = async (req, res) => {
 
 const updateMyDoctorProfile = async (req, res) => {
   try {
-    const identity = await ensureDoctorIdentity(req, res);
-    if (!identity) {
+    const doctor = await ensureDoctorIdentity(req, res);
+    if (!doctor) {
       return;
     }
 
     const updatePayload = sanitizeDoctorPayload(req.body);
-    const serviceProfilePayload = sanitizeDoctorServiceProfilePayload(req.body);
 
     if (updatePayload.specialization !== undefined) {
       const specialty = await resolveSpecialty(updatePayload.specialization);
@@ -452,14 +368,11 @@ const updateMyDoctorProfile = async (req, res) => {
       updatePayload.specializationId = specialty._id;
     }
 
-    Object.assign(identity.doctor, updatePayload);
-    await identity.doctor.save();
-    await identity.doctor.populate("specializationId", "name description isActive");
+    Object.assign(doctor, updatePayload);
+    await doctor.save();
+    await doctor.populate("specializationId", "name description isActive");
 
-    Object.assign(identity.doctorProfile, serviceProfilePayload);
-    await identity.doctorProfile.save();
-
-    return res.status(200).json(toDoctorResponse(identity.doctor, identity.doctorProfile));
+    return res.status(200).json(toDoctorResponse(doctor));
   } catch (error) {
     return res.status(500).json({ message: "Failed to update doctor profile", error: error.message });
   }
@@ -467,19 +380,19 @@ const updateMyDoctorProfile = async (req, res) => {
 
 const getMyAvailability = async (req, res) => {
   try {
-    const identity = await ensureDoctorIdentity(req, res);
-    if (!identity) {
+    const doctor = await ensureDoctorIdentity(req, res);
+    if (!doctor) {
       return;
     }
 
     return res.status(200).json({
-      doctorId: identity.doctor._id,
-      availableDays: identity.doctor.availableDays || [],
-      availableTimeSlots: identity.doctor.availableTimeSlots || [],
-      availabilitySchedule: identity.doctorProfile.availabilitySchedule || [],
-      isAvailableForVideo: identity.doctor.isAvailableForVideo,
-      acceptsNewAppointments: identity.doctorProfile.acceptsNewAppointments,
-      supportsDigitalPrescriptions: identity.doctorProfile.supportsDigitalPrescriptions,
+      doctorId: doctor._id,
+      availableDays: doctor.availableDays || [],
+      availableTimeSlots: doctor.availableTimeSlots || [],
+      availabilitySchedule: doctor.availabilitySchedule || [],
+      isAvailableForVideo: doctor.isAvailableForVideo,
+      acceptsNewAppointments: doctor.acceptsNewAppointments,
+      supportsDigitalPrescriptions: doctor.supportsDigitalPrescriptions,
     });
   } catch (error) {
     return res.status(500).json({ message: "Failed to fetch doctor availability", error: error.message });
@@ -488,33 +401,36 @@ const getMyAvailability = async (req, res) => {
 
 const updateMyAvailability = async (req, res) => {
   try {
-    const identity = await ensureDoctorIdentity(req, res);
-    if (!identity) {
+    const doctor = await ensureDoctorIdentity(req, res);
+    if (!doctor) {
       return;
     }
 
     const updatePayload = sanitizeDoctorPayload(req.body);
-    const serviceProfilePayload = sanitizeDoctorServiceProfilePayload(req.body);
-    const availabilityFields = ["availableDays", "availableTimeSlots", "isAvailableForVideo"];
+    const availabilityFields = [
+      "availableDays",
+      "availableTimeSlots",
+      "isAvailableForVideo",
+      "availabilitySchedule",
+      "acceptsNewAppointments",
+      "supportsDigitalPrescriptions",
+    ];
     const availabilityUpdate = Object.fromEntries(
       Object.entries(updatePayload).filter(([key]) => availabilityFields.includes(key))
     );
 
-    Object.assign(identity.doctor, availabilityUpdate);
-    await identity.doctor.save();
-
-    Object.assign(identity.doctorProfile, serviceProfilePayload);
-    await identity.doctorProfile.save();
+    Object.assign(doctor, availabilityUpdate);
+    await doctor.save();
 
     return res.status(200).json({
       message: "Doctor availability updated successfully",
-      doctorId: identity.doctor._id,
-      availableDays: identity.doctor.availableDays || [],
-      availableTimeSlots: identity.doctor.availableTimeSlots || [],
-      availabilitySchedule: identity.doctorProfile.availabilitySchedule || [],
-      isAvailableForVideo: identity.doctor.isAvailableForVideo,
-      acceptsNewAppointments: identity.doctorProfile.acceptsNewAppointments,
-      supportsDigitalPrescriptions: identity.doctorProfile.supportsDigitalPrescriptions,
+      doctorId: doctor._id,
+      availableDays: doctor.availableDays || [],
+      availableTimeSlots: doctor.availableTimeSlots || [],
+      availabilitySchedule: doctor.availabilitySchedule || [],
+      isAvailableForVideo: doctor.isAvailableForVideo,
+      acceptsNewAppointments: doctor.acceptsNewAppointments,
+      supportsDigitalPrescriptions: doctor.supportsDigitalPrescriptions,
     });
   } catch (error) {
     return res.status(500).json({ message: "Failed to update doctor availability", error: error.message });

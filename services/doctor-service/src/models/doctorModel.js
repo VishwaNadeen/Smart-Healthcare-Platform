@@ -1,7 +1,45 @@
 const mongoose = require("mongoose");
 
+const availabilitySlotSchema = new mongoose.Schema(
+  {
+    day: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    startTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    endTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    mode: {
+      type: String,
+      enum: ["in_person", "video", "both"],
+      default: "in_person",
+    },
+    maxAppointments: {
+      type: Number,
+      min: 1,
+      default: 1,
+    },
+  },
+  { _id: false }
+);
+
 const doctorSchema = new mongoose.Schema(
   {
+    authUserId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      select: false,
+    },
     fullName: {
       type: String,
       required: true,
@@ -48,6 +86,18 @@ const doctorSchema = new mongoose.Schema(
     isAvailableForVideo: {
       type: Boolean,
       default: false,
+    },
+    availabilitySchedule: {
+      type: [availabilitySlotSchema],
+      default: [],
+    },
+    supportsDigitalPrescriptions: {
+      type: Boolean,
+      default: true,
+    },
+    acceptsNewAppointments: {
+      type: Boolean,
+      default: true,
     },
 
     profileImage: String,

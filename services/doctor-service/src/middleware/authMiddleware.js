@@ -1,5 +1,5 @@
 const { getAuthProfile } = require("../services/authProfileService");
-const DoctorServiceProfile = require("../models/doctorServiceProfileModel");
+const Doctor = require("../models/doctorModel");
 
 const getUserIdFromUser = (user) =>
   user?._id || user?.id || user?.userId || user?.sub || user?.doctorId || null;
@@ -107,17 +107,15 @@ const enforceDoctorResourceOwnership = async (req, res, next) => {
     });
   }
 
-  const doctorProfile = await DoctorServiceProfile.findOne({ doctorId: req.params.id }).select(
-    "_id +authUserId"
-  );
+  const doctor = await Doctor.findById(req.params.id).select("_id +authUserId");
 
-  if (!doctorProfile) {
+  if (!doctor) {
     return res.status(404).json({
       message: "Doctor not found",
     });
   }
 
-  if (String(doctorProfile.authUserId || "") !== String(req.user.id)) {
+  if (String(doctor.authUserId || "") !== String(req.user.id)) {
     return res.status(403).json({
       message: "You can only modify your own doctor profile",
     });
