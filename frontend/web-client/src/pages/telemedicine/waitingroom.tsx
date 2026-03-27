@@ -1,16 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
 import StatusBadge from "../../components/telemedicine/StatusBadge";
 import {
   getSessionByAppointmentId,
   type TelemedicineSession,
 } from "../../services/telemedicineApi";
+import {
+  canAccessTelemedicineSession,
+  getStoredTelemedicineAuth,
+} from "../../utils/telemedicineAuth";
 
 export default function WaitingRoom() {
   const { appointmentId } = useParams();
   const [session, setSession] = useState<TelemedicineSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const auth = getStoredTelemedicineAuth();
+  const role = auth.actorRole;
+  const isDoctor = role === "doctor";
 
   useEffect(() => {
     async function loadSession() {
@@ -36,6 +44,27 @@ export default function WaitingRoom() {
     loadSession();
   }, [appointmentId]);
 
+  if (!auth.userId || !role) {
+    return (
+      <TelemedicineAccessNotice
+        title="Waiting room needs login data"
+        description="This page needs a valid login session with role and user id. Please sign in again."
+        actionLabel="Go to Login"
+      />
+    );
+  }
+
+  if (!loading && session && !canAccessTelemedicineSession(auth, session)) {
+    return (
+      <TelemedicineAccessNotice
+        title="Waiting room access denied"
+        description="This appointment belongs to a different doctor or patient account."
+        actionLabel={isDoctor ? "Doctor Sessions" : "Patient Sessions"}
+        actionTo={isDoctor ? "/doctor-sessions" : "/patient-sessions"}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl">
@@ -58,7 +87,13 @@ export default function WaitingRoom() {
                 Waiting Room
               </h1>
               <p className="mt-2 text-gray-600">
-                Your telemedicine consultation will begin soon.
+                {isDoctor
+                  ? "Review the session details and start the consultation when ready."
+                  : session.status === "active"
+                    ? "Your doctor is ready. You can join the consultation now."
+                    : session.status === "completed"
+                      ? "This consultation has already finished."
+                      : "Your telemedicine consultation will begin soon."}
               </p>
             </div>
 
@@ -94,12 +129,25 @@ export default function WaitingRoom() {
             </div>
 
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link
-                to={`/consultation/${session.appointmentId}`}
-                className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
-              >
-                Join Consultation
-              </Link>
+              {session.status === "completed" ? (
+                <Link
+                  to={`/session-summary/${session.appointmentId}`}
+                  className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
+                >
+                  View Session Summary
+                </Link>
+              ) : session.status === "cancelled" ? null : (
+                <Link
+                  to={`/consultation/${session.appointmentId}`}
+                  className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
+                >
+                  {isDoctor
+                    ? "Open Consultation Room"
+                    : session.status === "active"
+                      ? "Join Consultation"
+                      : "Stay Ready to Join"}
+                </Link>
+              )}
 
               <Link
                 to={`/session/${session.appointmentId}`}

@@ -1,19 +1,28 @@
 import { useEffect, useState } from "react";
 import SessionCard from "../../components/telemedicine/SessionCard";
+import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
 import {
   getSessionsByDoctorId,
   type TelemedicineSession,
 } from "../../services/telemedicineApi";
+import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
 export default function DoctorSessions() {
   const [sessions, setSessions] = useState<TelemedicineSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const auth = getStoredTelemedicineAuth();
 
-  const doctorId = "DOC001";
+  const doctorId = auth.userId;
 
   useEffect(() => {
     async function loadSessions() {
+      if (!doctorId) {
+        setError("Doctor ID not found in stored login data.");
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -31,6 +40,16 @@ export default function DoctorSessions() {
     loadSessions();
   }, [doctorId]);
 
+  if (!doctorId) {
+    return (
+      <TelemedicineAccessNotice
+        title="Doctor session access needs a user id"
+        description="Your login session is missing the doctor id returned by the backend. Please sign in again."
+        actionLabel="Go to Login"
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
@@ -39,7 +58,7 @@ export default function DoctorSessions() {
             Doctor Sessions
           </h1>
           <p className="mt-2 text-sm text-gray-600">
-            View all telemedicine sessions assigned to this doctor.
+            View all telemedicine sessions assigned to doctor {doctorId}.
           </p>
         </div>
 
