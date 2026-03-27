@@ -1,28 +1,15 @@
-import { Routes, Route } from "react-router-dom";
-import HomePage from "../pages/home/homePage";
-import LoginPage from "../pages/auth/loginPage";
+import { Route, Routes } from "react-router-dom";
 import MainLayout from "../layouts/mainLayout";
-import FullScreenLayout from "../layouts/fullScreenLayout";
-
-import Consultation from "../pages/telemedicine/consultation";
-import DoctorSessions from "../pages/telemedicine/doctorsessions";
-import PatientSessions from "../pages/telemedicine/Patientsessions";
-import SessionDetails from "../pages/telemedicine/sessiondetails";
-import WaitingRoom from "../pages/telemedicine/waitingroom";
-import SessionSummary from "../pages/telemedicine/sessionsummary";
-import SessionHistory from "../pages/telemedicine/sessionHistory";
-import Dashboard from "../pages/telemedicine/dashboard";
-import Statistics from "../pages/telemedicine/statistics";
+import ForgotPasswordPage from "../pages/auth/ForgotPasswordPage";
+import LoginPage from "../pages/auth/loginPage";
+import RegisterPage from "../pages/auth/RegisterPage";
+import HomePage from "../pages/home/homePage";
+import AuthRoute from "./authRoute";
+import { telemedicineRoutes } from "./telemedicineRoutes";
 
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route element={<AuthRoute />}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      </Route>
-
       <Route
         path="/"
         element={
@@ -31,14 +18,14 @@ export default function AppRoutes() {
           </MainLayout>
         }
       />
-      <Route
-        path="/login"
-        element={
-          <MainLayout>
-            <LoginPage />
-          </MainLayout>
-        }
-      />
+
+      <Route element={<AuthRoute />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/signup" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      </Route>
+
       {telemedicineRoutes}
     </Routes>
   );
