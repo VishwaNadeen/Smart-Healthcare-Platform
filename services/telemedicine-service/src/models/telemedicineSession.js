@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const telemedicineSessionSchema = new mongoose.Schema(
@@ -6,16 +7,20 @@ const telemedicineSessionSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      unique: true,
+      index: true,
     },
     patientId: {
       type: String,
       required: true,
       trim: true,
+      index: true,
     },
     doctorId: {
       type: String,
       required: true,
       trim: true,
+      index: true,
     },
     roomName: {
       type: String,
@@ -54,4 +59,6 @@ const telemedicineSessionSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("TelemedicineSession", telemedicineSessionSchema);
+module.exports =
+  mongoose.models.TelemedicineSession ||
+  mongoose.model("TelemedicineSession", telemedicineSessionSchema);

@@ -4,8 +4,10 @@ const {
   createPrescription,
   getPrescriptionsByAppointmentId,
 } = require("../controllers/telemedicinePrescriptionController");
+const authMiddleware = require("../middleware/authMiddleware");
+const sessionAccessMiddleware = require("../middleware/sessionAccessMiddleware");
 
-router.get("/:appointmentId", getPrescriptionsByAppointmentId);
-router.post("/", createPrescription);
+router.get("/:appointmentId", authMiddleware, sessionAccessMiddleware, getPrescriptionsByAppointmentId);
+router.post("/", authMiddleware, sessionAccessMiddleware, createPrescription);
 
 module.exports = router;

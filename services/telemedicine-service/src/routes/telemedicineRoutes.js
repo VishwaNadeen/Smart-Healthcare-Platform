@@ -12,18 +12,18 @@ const {
   updateSessionStatus,
   updateSessionNotes,
 } = require("../controllers/telemedicineController");
+const authMiddleware = require("../middleware/authMiddleware");
+
+router.use(authMiddleware);
 
 router.post("/", createSession);
 router.get("/", getAllSessions);
 router.get("/stats", getSessionStats);
-
 router.get("/appointment/:appointmentId", getSessionByAppointmentId);
 router.get("/doctor/:doctorId", getSessionsByDoctorId);
 router.get("/patient/:patientId", getSessionsByPatientId);
-
 router.patch("/appointment/:appointmentId/status", updateSessionStatus);
 router.patch("/appointment/:appointmentId/notes", updateSessionNotes);
-
 router.get("/:id", getSessionById);
 
 module.exports = router;
