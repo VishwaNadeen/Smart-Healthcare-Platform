@@ -1,11 +1,6 @@
 const Patient = require("../models/patient");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
-const {
-  registerPatientAuth,
-  verifyAuthPassword,
-  deleteAuthAccountByEmail,
-} = require("../services/authService");
 
 const deleteCloudinaryImage = async (publicId) => {
   if (!publicId) {
@@ -19,79 +14,19 @@ const deleteCloudinaryImage = async (publicId) => {
 
 // Create patient
 const createPatient = async (req, res) => {
-  let authUserCreated = false;
-
   try {
-    const {
-      firstName,
-      lastName,
-      email,
-      password,
-      countryCode,
-      phone,
-      birthday,
-      gender,
-      address,
-      country,
-    } = req.body;
-
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !password ||
-      !countryCode ||
-      !phone ||
-      !birthday ||
-      !gender ||
-      !country
-    ) {
-      return res.status(400).json({
-        message: "All required patient registration fields must be provided",
-      });
-    }
-
-    await registerPatientAuth({ firstName, lastName, email, password });
-    authUserCreated = true;
-
-    const patient = await Patient.create({
-      firstName,
-      lastName,
-      email,
-      countryCode,
-      phone,
-      birthday,
-      gender,
-      address,
-      country,
-    });
+    const patient = await Patient.create(req.body);
 
     res.status(201).json({
-      message: "Patient created successfully. Please verify your email to continue.",
-      verificationRequired: true,
+      message: "Patient created successfully",
       patient,
+      verificationRequired: authRegistration?.verificationRequired,
+      expiresInMinutes: authRegistration?.expiresInMinutes,
     });
   } catch (error) {
-    if (authUserCreated && req.body?.email) {
-      try {
-        await deleteAuthAccountByEmail(req.body.email);
-      } catch (rollbackError) {
-        console.error(
-          "Failed to roll back auth user after patient registration error:",
-          rollbackError.message
-        );
-      }
-    }
-
-    const statusCode =
-      error.response?.status ||
-      (error.message && error.message.includes("already exists") ? 400 : 500);
-    const errorMessage =
-      error.response?.data?.message || error.message || "Failed to create patient";
-
-    res.status(statusCode).json({
-      message: statusCode === 400 ? errorMessage : "Failed to create patient",
-      error: errorMessage,
+    res.status(500).json({
+      message: "Failed to create patient",
+      error: error.message,
     });
   }
 };

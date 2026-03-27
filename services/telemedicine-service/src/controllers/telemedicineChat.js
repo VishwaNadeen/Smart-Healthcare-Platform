@@ -21,12 +21,19 @@ exports.getMessagesByAppointmentId = async (req, res) => {
 
 exports.sendMessage = async (req, res) => {
   try {
-    const { appointmentId, senderRole, senderName, message } = req.body;
+    const { appointmentId, senderName, message } = req.body;
+
+    if (!appointmentId || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "appointmentId and message are required",
+      });
+    }
 
     const newMessage = await TelemedicineMessage.create({
       appointmentId,
-      senderRole,
-      senderName,
+      senderRole: req.user.role,
+      senderName: senderName || req.user.username || req.user.role,
       message,
     });
 

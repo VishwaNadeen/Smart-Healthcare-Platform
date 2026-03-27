@@ -2,11 +2,11 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./config/db");
-const telemedicineRoutes = require("./routes/telemedicineRoutes");
-const telemedicineChatRoutes = require("./routes/telemedicineChatRoutes");
+const telemedicineRoutes = require("./routes/telemedicine");
+const telemedicineChatRoutes = require("./routes/telemedicineChat");
 const path = require("path");
-const telemedicineFileRoutes = require("./routes/telemedicineFileRoutes");
-const telemedicinePrescriptionRoutes = require("./routes/telemedicinePrescriptionRoutes");
+const telemedicineFileRoutes = require("./routes/telemedicineFile");
+const telemedicinePrescriptionRoutes = require("./routes/telemedicinePrescription");
 
 dotenv.config();
 
