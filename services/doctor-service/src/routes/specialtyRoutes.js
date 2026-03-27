@@ -5,14 +5,14 @@ const {
   updateSpecialty,
   deleteSpecialty,
 } = require("../controllers/specialtyController");
-const { requireAuth } = require("../middleware/authMiddleware");
+const { requireAdminAuth } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
 // Admin can create and update the specialty list.
-router.post("/", requireAuth, createSpecialty);
+router.post("/", requireAdminAuth, createSpecialty);
 router.get("/", getAllSpecialties);
-router.put("/:id", requireAuth, updateSpecialty);
-router.delete("/:id", requireAuth, deleteSpecialty);
+router.put("/:id", requireAdminAuth, updateSpecialty);
+router.delete("/:id", requireAdminAuth, deleteSpecialty);
 
 module.exports = router;

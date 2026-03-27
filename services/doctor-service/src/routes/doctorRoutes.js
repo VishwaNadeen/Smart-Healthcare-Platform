@@ -5,15 +5,27 @@ const {
   getDoctorById,
   updateDoctor,
   deleteDoctor,
+  getMyDoctorProfile,
+  updateMyDoctorProfile,
+  getMyAvailability,
+  updateMyAvailability,
 } = require("../controllers/doctorController");
-const { requireAuth } = require("../middleware/authMiddleware");
+const {
+  requireAuth,
+  requireDoctorAuth,
+  enforceDoctorResourceOwnership,
+} = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
 router.post("/", createDoctor);
 router.get("/", getAllDoctors);
+router.get("/me", requireDoctorAuth, getMyDoctorProfile);
+router.put("/me", requireDoctorAuth, updateMyDoctorProfile);
+router.get("/me/availability", requireDoctorAuth, getMyAvailability);
+router.put("/me/availability", requireDoctorAuth, updateMyAvailability);
 router.get("/:id", getDoctorById);
-router.put("/:id", requireAuth, updateDoctor);
-router.delete("/:id", requireAuth, deleteDoctor);
+router.put("/:id", requireAuth, enforceDoctorResourceOwnership, updateDoctor);
+router.delete("/:id", requireAuth, enforceDoctorResourceOwnership, deleteDoctor);
 
 module.exports = router;
