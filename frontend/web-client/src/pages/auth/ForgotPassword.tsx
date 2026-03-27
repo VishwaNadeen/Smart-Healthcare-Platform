@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useToast } from "../../components/common/ToastProvider";
 import { AUTH_API_URL } from "../../config/api";
 
 export default function ForgotPasswordPage() {
+  const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -33,9 +35,13 @@ export default function ForgotPasswordPage() {
       }
 
       setStep("reset");
-      setMessage(data.otp ? `OTP sent. Demo OTP: ${data.otp}` : "OTP sent to your account.");
+      setMessage("OTP sent to your account.");
+      showToast("OTP sent to your account.", "success");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const message =
+        err instanceof Error ? err.message : "Something went wrong";
+      setError(message);
+      showToast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -67,10 +73,14 @@ export default function ForgotPasswordPage() {
       }
 
       setMessage("Password reset successful. You can login now.");
+      showToast("Password reset successful. You can login now.", "success");
       setOtp("");
       setNewPassword("");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const message =
+        err instanceof Error ? err.message : "Something went wrong";
+      setError(message);
+      showToast(message, "error");
     } finally {
       setLoading(false);
     }

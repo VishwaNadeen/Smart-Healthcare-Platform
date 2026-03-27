@@ -2,6 +2,16 @@ const Patient = require("../models/patient");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
 
+const deleteCloudinaryImage = async (publicId) => {
+  if (!publicId) {
+    return;
+  }
+
+  await cloudinary.uploader.destroy(publicId, {
+    resource_type: "image",
+  });
+};
+
 // Create patient
 const createPatient = async (req, res) => {
   try {
@@ -79,6 +89,8 @@ const getPatientById = async (req, res) => {
 const updateCurrentPatient = async (req, res) => {
   try {
     const email = req.authUser.email;
+    const requestedEmail =
+      typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
 
     const patient = await Patient.findOne({ email });
 
@@ -88,9 +100,14 @@ const updateCurrentPatient = async (req, res) => {
       });
     }
 
+    if (requestedEmail && requestedEmail !== patient.email) {
+      return res.status(400).json({
+        message: "Email address cannot be changed from the patient profile.",
+      });
+    }
+
     patient.firstName = req.body.firstName ?? patient.firstName;
     patient.lastName = req.body.lastName ?? patient.lastName;
-    patient.email = req.body.email ?? patient.email;
     patient.countryCode = req.body.countryCode ?? patient.countryCode;
     patient.phone = req.body.phone ?? patient.phone;
     patient.birthday = req.body.birthday ?? patient.birthday;
@@ -150,6 +167,10 @@ const uploadCurrentPatientProfileImage = async (req, res) => {
     const result = await uploadFromBuffer();
 
     patient.profileImage = result.secure_url;
+    if (patient.profileImagePublicId) {
+      await deleteCloudinaryImage(patient.profileImagePublicId);
+    }
+    patient.profileImagePublicId = result.public_id;
     await patient.save();
 
     res.status(200).json({
@@ -165,18 +186,57 @@ const uploadCurrentPatientProfileImage = async (req, res) => {
   }
 };
 
-// Delete current patient
-const deleteCurrentPatient = async (req, res) => {
+// Remove current patient profile image
+const removeCurrentPatientProfileImage = async (req, res) => {
   try {
     const email = req.authUser.email;
 
-    const patient = await Patient.findOneAndDelete({ email });
+    const patient = await Patient.findOne({ email });
 
     if (!patient) {
       return res.status(404).json({
         message: "Patient profile not found",
       });
     }
+
+    if (patient.profileImagePublicId) {
+      await deleteCloudinaryImage(patient.profileImagePublicId);
+    }
+
+    patient.profileImage = "";
+    patient.profileImagePublicId = "";
+    await patient.save();
+
+    res.status(200).json({
+      message: "Profile image removed successfully",
+      patient,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to remove profile image",
+      error: error.message,
+    });
+  }
+};
+
+// Delete current patient
+const deleteCurrentPatient = async (req, res) => {
+  try {
+    const email = req.authUser.email;
+
+    const patient = await Patient.findOne({ email });
+
+    if (!patient) {
+      return res.status(404).json({
+        message: "Patient profile not found",
+      });
+    }
+
+    if (patient.profileImagePublicId) {
+      await deleteCloudinaryImage(patient.profileImagePublicId);
+    }
+
+    await patient.deleteOne();
 
     res.status(200).json({
       message: "Patient account deleted successfully",
@@ -196,5 +256,6 @@ module.exports = {
   getPatientById,
   updateCurrentPatient,
   uploadCurrentPatientProfileImage,
+  removeCurrentPatientProfileImage,
   deleteCurrentPatient,
 };

@@ -65,6 +65,11 @@ export type PatientUploadImageResponse = {
   patient: PatientData;
 };
 
+export type PatientRemoveImageResponse = {
+  message: string;
+  patient: PatientData;
+};
+
 async function handlePatientResponse<T>(response: Response): Promise<T> {
   const data = (await response.json().catch(() => null)) as T | null;
 
@@ -204,4 +209,25 @@ export async function deleteCurrentPatient(
   }
 
   return handlePatientResponse<PatientDeleteResponse>(response);
+}
+
+export async function removeCurrentPatientProfileImage(
+  token: string
+): Promise<PatientRemoveImageResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${PATIENT_API_URL}/me/profile-image`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the patient service. Please check that it is running."
+    );
+  }
+
+  return handlePatientResponse<PatientRemoveImageResponse>(response);
 }

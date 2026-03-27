@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useToast } from "./ToastProvider";
 import { logoutUser } from "../../services/authApi";
+import { getCurrentPatientProfile } from "../../services/patientApi";
 import {
   clearTelemedicineAuth,
   getStoredTelemedicineAuth,
@@ -12,10 +14,6 @@ const navLinks = [
   { name: "Appointments", path: "/appointments" },
   { name: "Consultation", path: "/consultation" },
 ];
-
-function getProfileImage() {
-  return localStorage.getItem("patientProfileImage") || "";
-}
 
 function getInitials(name?: string, email?: string) {
   if (name && name.trim()) {
@@ -35,9 +33,11 @@ function getInitials(name?: string, email?: string) {
 
 export default function Navbar() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [actionError, setActionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [profileImage, setProfileImage] = useState("");
   const auth = getStoredTelemedicineAuth();
 
   const storedPatientName =
@@ -45,8 +45,43 @@ export default function Navbar() {
     auth.username ||
     "";
 
-  const profileImage = getProfileImage();
   const initials = getInitials(storedPatientName, auth.email ?? undefined);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadNavbarProfile() {
+      if (!auth.isAuthenticated || auth.role !== "patient" || !auth.token) {
+        setProfileImage("");
+        return;
+      }
+
+      try {
+        const patient = await getCurrentPatientProfile(auth.token);
+
+        if (!isActive) {
+          return;
+        }
+
+        setProfileImage(patient.profileImage || "");
+
+        const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.trim();
+        if (fullName) {
+          localStorage.setItem("patientProfileName", fullName);
+        }
+      } catch {
+        if (isActive) {
+          setProfileImage("");
+        }
+      }
+    }
+
+    loadNavbarProfile();
+
+    return () => {
+      isActive = false;
+    };
+  }, [auth.isAuthenticated, auth.role, auth.token]);
 
   async function handleLogout() {
     setActionError("");
@@ -57,11 +92,13 @@ export default function Navbar() {
         await logoutUser(auth.token);
       }
     } catch (error: unknown) {
-      setActionError(
-        error instanceof Error ? error.message : "Failed to log out cleanly."
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to log out cleanly.";
+      setActionError(message);
+      showToast(message, "error");
     } finally {
       clearTelemedicineAuth();
+      showToast("Logged out successfully.", "success");
       setIsSubmitting(false);
       setIsOpen(false);
       navigate("/login", { replace: true });

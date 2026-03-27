@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useToast } from "../../components/common/ToastProvider";
+import { useLocationToast } from "../../hooks/useLocationToast";
 import { loginUser } from "../../services/authApi";
-import { saveTelemedicineAuth } from "../../utils/telemedicineAuth";
+import { getCurrentPatientProfile } from "../../services/patientApi";
+import {
+  clearTelemedicineAuth,
+  saveTelemedicineAuth,
+} from "../../utils/telemedicineAuth";
 
 type LoginFormState = {
   email: string;
@@ -11,6 +17,8 @@ type LoginFormState = {
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
+  useLocationToast();
   const locationState =
     typeof location.state === "object" && location.state !== null
       ? (location.state as {
@@ -27,7 +35,6 @@ export default function LoginPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [successMessage] = useState(locationState?.successMessage || "");
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,9 +52,35 @@ export default function LoginPage() {
         role: result.role,
       });
 
+      if (result.role === "patient") {
+        try {
+          await getCurrentPatientProfile(result.token);
+        } catch (profileError) {
+          clearTelemedicineAuth();
+
+          const message =
+            profileError instanceof Error ? profileError.message.toLowerCase() : "";
+
+          if (
+            message.includes("not found") ||
+            message.includes("deleted") ||
+            message.includes("no patient")
+          ) {
+            throw new Error(
+              "This patient account was deleted or no longer exists."
+            );
+          }
+
+          throw profileError;
+        }
+      }
+
+      showToast("Login successful.", "success");
       navigate("/", { replace: true });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const message = err instanceof Error ? err.message : "Login failed";
+      setError(message);
+      showToast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -115,12 +148,6 @@ export default function LoginPage() {
             )}
 
             <form className="space-y-5" onSubmit={handleSubmit}>
-              {successMessage && (
-                <div className="rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
-                  {successMessage}
-                </div>
-              )}
-
               <div>
                 <label
                   htmlFor="email"
