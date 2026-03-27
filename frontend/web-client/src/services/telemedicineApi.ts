@@ -34,6 +34,15 @@ export type TelemedicineStatsResponse = {
   todaySessions: number;
 };
 
+function getAuthHeaders() {
+  const token = localStorage.getItem("token");
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token ?? ""}`,
+  };
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
@@ -44,18 +53,27 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 // Get all sessions
 export async function getAllSessions(): Promise<TelemedicineSession[]> {
-  const response = await fetch(TELEMEDICINE_API_URL);
+  const response = await fetch(TELEMEDICINE_API_URL, {
+    headers: getAuthHeaders(),
+  });
+
   return handleResponse<TelemedicineSession[]>(response);
 }
 
 export async function getTelemedicineStats(): Promise<TelemedicineStatsResponse> {
-  const response = await fetch(`${TELEMEDICINE_API_URL}/stats`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/stats`, {
+    headers: getAuthHeaders(),
+  });
+
   return handleResponse<TelemedicineStatsResponse>(response);
 }
 
 // Get one session by MongoDB _id
 export async function getSessionById(id: string): Promise<TelemedicineSession> {
-  const response = await fetch(`${TELEMEDICINE_API_URL}/${id}`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/${id}`, {
+    headers: getAuthHeaders(),
+  });
+
   return handleResponse<TelemedicineSession>(response);
 }
 
@@ -64,8 +82,12 @@ export async function getSessionByAppointmentId(
   appointmentId: string
 ): Promise<TelemedicineSession> {
   const response = await fetch(
-    `${TELEMEDICINE_API_URL}/appointment/${appointmentId}`
+    `${TELEMEDICINE_API_URL}/appointment/${appointmentId}`,
+    {
+      headers: getAuthHeaders(),
+    }
   );
+
   return handleResponse<TelemedicineSession>(response);
 }
 
@@ -73,7 +95,10 @@ export async function getSessionByAppointmentId(
 export async function getSessionsByDoctorId(
   doctorId: string
 ): Promise<TelemedicineSession[]> {
-  const response = await fetch(`${TELEMEDICINE_API_URL}/doctor/${doctorId}`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/doctor/${doctorId}`, {
+    headers: getAuthHeaders(),
+  });
+
   return handleResponse<TelemedicineSession[]>(response);
 }
 
@@ -81,7 +106,10 @@ export async function getSessionsByDoctorId(
 export async function getSessionsByPatientId(
   patientId: string
 ): Promise<TelemedicineSession[]> {
-  const response = await fetch(`${TELEMEDICINE_API_URL}/patient/${patientId}`);
+  const response = await fetch(`${TELEMEDICINE_API_URL}/patient/${patientId}`, {
+    headers: getAuthHeaders(),
+  });
+
   return handleResponse<TelemedicineSession[]>(response);
 }
 
@@ -95,9 +123,7 @@ export async function createSession(data: {
 }): Promise<SessionResponse> {
   const response = await fetch(TELEMEDICINE_API_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
 
@@ -112,11 +138,9 @@ export async function updateSessionStatus(
   const response = await fetch(
     `${TELEMEDICINE_API_URL}/appointment/${appointmentId}/status`,
     {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ status }),
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status }),
     }
   );
 
@@ -131,11 +155,9 @@ export async function updateSessionNotes(
   const response = await fetch(
     `${TELEMEDICINE_API_URL}/appointment/${appointmentId}/notes`,
     {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ notes }),
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ notes }),
     }
   );
 
@@ -168,11 +190,14 @@ export async function getMessagesByAppointmentId(
   appointmentId: string
 ): Promise<MessagesResponse> {
   const response = await fetch(
-    `${TELEMEDICINE_API_URL}/chat/${appointmentId}`
+    `${TELEMEDICINE_API_URL}/chat/${appointmentId}`,
+    {
+      headers: getAuthHeaders(),
+    }
   );
 
   if (!response.ok) {
-    throw new Error("Failed to fetch messages");
+    throw new Error(`Request failed with status ${response.status}`);
   }
 
   return response.json();
@@ -186,14 +211,12 @@ export async function sendTelemedicineMessage(payload: {
 }): Promise<MessageResponse> {
   const response = await fetch(`${TELEMEDICINE_API_URL}/chat`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    throw new Error("Failed to send message");
+    throw new Error(`Request failed with status ${response.status}`);
   }
 
   return response.json();
@@ -225,10 +248,15 @@ export type FileResponse = {
 export async function getFilesByAppointmentId(
   appointmentId: string
 ): Promise<FilesResponse> {
-  const response = await fetch(`${TELEMEDICINE_API_URL}/files/${appointmentId}`);
+  const response = await fetch(
+    `${TELEMEDICINE_API_URL}/files/${appointmentId}`,
+    {
+      headers: getAuthHeaders(),
+    }
+  );
 
   if (!response.ok) {
-    throw new Error("Failed to fetch files");
+    throw new Error(`Request failed with status ${response.status}`);
   }
 
   return response.json();
@@ -239,6 +267,8 @@ export async function uploadTelemedicineFile(payload: {
   uploadedByRole: "doctor" | "patient";
   file: File;
 }): Promise<FileResponse> {
+  const token = localStorage.getItem("token");
+
   const formData = new FormData();
   formData.append("appointmentId", payload.appointmentId);
   formData.append("uploadedByRole", payload.uploadedByRole);
@@ -246,11 +276,14 @@ export async function uploadTelemedicineFile(payload: {
 
   const response = await fetch(`${TELEMEDICINE_API_URL}/files`, {
     method: "POST",
+    headers: {
+      Authorization: `Bearer ${token ?? ""}`,
+    },
     body: formData,
   });
 
   if (!response.ok) {
-    throw new Error("Failed to upload file");
+    throw new Error(`Request failed with status ${response.status}`);
   }
 
   return response.json();
@@ -284,11 +317,14 @@ export async function getPrescriptionsByAppointmentId(
   appointmentId: string
 ): Promise<PrescriptionsResponse> {
   const response = await fetch(
-    `${TELEMEDICINE_API_URL}/prescriptions/${appointmentId}`
+    `${TELEMEDICINE_API_URL}/prescriptions/${appointmentId}`,
+    {
+      headers: getAuthHeaders(),
+    }
   );
 
   if (!response.ok) {
-    throw new Error("Failed to fetch prescriptions");
+    throw new Error(`Request failed with status ${response.status}`);
   }
 
   return response.json();
@@ -304,14 +340,12 @@ export async function createPrescription(payload: {
 }): Promise<PrescriptionResponse> {
   const response = await fetch(`${TELEMEDICINE_API_URL}/prescriptions`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
-    throw new Error("Failed to save prescription");
+    throw new Error(`Request failed with status ${response.status}`);
   }
 
   return response.json();
