@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useToast } from "../../components/common/ToastProvider";
+import { useLocationToast } from "../../hooks/useLocationToast";
 import { registerPatient } from "../../services/patientApi";
 
 type PatientFormData = {
@@ -97,13 +99,8 @@ function getFieldClass(hasError: boolean) {
 
 export default function PatientRegister() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const locationState =
-    typeof location.state === "object" && location.state !== null
-      ? (location.state as {
-          successMessage?: string;
-        })
-      : null;
+  const { showToast } = useToast();
+  useLocationToast();
   const [formData, setFormData] = useState<PatientFormData>({
     firstName: "",
     lastName: "",
@@ -118,9 +115,6 @@ export default function PatientRegister() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState(
-    locationState?.successMessage || ""
-  );
   const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -145,18 +139,20 @@ export default function PatientRegister() {
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
-      setSuccessMessage("");
       setErrorMessage("Please correct the highlighted fields.");
+      showToast("Please correct the highlighted fields.", "error");
       return;
     }
 
     setLoading(true);
-    setSuccessMessage("");
     setErrorMessage("");
 
     try {
       const data = await registerPatient(formData);
-      setSuccessMessage(data.message || "Patient registered successfully");
+      showToast(
+        data.message || "Patient registered successfully.",
+        "success"
+      );
 
       navigate("/verify-email", {
         replace: true,
@@ -167,9 +163,10 @@ export default function PatientRegister() {
         },
       });
     } catch (error: unknown) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to register patient"
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to register patient";
+      setErrorMessage(message);
+      showToast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -215,12 +212,6 @@ export default function PatientRegister() {
               Sign in here
             </Link>
           </p>
-
-          {successMessage && (
-            <div className="mb-4 rounded-lg bg-green-100 px-4 py-3 text-green-700">
-              {successMessage}
-            </div>
-          )}
 
           {errorMessage && (
             <div className="mb-4 rounded-lg bg-red-100 px-4 py-3 text-red-700">
