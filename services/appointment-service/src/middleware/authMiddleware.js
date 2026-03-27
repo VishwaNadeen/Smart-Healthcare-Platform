@@ -1,12 +1,12 @@
-const jwt = require("jsonwebtoken");
+const { getAuthProfile } = require("../services/authService");
 
-const getUserIdFromTokenPayload = (payload) =>
-  payload.userId || payload.id || payload._id || payload.patientId || payload.sub || null;
+const getUserIdFromUser = (user) =>
+  user?._id || user?.id || user?.userId || user?.patientId || user?.sub || null;
 
-const getRoleFromTokenPayload = (payload) =>
-  (payload.role || payload.userType || payload.accountType || "").toLowerCase();
+const getRoleFromUser = (user) =>
+  (user?.role || user?.userType || user?.accountType || "").toLowerCase();
 
-const getAuthContext = (req) => {
+const getAuthContext = async (req) => {
   const authHeader = req.headers.authorization || "";
 
   if (!authHeader.startsWith("Bearer ")) {
@@ -14,44 +14,38 @@ const getAuthContext = (req) => {
   }
 
   const token = authHeader.split(" ")[1];
-  const jwtSecret = process.env.JWT_SECRET;
-
-  if (!jwtSecret) {
-    return { errorStatus: 500, message: "JWT_SECRET is not configured" };
-  }
 
   try {
-    const decoded = jwt.verify(token, jwtSecret);
-    const userId = getUserIdFromTokenPayload(decoded);
-    const role = getRoleFromTokenPayload(decoded);
+    const response = await getAuthProfile(token);
+    const authUser = response.user || {};
+    const userId = getUserIdFromUser(authUser);
+    const role = getRoleFromUser(authUser);
 
     if (!userId) {
-      return { errorStatus: 401, message: "Invalid token payload: missing user id" };
+      return { errorStatus: 401, message: "Invalid auth profile: missing user id" };
     }
 
     return {
       user: {
         id: userId,
         role,
-        tokenPayload: decoded,
+        tokenPayload: authUser,
       },
     };
   } catch (error) {
     return {
-      errorStatus: 401,
-      message: "Invalid or expired token",
-      error: error.message,
+      errorStatus: error.status || 401,
+      message: error.data?.message || error.message || "Unauthorized",
     };
   }
 };
 
-const requirePatientAuth = (req, res, next) => {
-  const authContext = getAuthContext(req);
+const requirePatientAuth = async (req, res, next) => {
+  const authContext = await getAuthContext(req);
 
   if (authContext.errorStatus) {
     return res.status(authContext.errorStatus).json({
       message: authContext.message,
-      ...(authContext.error ? { error: authContext.error } : {}),
     });
   }
 
@@ -70,13 +64,12 @@ const requirePatientAuth = (req, res, next) => {
   return next();
 };
 
-const requireDoctorAuth = (req, res, next) => {
-  const authContext = getAuthContext(req);
+const requireDoctorAuth = async (req, res, next) => {
+  const authContext = await getAuthContext(req);
 
   if (authContext.errorStatus) {
     return res.status(authContext.errorStatus).json({
       message: authContext.message,
-      ...(authContext.error ? { error: authContext.error } : {}),
     });
   }
 

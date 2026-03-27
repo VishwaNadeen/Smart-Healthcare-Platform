@@ -4,16 +4,6 @@ const app = require("./app");
 
 dotenv.config();
 
-<<<<<<< Updated upstream
-// connect database
-connectDB();
-
-const PORT = process.env.PORT || 5003;
-
-app.listen(PORT, () => {
-  console.log(`Doctor Service running on port ${PORT}`);
-});
-=======
 const PORT = process.env.PORT || 5003;
 
 const startServer = async () => {
@@ -30,4 +20,3 @@ const startServer = async () => {
 };
 
 startServer();
->>>>>>> Stashed changes
