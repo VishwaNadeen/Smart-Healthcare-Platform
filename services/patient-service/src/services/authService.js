@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 const getAuthServiceUrl = () =>
-  process.env.AUTH_SERVICE_URL || "http://localhost:5001";
+  process.env.AUTH_SERVICE_URL || "http://localhost:5003";
 
 const getInternalHeaders = () => {
   const headers = {};

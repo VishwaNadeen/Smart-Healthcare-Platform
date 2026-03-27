@@ -4,6 +4,8 @@ const {
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
+  requestEmailVerificationOtp,
+  verifyEmailOtp,
   requestLoginOtp,
   verifyLoginOtp,
   requestPasswordResetOtp,
@@ -31,6 +33,8 @@ const hasValidInternalSecret = (req) => {
 };
 
 const register = async (req, res) => {
+  let createdUser = null;
+
   try {
     const { username, email, password, role } = req.body;
 
@@ -47,16 +51,35 @@ const register = async (req, res) => {
     }
 
     const user = await registerUser({ username, email, password, role });
+    createdUser = user;
+    const verification = await requestEmailVerificationOtp({ email });
 
     res.status(201).json({
-      message: "User created successfully",
+      message: "User created successfully. Please verify your email to continue.",
       user: serializeUser(user),
+      verificationRequired: !verification.alreadyVerified,
+      expiresInMinutes: verification.expiresInMinutes,
     });
   } catch (error) {
-    const isConflict = error.message && error.message.includes("already exists");
-    res.status(isConflict ? 400 : 500).json({
-      message: isConflict ? error.message : "Failed to register user",
-      error: error.message,
+    if (createdUser?._id) {
+      try {
+        await deleteUserAccount(createdUser._id);
+      } catch (rollbackError) {
+        console.error("Failed to roll back auth user after register error:", rollbackError.message);
+      }
+    }
+
+    const errorMessage = error.message || "Failed to register user";
+    const isConflict = errorMessage.includes("already exists");
+    const isValidationOrConfigError =
+      errorMessage.includes("SMTP is not configured") ||
+      errorMessage.includes("Username is required") ||
+      errorMessage.includes("All fields are required") ||
+      errorMessage.includes("Role must be");
+
+    res.status(isConflict || isValidationOrConfigError ? 400 : 500).json({
+      message: errorMessage,
+      error: errorMessage,
     });
   }
 };
@@ -76,7 +99,64 @@ const login = async (req, res) => {
       ...result,
     });
   } catch (error) {
-    res.status(401).json({ message: error.message });
+    const isInvalidCredentials =
+      error.message === "Invalid email or password" ||
+      error.message === "Please verify your email before logging in";
+
+    res.status(isInvalidCredentials ? 401 : 500).json({
+      message: isInvalidCredentials ? error.message : "Failed to login",
+      error: error.message,
+    });
+  }
+};
+
+const requestEmailVerification = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required",
+      });
+    }
+
+    const result = await requestEmailVerificationOtp({ email });
+
+    res.status(200).json({
+      message: result.alreadyVerified
+        ? "Email is already verified"
+        : "Verification code sent successfully",
+      ...result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      message: error.message,
+    });
+  }
+};
+
+const verifyEmail = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        message: "Email and OTP are required",
+      });
+    }
+
+    const result = await verifyEmailOtp({ email, otp });
+
+    res.status(200).json({
+      message: result.alreadyVerified
+        ? "Email is already verified"
+        : "Email verified successfully",
+      ...result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      message: error.message,
+    });
   }
 };
 
@@ -155,7 +235,7 @@ const requestLoginOtpController = async (req, res) => {
 
     res.status(200).json({
       message: "OTP sent for login",
-      ...result,
+      expiresInMinutes: result.expiresInMinutes,
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -201,7 +281,7 @@ const forgotPassword = async (req, res) => {
 
     res.status(200).json({
       message: "OTP sent for password reset",
-      ...result,
+      expiresInMinutes: result.expiresInMinutes,
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -257,6 +337,8 @@ module.exports = {
   deleteByEmailInternal,
   me,
   stats,
+  requestEmailVerification,
+  verifyEmail,
   requestLoginOtpController,
   verifyLoginOtpController,
   forgotPassword,

@@ -57,6 +57,12 @@ const patientSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+
+    profileImage: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
   {
     timestamps: true,

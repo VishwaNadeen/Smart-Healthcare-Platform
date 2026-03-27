@@ -1,5 +1,5 @@
 const getAppointmentServiceUrl = () =>
-  process.env.APPOINTMENT_SERVICE_URL || "http://localhost:5001";
+  process.env.APPOINTMENT_SERVICE_URL || "http://localhost:5002";
 
 const extractJson = async (response) => {
   try {

@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema(
       enum: ["patient", "doctor", "admin"],
       required: true,
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
     tokens: [
       {
         token: {
@@ -46,6 +50,19 @@ const userSchema = new mongoose.Schema(
       }
     },
     otpReset: {
+      codeHash: {
+        type: String,
+        default: ""
+      },
+      expiresAt: {
+        type: Date
+      },
+      attempts: {
+        type: Number,
+        default: 0
+      }
+    },
+    otpVerify: {
       codeHash: {
         type: String,
         default: ""
