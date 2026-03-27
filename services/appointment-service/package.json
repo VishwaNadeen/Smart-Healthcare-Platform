@@ -2,10 +2,15 @@
   "name": "doctor-service",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
+<<<<<<< Updated upstream
     "start": "node src/server.js"
+=======
+    "start": "node src/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+>>>>>>> Stashed changes
   },
   "dependencies": {
     "cors": "^2.8.6",
