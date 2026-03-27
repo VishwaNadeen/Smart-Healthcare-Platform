@@ -9,38 +9,13 @@ const STATUS_TRANSITIONS = {
   completed: [],
   cancelled: [],
 };
-const MOCK_DOCTORS = [
-  {
-    _id: "mock-doc-1",
-    fullName: "Dr. Rajesh Kumar",
-    specialization: "Orthopedics",
-    city: "Galle",
-    status: "active",
-    consultationFee: 5000,
-  },
-  {
-    _id: "mock-doc-2",
-    fullName: "Dr. Saman Kumara",
-    specialization: "Dermatology",
-    city: "Colombo",
-    status: "active",
-    consultationFee: 4500,
-  },
-  {
-    _id: "mock-doc-3",
-    fullName: "Dr. Nimal Perera",
-    specialization: "Cardiology",
-    city: "Colombo",
-    status: "active",
-    consultationFee: 5500,
-  },
-];
-
+// Keep all specialty/doctor lookups safe by escaping user input for regex matching
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// Allow swapping doctor-service host/port
 const getDoctorServiceUrl = () => process.env.DOCTOR_SERVICE_URL || "http://localhost:5005";
-const isMockSearchFallbackEnabled = () => (process.env.SEARCH_FALLBACK_MOCK || "false").toLowerCase() === "true";
 
+// Normalize odd Postman payloads like "{Cardiology}" to plain strings
 const normalizeSpecializationInput = (value) => {
   if (typeof value !== "string") {
     return "";
@@ -50,6 +25,7 @@ const normalizeSpecializationInput = (value) => {
   return value.trim().replace(/^\{+|\}+$/g, "").trim();
 };
 
+// Pull active specialties from doctor-service; bubble failures to the caller
 const getActiveSpecialties = async () => {
   const response = await fetch(`${getDoctorServiceUrl()}/api/specialties`);
   if (!response.ok) {
@@ -60,6 +36,7 @@ const getActiveSpecialties = async () => {
   return specialties.filter((specialty) => specialty.isActive !== false);
 };
 
+// Dropdown-friendly list of specialties from doctor-service
 const getSpecialtiesForDropdown = async (_req, res) => {
   try {
     const specialties = await getActiveSpecialties();
@@ -70,17 +47,6 @@ const getSpecialtiesForDropdown = async (_req, res) => {
       data: specialtyNames,
     });
   } catch (error) {
-    if (isMockSearchFallbackEnabled()) {
-      const specialtyNames = [
-        ...new Set(MOCK_DOCTORS.map((doctor) => doctor.specialization).filter(Boolean)),
-      ].sort();
-
-      return res.status(200).json({
-        source: "mock-fallback",
-        data: specialtyNames,
-      });
-    }
-
     return res.status(502).json({
       message: "Failed to fetch specialties",
       error: `Doctor service unreachable: ${error.message}`,
@@ -88,6 +54,7 @@ const getSpecialtiesForDropdown = async (_req, res) => {
   }
 };
 
+// Ensure specialization matches an active specialty before persisting
 const resolveValidSpecialization = async (specialization) => {
   const normalizedValue = normalizeSpecializationInput(specialization);
   if (!normalizedValue) {
@@ -103,6 +70,7 @@ const resolveValidSpecialization = async (specialization) => {
   return matchedSpecialty ? matchedSpecialty.name : null;
 };
 
+// Search doctors via doctor-service, with optional city filter
 const searchDoctorsBySpecialty = async (req, res) => {
   try {
     const { specialization, city } = req.query;
@@ -132,27 +100,6 @@ const searchDoctorsBySpecialty = async (req, res) => {
 
     return res.status(200).json(matchedDoctors);
   } catch (error) {
-    if (isMockSearchFallbackEnabled()) {
-      const normalizedSpecialization = normalizeSpecializationInput(req.query.specialization);
-      const specializationRegex = new RegExp(`^${escapeRegExp(normalizedSpecialization)}$`, "i");
-      const cityRegex =
-        req.query.city && String(req.query.city).trim()
-          ? new RegExp(`^${escapeRegExp(String(req.query.city).trim())}$`, "i")
-          : null;
-
-      const matchedDoctors = MOCK_DOCTORS.filter((doctor) => {
-        const specializationMatch = specializationRegex.test(doctor.specialization || "");
-        const activeMatch = (doctor.status || "").toLowerCase() === "active";
-        const cityMatch = !cityRegex || cityRegex.test(doctor.city || "");
-        return specializationMatch && activeMatch && cityMatch;
-      });
-
-      return res.status(200).json({
-        source: "mock-fallback",
-        data: matchedDoctors,
-      });
-    }
-
     return res.status(502).json({
       message: "Failed to search doctors",
       error: `Doctor service unreachable: ${error.message}`,
@@ -160,6 +107,7 @@ const searchDoctorsBySpecialty = async (req, res) => {
   }
 };
 
+// Prevent overlapping active appointments for the same doctor and timeslot
 const hasTimeConflict = async (doctorId, appointmentDate, appointmentTime, excludeAppointmentId) => {
   const query = {
     doctorId,
@@ -176,6 +124,7 @@ const hasTimeConflict = async (doctorId, appointmentDate, appointmentTime, exclu
   return Boolean(conflict);
 };
 
+// Patients can only act on their own appointments
 const canPatientAccessAppointment = (req, appointment) => {
   const authenticatedPatientId = req.user?.id;
   if (!authenticatedPatientId) {
@@ -339,6 +288,7 @@ const getAppointmentsByDoctorId = async (req, res) => {
 };
 
 // Update appointment
+// Patient-side updates with slot conflict checks and specialization validation
 const updateAppointment = async (req, res) => {
   try {
     const allowedUpdates = [

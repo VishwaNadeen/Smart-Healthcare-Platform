@@ -1,5 +1,3 @@
-// services/appointment-service/src/app.js
-
 const express = require("express");
 const cors = require("cors");
 const appointmentRoutes = require("./routes/appointmentRoutes");
@@ -10,7 +8,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// test route
+// health check
 app.get("/", (req, res) => {
   res.send("Appointment Service is running");
 });
