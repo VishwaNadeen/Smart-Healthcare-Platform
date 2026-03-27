@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   deleteCurrentPatient,
   getCurrentPatientProfile,
+  removeCurrentPatientProfileImage,
+  uploadCurrentPatientProfileImage,
   updateCurrentPatientProfile,
 } from "../../services/patientApi";
 import type { PatientUpdatePayload } from "../../services/patientApi";
@@ -10,13 +12,14 @@ import {
   getStoredTelemedicineAuth,
 } from "../../utils/telemedicineAuth";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "../../components/common/ToastProvider";
 
-const PROFILE_IMAGE_KEY = "patientProfileImage";
 const PROFILE_NAME_KEY = "patientProfileName";
 
 const PatientProfile = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { showToast } = useToast();
 
   const [formData, setFormData] = useState<PatientUpdatePayload>({
     firstName: "",
@@ -39,6 +42,10 @@ const PatientProfile = () => {
 
   const auth = getStoredTelemedicineAuth();
   const token = auth.token || "";
+
+  useEffect(() => {
+    localStorage.removeItem("patientProfileImage");
+  }, []);
 
   const loadProfile = async () => {
     try {
@@ -65,11 +72,32 @@ const PatientProfile = () => {
 
       const fullName = `${nextForm.firstName} ${nextForm.lastName}`.trim();
       localStorage.setItem(PROFILE_NAME_KEY, fullName);
-      setProfileImage(localStorage.getItem(PROFILE_IMAGE_KEY) || "");
+      setProfileImage(data.profileImage || "");
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to load profile"
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to load profile";
+      const normalizedMessage = message.toLowerCase();
+
+      if (
+        normalizedMessage.includes("not found") ||
+        normalizedMessage.includes("deleted") ||
+        normalizedMessage.includes("unauthorized") ||
+        normalizedMessage.includes("invalid token")
+      ) {
+        localStorage.removeItem(PROFILE_NAME_KEY);
+        clearTelemedicineAuth();
+        navigate("/login", {
+          replace: true,
+          state: {
+            registeredEmail: auth.email || "",
+            successMessage:
+              "Your patient account was deleted or is no longer available. Please sign in with a valid account.",
+          },
+        });
+        return;
+      }
+
+      setErrorMessage(message);
     } finally {
       setLoading(false);
     }
@@ -82,7 +110,6 @@ const PatientProfile = () => {
       return;
     }
 
-    setProfileImage(localStorage.getItem(PROFILE_IMAGE_KEY) || "");
     loadProfile();
   }, [token]);
 
@@ -101,7 +128,7 @@ const PatientProfile = () => {
     fileInputRef.current?.click();
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
 
     if (!file) {
@@ -110,33 +137,50 @@ const PatientProfile = () => {
 
     if (!file.type.startsWith("image/")) {
       setErrorMessage("Please choose a valid image file.");
+      showToast("Please choose a valid image file.", "error");
       return;
     }
 
-    const reader = new FileReader();
-
-    reader.onloadend = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-
-      if (!result) {
-        setErrorMessage("Failed to read image.");
-        return;
-      }
-
-      localStorage.setItem(PROFILE_IMAGE_KEY, result);
-      setProfileImage(result);
-      setSuccessMessage("Profile picture updated successfully.");
+    try {
       setErrorMessage("");
-    };
+      setSuccessMessage("");
 
-    reader.readAsDataURL(file);
+      const response = await uploadCurrentPatientProfileImage(token, file);
+
+      setProfileImage(response.profileImage || response.patient.profileImage || "");
+      setSuccessMessage(response.message || "Profile picture updated successfully.");
+      setErrorMessage("");
+      showToast(response.message || "Profile picture updated successfully.", "success");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to upload profile picture";
+      setErrorMessage(message);
+      showToast(message, "error");
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   const handleRemoveImage = () => {
-    localStorage.removeItem(PROFILE_IMAGE_KEY);
-    setProfileImage("");
-    setSuccessMessage("Profile picture removed.");
-    setErrorMessage("");
+    void (async () => {
+      try {
+        setSuccessMessage("");
+        setErrorMessage("");
+
+        const response = await removeCurrentPatientProfileImage(token);
+
+        setProfileImage("");
+        setSuccessMessage(response.message || "Profile picture removed.");
+        showToast(response.message || "Profile picture removed.", "info");
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to remove profile picture";
+        setErrorMessage(message);
+        showToast(message, "error");
+      }
+    })();
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -152,12 +196,14 @@ const PatientProfile = () => {
       localStorage.setItem(PROFILE_NAME_KEY, fullName);
 
       setSuccessMessage(response.message || "Profile updated successfully.");
+      showToast(response.message || "Profile updated successfully.", "success");
       setEditing(false);
       await loadProfile();
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to update profile"
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to update profile";
+      setErrorMessage(message);
+      showToast(message, "error");
     }
   };
 
@@ -181,8 +227,11 @@ const PatientProfile = () => {
       setErrorMessage("");
 
       const response = await deleteCurrentPatient(token);
+      showToast(
+        response.message || "Your account was deleted successfully.",
+        "success"
+      );
 
-      localStorage.removeItem(PROFILE_IMAGE_KEY);
       localStorage.removeItem(PROFILE_NAME_KEY);
       clearTelemedicineAuth();
 
@@ -194,9 +243,10 @@ const PatientProfile = () => {
         },
       });
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to delete account"
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to delete account";
+      setErrorMessage(message);
+      showToast(message, "error");
     } finally {
       setDeleting(false);
     }
@@ -357,6 +407,8 @@ const PatientProfile = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
+                  readOnly
+                  helperText="Email is managed by your account and cannot be changed here."
                 />
 
                 <div>
@@ -484,6 +536,8 @@ const InputField = ({
   value,
   onChange,
   type = "text",
+  readOnly = false,
+  helperText = "",
 }: {
   label: string;
   name: string;
@@ -492,6 +546,8 @@ const InputField = ({
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => void;
   type?: string;
+  readOnly?: boolean;
+  helperText?: string;
 }) => {
   return (
     <div>
@@ -503,9 +559,17 @@ const InputField = ({
         name={name}
         value={value}
         onChange={onChange}
-        className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+        readOnly={readOnly}
+        className={`w-full rounded-xl border border-slate-300 px-4 py-3 outline-none ${
+          readOnly
+            ? "cursor-not-allowed bg-slate-100 text-slate-500"
+            : "focus:border-blue-500"
+        }`}
         required={name !== "address"}
       />
+      {helperText && (
+        <p className="mt-2 text-sm text-slate-500">{helperText}</p>
+      )}
     </div>
   );
 };

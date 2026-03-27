@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useToast } from "../../components/common/ToastProvider";
+import { useLocationToast } from "../../hooks/useLocationToast";
 import {
   requestEmailVerification,
   verifyEmail,
@@ -13,6 +15,8 @@ type VerifyFormState = {
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
+  useLocationToast();
   const locationState =
     typeof location.state === "object" && location.state !== null
       ? (location.state as {
@@ -48,6 +52,7 @@ export default function VerifyEmailPage() {
 
     try {
       const result = await verifyEmail(form);
+      showToast(result.message, "success");
 
       navigate("/login", {
         replace: true,
@@ -57,7 +62,10 @@ export default function VerifyEmailPage() {
         },
       });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to verify email");
+      const message =
+        err instanceof Error ? err.message : "Failed to verify email";
+      setError(message);
+      showToast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -70,8 +78,12 @@ export default function VerifyEmailPage() {
     try {
       const result = await requestEmailVerification({ email: form.email });
       setMessage(result.message);
+      showToast(result.message, "info");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to resend code");
+      const message =
+        err instanceof Error ? err.message : "Failed to resend code";
+      setError(message);
+      showToast(message, "error");
     } finally {
       setResending(false);
     }
@@ -86,12 +98,6 @@ export default function VerifyEmailPage() {
             Confirm your account before you sign in.
           </p>
         </div>
-
-        {locationState?.successMessage && (
-          <div className="mb-5 rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
-            {locationState.successMessage}
-          </div>
-        )}
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>

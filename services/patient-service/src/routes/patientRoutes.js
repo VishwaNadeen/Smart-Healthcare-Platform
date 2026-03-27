@@ -10,6 +10,7 @@ const {
   getPatientById,
   updateCurrentPatient,
   uploadCurrentPatientProfileImage,
+  removeCurrentPatientProfileImage,
   deleteCurrentPatient,
 } = require("../controllers/patientController");
 
@@ -23,6 +24,7 @@ router.post(
   upload.single("profileImage"),
   uploadCurrentPatientProfileImage
 );
+router.delete("/me/profile-image", authMiddleware, removeCurrentPatientProfileImage);
 router.delete("/me", authMiddleware, deleteCurrentPatient);
 router.get("/:id", getPatientById);
 
