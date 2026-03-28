@@ -1,24 +1,6 @@
 const Patient = require("../models/patient");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
-const { registerPatientAuth, deleteAuthAccountByEmail } = require("../services/authService");
-
-const extractErrorMessage = (error) => {
-  if (typeof error === "string") {
-    return error || "Unknown error";
-  }
-
-  if (!error || typeof error !== "object") {
-    return "Unknown error";
-  }
-
-  return (
-    error.response?.data?.message ||
-    error.response?.data?.error ||
-    error.message ||
-    "Unknown error"
-  );
-};
 
 const deleteCloudinaryImage = async (publicId) => {
   if (!publicId) {
@@ -32,80 +14,19 @@ const deleteCloudinaryImage = async (publicId) => {
 
 // Create patient
 const createPatient = async (req, res) => {
-  let shouldRollbackAuthUser = false;
-  let rollbackEmail = null;
-
   try {
-    const normalizedEmail =
-      typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
-    const password = req.body?.password;
-
-    if (
-      !req.body?.firstName ||
-      !req.body?.lastName ||
-      !normalizedEmail ||
-      !password ||
-      !req.body?.countryCode ||
-      !req.body?.phone ||
-      !req.body?.birthday ||
-      !req.body?.gender ||
-      !req.body?.country
-    ) {
-      return res.status(400).json({
-        message: "All required patient fields must be provided",
-      });
-    }
-
-    const existingPatient = await Patient.findOne({ email: normalizedEmail });
-    if (existingPatient) {
-      return res.status(400).json({
-        message: "Patient already exists",
-      });
-    }
-
-    const authRegistration = await registerPatientAuth({
-      firstName: req.body.firstName,
-      lastName: req.body.lastName,
-      email: normalizedEmail,
-      password,
-    });
-
-    shouldRollbackAuthUser = true;
-    rollbackEmail = normalizedEmail;
-
-    const patientPayload = {
-      firstName: req.body.firstName,
-      lastName: req.body.lastName,
-      email: normalizedEmail,
-      countryCode: req.body.countryCode,
-      phone: req.body.phone,
-      birthday: req.body.birthday,
-      gender: req.body.gender,
-      address: req.body.address,
-      country: req.body.country,
-    };
-
-    const patient = await Patient.create(patientPayload);
-    shouldRollbackAuthUser = false;
+    const patient = await Patient.create(req.body);
 
     res.status(201).json({
-      message: "Patient account created successfully. Please verify your email to continue.",
+      message: "Patient created successfully",
       patient,
       verificationRequired: authRegistration?.verificationRequired,
       expiresInMinutes: authRegistration?.expiresInMinutes,
     });
   } catch (error) {
-    if (shouldRollbackAuthUser && rollbackEmail) {
-      try {
-        await deleteAuthAccountByEmail(rollbackEmail);
-      } catch (rollbackError) {
-        console.error("createPatient rollback failed:", rollbackError.message);
-      }
-    }
-
-    res.status(error?.response?.status || 500).json({
+    res.status(500).json({
       message: "Failed to create patient",
-      error: extractErrorMessage(error),
+      error: error.message,
     });
   }
 };
@@ -304,6 +225,15 @@ const removeCurrentPatientProfileImage = async (req, res) => {
 const deleteCurrentPatient = async (req, res) => {
   try {
     const email = req.authUser.email;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        message: "Password is required to delete your profile",
+      });
+    }
+
+    await verifyAuthPassword(req.token, password);
 
     const patient = await Patient.findOne({ email });
 
@@ -323,9 +253,16 @@ const deleteCurrentPatient = async (req, res) => {
       message: "Patient account deleted successfully",
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to delete patient account",
-      error: error.message,
+    const statusCode = error.response?.status || 500;
+    const errorMessage =
+      error.response?.data?.message || error.message || "Failed to delete patient account";
+
+    res.status(statusCode).json({
+      message:
+        statusCode === 401 || statusCode === 400
+          ? errorMessage
+          : "Failed to delete patient account",
+      error: errorMessage,
     });
   }
 };

@@ -87,6 +87,7 @@ const normalizeUsername = (username) =>
     .replace(/\s+/g, " ");
 
 const normalizeIdentifier = (identifier) => String(identifier || "").trim();
+const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 
 const buildUniqueUsername = async (username) => {
   const baseUsername = normalizeUsername(username);
@@ -366,10 +367,11 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
 };
 
 const requestPasswordResetOtp = async ({ identifier }) => {
-  const user = await findUserByIdentifier(identifier);
+  const normalizedEmail = normalizeEmail(identifier);
+  const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
-    throw new Error("User not found");
+    throw new Error("No auth account found with this email");
   }
 
   const otp = generateOtp();
@@ -401,6 +403,24 @@ const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
   await user.save();
 };
 
+const verifyCurrentUserPassword = async ({ userId, password }) => {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const isPasswordMatch = await bcrypt.compare(String(password || ""), user.password);
+
+  if (!isPasswordMatch) {
+    throw new Error("Incorrect password");
+  }
+
+  return {
+    verified: true,
+  };
+};
+
 const getUserStats = async () => {
   const [totalUsers, doctorCount, patientCount, adminCount] = await Promise.all([
     User.countDocuments(),
@@ -430,5 +450,6 @@ module.exports = {
   verifyLoginOtp,
   requestPasswordResetOtp,
   resetPasswordWithOtp,
+  verifyCurrentUserPassword,
   getUserStats,
 };
