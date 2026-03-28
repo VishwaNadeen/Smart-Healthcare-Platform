@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   requirePatientAuth,
   requireDoctorAuth,
+  requireAdminAuth,
   enforceDoctorParamOwnership,
 } = require("../middleware/authMiddleware");
 
@@ -18,10 +19,14 @@ const {
   deleteAppointment,
   updateAppointmentStatus,
   getAppointmentTracking,
+  getAdminAppointments,
+  getAdminAppointmentActivity,
 } = require("../controllers/appointmentController");
 
 router.get("/specialties", getSpecialtiesForDropdown);
 router.get("/doctors/search", searchDoctorsBySpecialty);
+router.get("/admin/activity", requireAdminAuth, getAdminAppointmentActivity);
+router.get("/admin/all", requireAdminAuth, getAdminAppointments);
 router.post("/", requirePatientAuth, createAppointment);
 router.get("/", requirePatientAuth, getAllAppointments);
 router.get("/doctor/:doctorId", requireDoctorAuth, enforceDoctorParamOwnership, getAppointmentsByDoctorId);

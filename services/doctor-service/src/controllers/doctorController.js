@@ -66,6 +66,8 @@ const doctorAllowedFields = [
   "availabilitySchedule",
 ];
 
+const adminDoctorAllowedFields = [...doctorAllowedFields, "verificationNote"];
+
 const sanitizeStringArray = (values) => {
   if (!Array.isArray(values)) {
     return undefined;
@@ -94,8 +96,12 @@ const sanitizeAvailabilitySchedule = (slots) => {
 };
 
 const sanitizeDoctorPayload = (payload = {}) => {
+  return sanitizePayloadWithAllowedFields(payload, doctorAllowedFields);
+};
+
+const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
   const sanitizedPayload = Object.fromEntries(
-    Object.entries(payload).filter(([key]) => doctorAllowedFields.includes(key))
+    Object.entries(payload).filter(([key]) => allowedFields.includes(key))
   );
 
   if (sanitizedPayload.email !== undefined) {
@@ -215,6 +221,10 @@ const createDoctor = async (req, res) => {
       authUserId,
       specialization: specialty.name,
       specializationId: specialty._id,
+      status: "inactive",
+      verificationStatus: "pending",
+      verificationNote: "",
+      verifiedAt: null,
     });
 
     shouldRollbackAuthUser = false;
@@ -296,7 +306,7 @@ const getDoctorById = async (req, res) => {
 
 const updateDoctor = async (req, res) => {
   try {
-    const updatePayload = sanitizeDoctorPayload(req.body);
+    const updatePayload = sanitizePayloadWithAllowedFields(req.body, adminDoctorAllowedFields);
 
     if (updatePayload.specialization !== undefined) {
       const specialty = await resolveSpecialty(updatePayload.specialization);
@@ -323,13 +333,65 @@ const updateDoctor = async (req, res) => {
   }
 };
 
-const deleteDoctor = async (req, res) => {
+const getDoctorsForVerification = async (req, res) => {
   try {
-    const doctor = await Doctor.findByIdAndDelete(req.params.id);
+    const { verificationStatus } = req.query;
+    const query = {};
+
+    if (verificationStatus) {
+      query.verificationStatus = String(verificationStatus).trim().toLowerCase();
+    }
+
+    const doctors = await Doctor.find(query)
+      .populate("specializationId", "name description isActive")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json(doctors.map(toDoctorResponse));
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to fetch doctor verifications", error: error.message });
+  }
+};
+
+const updateDoctorVerification = async (req, res) => {
+  try {
+    const verificationStatus = String(req.body?.verificationStatus || "").trim().toLowerCase();
+    const verificationNote =
+      req.body?.verificationNote === undefined ? undefined : String(req.body.verificationNote || "").trim();
+
+    if (!["approved", "rejected"].includes(verificationStatus)) {
+      return res.status(400).json({
+        message: "verificationStatus must be approved or rejected",
+      });
+    }
+
+    const doctor = await Doctor.findById(req.params.id).populate("specializationId", "name description isActive");
     if (!doctor) {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
+    doctor.verificationStatus = verificationStatus;
+    doctor.status = verificationStatus === "approved" ? "active" : "inactive";
+    doctor.verificationNote = verificationNote !== undefined ? verificationNote : doctor.verificationNote;
+    doctor.verifiedAt = new Date();
+    await doctor.save();
+
+    return res.status(200).json({
+      message: `Doctor ${verificationStatus} successfully`,
+      doctor: toDoctorResponse(doctor),
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to update doctor verification", error: error.message });
+  }
+};
+
+const deleteMyDoctorProfile = async (req, res) => {
+  try {
+    const doctor = await ensureDoctorIdentity(req, res);
+    if (!doctor) {
+      return;
+    }
+
+    await Doctor.findByIdAndDelete(doctor._id);
     return res.status(200).json({ message: "Deleted" });
   } catch (error) {
     return res.status(500).json({ message: "Failed to delete doctor", error: error.message });
@@ -442,7 +504,9 @@ module.exports = {
   getAllDoctors,
   getDoctorById,
   updateDoctor,
-  deleteDoctor,
+  getDoctorsForVerification,
+  updateDoctorVerification,
+  deleteMyDoctorProfile,
   getMyDoctorProfile,
   updateMyDoctorProfile,
   getMyAvailability,

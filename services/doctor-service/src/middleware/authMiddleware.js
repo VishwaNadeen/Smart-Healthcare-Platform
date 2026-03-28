@@ -107,6 +107,14 @@ const enforceDoctorResourceOwnership = async (req, res, next) => {
     });
   }
 
+  const loggedInDoctor = await Doctor.findOne({ authUserId: req.user.id }).select("_id +authUserId");
+
+  if (!loggedInDoctor) {
+    return res.status(404).json({
+      message: "Doctor profile not found for this account",
+    });
+  }
+
   const doctor = await Doctor.findById(req.params.id).select("_id +authUserId");
 
   if (!doctor) {
@@ -115,7 +123,7 @@ const enforceDoctorResourceOwnership = async (req, res, next) => {
     });
   }
 
-  if (String(doctor.authUserId || "") !== String(req.user.id)) {
+  if (String(doctor._id) !== String(loggedInDoctor._id)) {
     return res.status(403).json({
       message: "You can only modify your own doctor profile",
     });

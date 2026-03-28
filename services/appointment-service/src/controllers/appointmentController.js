@@ -623,6 +623,63 @@ const getAppointmentTracking = async (req, res) => {
   }
 };
 
+const getAdminAppointments = async (req, res) => {
+  try {
+    const { status, patientId, doctorId, appointmentDate } = req.query;
+    const query = {};
+
+    if (status) {
+      query.status = status;
+    }
+
+    if (patientId) {
+      query.patientId = patientId;
+    }
+
+    if (doctorId) {
+      query.doctorId = doctorId;
+    }
+
+    if (appointmentDate) {
+      query.appointmentDate = appointmentDate;
+    }
+
+    const appointments = await Appointment.find(query).sort({ createdAt: -1 });
+    return res.status(200).json(appointments);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch appointments",
+      error: error.message,
+    });
+  }
+};
+
+const getAdminAppointmentActivity = async (_req, res) => {
+  try {
+    const [totalAppointments, pendingAppointments, confirmedAppointments, completedAppointments, cancelledAppointments] =
+      await Promise.all([
+        Appointment.countDocuments(),
+        Appointment.countDocuments({ status: "pending" }),
+        Appointment.countDocuments({ status: "confirmed" }),
+        Appointment.countDocuments({ status: "completed" }),
+        Appointment.countDocuments({ status: "cancelled" }),
+      ]);
+
+    return res.status(200).json({
+      totalAppointments,
+      pendingAppointments,
+      confirmedAppointments,
+      completedAppointments,
+      cancelledAppointments,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch appointment activity",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getSpecialtiesForDropdown,
   searchDoctorsBySpecialty,
@@ -635,4 +692,6 @@ module.exports = {
   deleteAppointment,
   updateAppointmentStatus,
   getAppointmentTracking,
+  getAdminAppointments,
+  getAdminAppointmentActivity,
 };
