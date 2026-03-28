@@ -1,10 +1,30 @@
 const { getAuthProfile } = require("../services/authService");
+const getDoctorServiceUrl = () => process.env.DOCTOR_SERVICE_URL || "http://localhost:5003";
 
 const getUserIdFromUser = (user) =>
   user?._id || user?.id || user?.userId || user?.patientId || user?.sub || null;
 
 const getRoleFromUser = (user) =>
   (user?.role || user?.userType || user?.accountType || "").toLowerCase();
+
+const getDoctorProfileFromDoctorService = async (token) => {
+  const response = await fetch(`${getDoctorServiceUrl()}/api/doctors/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(data.message || "Failed to fetch doctor profile");
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data;
+};
 
 const getAuthContext = async (req) => {
   const authHeader = req.headers.authorization || "";
@@ -85,6 +105,16 @@ const requireDoctorAuth = async (req, res, next) => {
     role: role || "doctor",
   };
 
+  try {
+    const token = req.headers.authorization.split(" ")[1];
+    const doctorProfile = await getDoctorProfileFromDoctorService(token);
+    req.user.doctorRecordId = doctorProfile?._id || null;
+  } catch (error) {
+    return res.status(error.status || 502).json({
+      message: error.data?.message || error.message || "Failed to load doctor profile",
+    });
+  }
+
   return next();
 };
 
@@ -98,7 +128,13 @@ const enforceDoctorParamOwnership = (req, res, next) => {
     });
   }
 
-  if (String(requestedDoctorId) !== String(authenticatedDoctorId)) {
+  const authenticatedDoctorRecordId = req.user?.doctorRecordId;
+
+  const isAuthUserIdMatch = String(requestedDoctorId) === String(authenticatedDoctorId);
+  const isDoctorRecordIdMatch =
+    authenticatedDoctorRecordId && String(requestedDoctorId) === String(authenticatedDoctorRecordId);
+
+  if (!isAuthUserIdMatch && !isDoctorRecordIdMatch) {
     return res.status(403).json({
       message: "You can only access your own appointments",
     });
@@ -108,7 +144,7 @@ const enforceDoctorParamOwnership = (req, res, next) => {
 };
 
 const enforceDoctorAppointmentOwnership = (req, appointment) => {
-  const authenticatedDoctorId = req.user?.id;
+  const authenticatedDoctorId = req.user?.doctorRecordId;
 
   if (!authenticatedDoctorId) {
     return false;
