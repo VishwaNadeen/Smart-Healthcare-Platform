@@ -29,9 +29,11 @@ export default function DoctorSessions() {
 
         const data = await getSessionsByDoctorId(doctorId);
         setSessions(data);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Failed to load doctor sessions:", error);
-        setError("Failed to load doctor sessions.");
+        setError(
+          error instanceof Error ? error.message : "Failed to load doctor sessions."
+        );
       } finally {
         setLoading(false);
       }

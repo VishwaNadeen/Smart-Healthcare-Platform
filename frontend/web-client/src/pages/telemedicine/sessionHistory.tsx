@@ -7,6 +7,7 @@ import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
 export default function SessionHistory() {
   const [sessions, setSessions] = useState<TelemedicineSession[]>([]);
+  const [error, setError] = useState("");
   const auth = getStoredTelemedicineAuth();
   const patientId = auth.userId;
 
@@ -17,14 +18,18 @@ export default function SessionHistory() {
       }
 
       try {
+        setError("");
         const data = await getSessionsByPatientId(patientId);
         setSessions(
           data.filter((session) =>
             ["completed", "cancelled"].includes(session.status)
           )
         );
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Failed to load session history:", error);
+        setError(
+          error instanceof Error ? error.message : "Failed to load session history."
+        );
       }
     }
 
@@ -49,7 +54,11 @@ export default function SessionHistory() {
         </h1>
 
         <div className="space-y-4">
-          {sessions.length === 0 ? (
+          {error ? (
+            <div className="rounded-xl bg-red-50 p-6 shadow">
+              <p className="text-red-600">{error}</p>
+            </div>
+          ) : sessions.length === 0 ? (
             <div className="rounded-xl bg-white p-6 shadow">
               <p className="text-slate-600">No session history found.</p>
             </div>

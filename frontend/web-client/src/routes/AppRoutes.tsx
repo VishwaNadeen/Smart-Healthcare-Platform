@@ -1,9 +1,12 @@
 import { Routes, Route } from "react-router-dom";
 import HomePage from "../pages/home/homePage";
-import LoginPage from "../pages/auth/loginPage";
+import LoginPage from "../pages/auth/login";
 import MainLayout from "../layouts/mainLayout";
 
 import { telemedicineRoutes } from "./telemedicineRoutes";
+import { patientRoutes } from "./patientRoutes";
+import { appointmentRoutes } from "./appointmentRoutes";
+import VerifyEmailPage from "../pages/auth/VerifyEmail";
 
 export default function AppRoutes() {
   return (
@@ -24,7 +27,11 @@ export default function AppRoutes() {
           </MainLayout>
         }
       />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+
       {telemedicineRoutes}
+      {patientRoutes}
+      {appointmentRoutes}
     </Routes>
   );
 }

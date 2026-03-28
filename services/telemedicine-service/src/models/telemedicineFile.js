@@ -24,8 +24,9 @@ const telemedicineFileSchema = new mongoose.Schema(
     },
     uploadedByRole: {
       type: String,
-      enum: ["doctor", "patient"],
+      enum: ["patient"],
       required: true,
+      default: "patient",
     },
   },
   {

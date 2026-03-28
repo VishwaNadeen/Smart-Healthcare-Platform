@@ -29,9 +29,11 @@ export default function PatientSessions() {
 
         const data = await getSessionsByPatientId(patientId);
         setSessions(data);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Failed to load patient sessions:", err);
-        setError("Failed to load patient sessions.");
+        setError(
+          err instanceof Error ? err.message : "Failed to load patient sessions."
+        );
       } finally {
         setLoading(false);
       }
