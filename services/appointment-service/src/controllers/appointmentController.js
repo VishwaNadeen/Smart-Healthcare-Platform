@@ -25,6 +25,20 @@ const normalizeSpecializationInput = (value) => {
   return value.trim().replace(/^\{+|\}+$/g, "").trim();
 };
 
+const getDoctorByIdFromDoctorService = async (doctorId) => {
+  const response = await fetch(`${getDoctorServiceUrl()}/api/doctors/${doctorId}`);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`doctor-service responded with status ${response.status}`);
+  }
+
+  return response.json();
+};
+
 // Pull active specialties from doctor-service; bubble failures to the caller
 const getActiveSpecialties = async () => {
   const response = await fetch(`${getDoctorServiceUrl()}/api/specialties`);
@@ -68,6 +82,74 @@ const resolveValidSpecialization = async (specialization) => {
   );
 
   return matchedSpecialty ? matchedSpecialty.name : null;
+};
+
+const validateDoctorSelection = async ({ doctorId, doctorName, specialization }) => {
+  const doctor = await getDoctorByIdFromDoctorService(doctorId);
+
+  if (!doctor) {
+    return {
+      error: {
+        status: 404,
+        message: "Selected doctor was not found",
+      },
+    };
+  }
+
+  if ((doctor.status || "").toLowerCase() !== "active") {
+    return {
+      error: {
+        status: 409,
+        message: "Selected doctor is not active",
+      },
+    };
+  }
+
+  if (doctor.acceptsNewAppointments === false) {
+    return {
+      error: {
+        status: 409,
+        message: "Selected doctor is not accepting new appointments",
+      },
+    };
+  }
+
+  const normalizedDoctorName = String(doctorName || "").trim().toLowerCase();
+  const actualDoctorName = String(doctor.fullName || "").trim().toLowerCase();
+
+  if (normalizedDoctorName && actualDoctorName && normalizedDoctorName !== actualDoctorName) {
+    return {
+      error: {
+        status: 400,
+        message: "doctorName does not match the selected doctor",
+      },
+    };
+  }
+
+  const validSpecialization = await resolveValidSpecialization(specialization);
+  if (!validSpecialization) {
+    return {
+      error: {
+        status: 400,
+        message: "Invalid specialization. Please select a valid active specialty.",
+      },
+    };
+  }
+
+  const actualSpecialization = String(doctor.specialization || "").trim().toLowerCase();
+  if (actualSpecialization !== validSpecialization.toLowerCase()) {
+    return {
+      error: {
+        status: 400,
+        message: "Selected specialty does not match the selected doctor",
+      },
+    };
+  }
+
+  return {
+    doctor,
+    specialization: validSpecialization,
+  };
 };
 
 // Search doctors via doctor-service, with optional city filter
@@ -168,10 +250,14 @@ const createAppointment = async (req, res) => {
       });
     }
 
-    const validSpecialization = await resolveValidSpecialization(specialization);
-    if (!validSpecialization) {
-      return res.status(400).json({
-        message: "Invalid specialization. Please select a valid active specialty.",
+    const doctorValidation = await validateDoctorSelection({
+      doctorId,
+      doctorName,
+      specialization,
+    });
+    if (doctorValidation.error) {
+      return res.status(doctorValidation.error.status).json({
+        message: doctorValidation.error.message,
       });
     }
 
@@ -185,8 +271,8 @@ const createAppointment = async (req, res) => {
     const appointment = await Appointment.create({
       patientId,
       doctorId,
-      doctorName,
-      specialization: validSpecialization,
+      doctorName: doctorValidation.doctor.fullName,
+      specialization: doctorValidation.specialization,
       appointmentDate,
       appointmentTime,
       reason,
@@ -274,8 +360,9 @@ const getAppointmentById = async (req, res) => {
 // Get appointments by doctorId
 const getAppointmentsByDoctorId = async (req, res) => {
   try {
+    const doctorRecordId = req.user?.doctorRecordId || req.params.doctorId;
     const appointments = await Appointment.find({
-      doctorId: req.params.doctorId,
+      doctorId: doctorRecordId,
     }).sort({ createdAt: -1 });
 
     res.status(200).json(appointments);
@@ -345,15 +432,26 @@ const updateAppointment = async (req, res) => {
       }
     }
 
-    if (updatePayload.specialization !== undefined) {
-      const validSpecialization = await resolveValidSpecialization(updatePayload.specialization);
-      if (!validSpecialization) {
-        return res.status(400).json({
-          message: "Invalid specialization. Please select a valid active specialty.",
+    const doctorSelectionChanged =
+      updatePayload.doctorId !== undefined ||
+      updatePayload.doctorName !== undefined ||
+      updatePayload.specialization !== undefined;
+
+    if (doctorSelectionChanged) {
+      const doctorValidation = await validateDoctorSelection({
+        doctorId: updatePayload.doctorId || appointment.doctorId,
+        doctorName: updatePayload.doctorName || appointment.doctorName,
+        specialization: updatePayload.specialization || appointment.specialization,
+      });
+
+      if (doctorValidation.error) {
+        return res.status(doctorValidation.error.status).json({
+          message: doctorValidation.error.message,
         });
       }
 
-      updatePayload.specialization = validSpecialization;
+      updatePayload.doctorName = doctorValidation.doctor.fullName;
+      updatePayload.specialization = doctorValidation.specialization;
     }
 
     Object.assign(appointment, updatePayload);
