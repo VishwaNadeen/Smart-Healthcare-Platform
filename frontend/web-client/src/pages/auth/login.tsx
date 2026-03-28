@@ -9,6 +9,18 @@ import {
   saveTelemedicineAuth,
 } from "../../utils/telemedicineAuth";
 
+const PATIENT_PROFILE_NAME_KEY = "patientProfileName";
+const PATIENT_PROFILE_IMAGE_KEY = "patientProfileImage";
+const DOCTOR_PROFILE_NAME_KEY = "doctorProfileName";
+const DOCTOR_PROFILE_IMAGE_KEY = "doctorProfileImage";
+
+function clearStoredProfiles() {
+  localStorage.removeItem(PATIENT_PROFILE_NAME_KEY);
+  localStorage.removeItem(PATIENT_PROFILE_IMAGE_KEY);
+  localStorage.removeItem(DOCTOR_PROFILE_NAME_KEY);
+  localStorage.removeItem(DOCTOR_PROFILE_IMAGE_KEY);
+}
+
 type LoginFormState = {
   email: string;
   password: string;
@@ -43,6 +55,8 @@ export default function LoginPage() {
 
     try {
       const result = await loginUser(form);
+
+      clearStoredProfiles();
 
       saveTelemedicineAuth({
         token: result.token,

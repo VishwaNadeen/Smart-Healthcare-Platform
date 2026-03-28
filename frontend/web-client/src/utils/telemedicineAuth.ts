@@ -2,6 +2,7 @@ import type { TelemedicineSession } from "../services/telemedicineApi";
 
 export type TelemedicineRole = "doctor" | "patient" | "admin";
 export type TelemedicineActorRole = Exclude<TelemedicineRole, "admin">;
+
 export const TELEMEDICINE_AUTH_STORAGE_KEY = "telemedicine_auth";
 
 export type TelemedicineAuthState = {
@@ -13,6 +14,18 @@ export type TelemedicineAuthState = {
   email: string | null;
   isAuthenticated: boolean;
 };
+
+function getEmptyTelemedicineAuthState(): TelemedicineAuthState {
+  return {
+    token: null,
+    userId: null,
+    role: null,
+    actorRole: null,
+    username: null,
+    email: null,
+    isAuthenticated: false,
+  };
+}
 
 function normalizeString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -60,34 +73,22 @@ export function saveTelemedicineAuth(auth: {
 }
 
 export function clearTelemedicineAuth() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
   window.localStorage.removeItem(TELEMEDICINE_AUTH_STORAGE_KEY);
 }
 
 export function getStoredTelemedicineAuth(): TelemedicineAuthState {
   if (typeof window === "undefined") {
-    return {
-      token: null,
-      userId: null,
-      role: null,
-      actorRole: null,
-      username: null,
-      email: null,
-      isAuthenticated: false,
-    };
+    return getEmptyTelemedicineAuthState();
   }
 
   const rawValue = window.localStorage.getItem(TELEMEDICINE_AUTH_STORAGE_KEY);
 
   if (!rawValue) {
-    return {
-      token: null,
-      userId: null,
-      role: null,
-      actorRole: null,
-      username: null,
-      email: null,
-      isAuthenticated: false,
-    };
+    return getEmptyTelemedicineAuthState();
   }
 
   let parsedValue: Record<string, unknown>;
@@ -96,16 +97,7 @@ export function getStoredTelemedicineAuth(): TelemedicineAuthState {
     parsedValue = JSON.parse(rawValue) as Record<string, unknown>;
   } catch {
     clearTelemedicineAuth();
-
-    return {
-      token: null,
-      userId: null,
-      role: null,
-      actorRole: null,
-      username: null,
-      email: null,
-      isAuthenticated: false,
-    };
+    return getEmptyTelemedicineAuthState();
   }
 
   const token = normalizeString(parsedValue.token);
@@ -121,8 +113,12 @@ export function getStoredTelemedicineAuth(): TelemedicineAuthState {
     actorRole: role === "doctor" || role === "patient" ? role : null,
     username,
     email,
-    isAuthenticated: Boolean(token || role || userId),
+    isAuthenticated: Boolean(token && role && userId),
   };
+}
+
+export function getTelemedicineAuth(): TelemedicineAuthState {
+  return getStoredTelemedicineAuth();
 }
 
 export function getRoleHomePath(role: TelemedicineRole | null): string {
@@ -132,6 +128,10 @@ export function getRoleHomePath(role: TelemedicineRole | null): string {
 
   if (role === "patient") {
     return "/patient-sessions";
+  }
+
+  if (role === "admin") {
+    return "/dashboard";
   }
 
   return "/";

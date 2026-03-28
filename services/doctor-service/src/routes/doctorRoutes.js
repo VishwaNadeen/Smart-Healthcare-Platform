@@ -1,31 +1,36 @@
 const express = require("express");
+const router = express.Router();
+const authMiddleware = require("../middleware/authMiddleware");
+
 const {
   createDoctor,
   getAllDoctors,
-  getDoctorById,
-  updateDoctor,
-  deleteDoctor,
   getMyDoctorProfile,
+  getDoctorById,
   updateMyDoctorProfile,
+  deleteDoctor,
   getMyAvailability,
   updateMyAvailability,
 } = require("../controllers/doctorController");
-const {
-  requireAuth,
-  requireDoctorAuth,
-  enforceDoctorResourceOwnership,
-} = require("../middleware/authMiddleware");
 
-const router = express.Router();
-
+/*
+  Public doctor signup route
+*/
 router.post("/", createDoctor);
+
+/*
+  Protected current-user routes
+  IMPORTANT: keep /me routes above /:id
+*/
+router.get("/me", authMiddleware.requireDoctorAuth, getMyDoctorProfile);
+router.put("/me", authMiddleware.requireDoctorAuth, updateMyDoctorProfile);
+router.get("/me/availability", authMiddleware.requireDoctorAuth, getMyAvailability);
+router.put("/me/availability", authMiddleware.requireDoctorAuth, updateMyAvailability);
+
+/*
+  Public/general routes
+*/
 router.get("/", getAllDoctors);
-router.get("/me", requireDoctorAuth, getMyDoctorProfile);
-router.put("/me", requireDoctorAuth, updateMyDoctorProfile);
-router.get("/me/availability", requireDoctorAuth, getMyAvailability);
-router.put("/me/availability", requireDoctorAuth, updateMyAvailability);
 router.get("/:id", getDoctorById);
-router.put("/:id", requireAuth, enforceDoctorResourceOwnership, updateDoctor);
-router.delete("/:id", requireAuth, enforceDoctorResourceOwnership, deleteDoctor);
 
 module.exports = router;

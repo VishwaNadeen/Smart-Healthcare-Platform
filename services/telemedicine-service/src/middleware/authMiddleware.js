@@ -1,6 +1,6 @@
-const jwt = require("jsonwebtoken");
+const { getAuthProfile } = require("../services/authProfileService");
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization || "";
 
@@ -11,31 +11,33 @@ const authMiddleware = (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const profile = await getAuthProfile(token);
+    const user = profile?.user;
 
-    if (!decoded?.userId || !decoded?.role) {
+    if (!user?._id || !user?.role) {
       return res.status(401).json({
-        message: "Invalid token payload",
+        message: "Invalid auth profile response",
       });
     }
 
-    if (!["doctor", "patient"].includes(decoded.role)) {
+    if (!["doctor", "patient"].includes(String(user.role).toLowerCase())) {
       return res.status(403).json({
         message: "Access denied for this role",
       });
     }
 
+    req.token = token;
     req.user = {
-      userId: String(decoded.userId),
-      username: decoded.username || "",
-      role: decoded.role,
+      userId: String(user._id),
+      username: user.username || "",
+      email: user.email || "",
+      role: String(user.role || "").toLowerCase(),
     };
 
     next();
   } catch (error) {
-    return res.status(401).json({
-      message: "Invalid or expired token",
-      error: error.message,
+    return res.status(error.status || 401).json({
+      message: error.message || "Invalid or expired token",
     });
   }
 };

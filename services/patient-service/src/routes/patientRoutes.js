@@ -14,8 +14,15 @@ const {
   deleteCurrentPatient,
 } = require("../controllers/patientController");
 
+/*
+  Public signup route
+*/
 router.post("/", createPatient);
-router.get("/", getAllPatients);
+
+/*
+  Protected current-user routes
+  IMPORTANT: keep /me routes above /:id
+*/
 router.get("/me", authMiddleware, getCurrentPatient);
 router.put("/me", authMiddleware, updateCurrentPatient);
 router.post(
@@ -26,6 +33,11 @@ router.post(
 );
 router.delete("/me/profile-image", authMiddleware, removeCurrentPatientProfileImage);
 router.delete("/me", authMiddleware, deleteCurrentPatient);
+
+/*
+  Public/general routes
+*/
+router.get("/", getAllPatients);
 router.get("/:id", getPatientById);
 
 module.exports = router;

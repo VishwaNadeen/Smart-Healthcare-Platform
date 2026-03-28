@@ -1,5 +1,25 @@
 const TelemedicineSession = require("../models/telemedicineSession");
-const { getAppointmentById } = require("../services/appointmentService");
+const {
+  getAppointmentById,
+  updateAppointmentStatus,
+} = require("../services/appointmentService");
+
+const SESSION_STATUSES = ["scheduled", "active", "completed", "cancelled"];
+const SESSION_TO_APPOINTMENT_STATUS_MAP = {
+  scheduled: null,
+  active: "confirmed",
+  completed: "completed",
+  cancelled: "cancelled",
+};
+
+const authorizeSessionAccess = (req, session) => {
+  const currentUserId = String(req.user.userId);
+
+  return (
+    (req.user.role === "doctor" && String(session.doctorId) === currentUserId) ||
+    (req.user.role === "patient" && String(session.patientId) === currentUserId)
+  );
+};
 
 const createSession = async (req, res) => {
   try {
@@ -9,22 +29,26 @@ const createSession = async (req, res) => {
       });
     }
 
-    const { appointmentId, scheduledDate, scheduledTime } = req.body || {};
+    const { appointmentId, patientId, scheduledDate, scheduledTime } = req.body || {};
 
-    if (!appointmentId) {
+    if (!appointmentId || !patientId || !scheduledDate || !scheduledTime) {
       return res.status(400).json({
-        message: "appointmentId is required",
+        message: "appointmentId, patientId, scheduledDate and scheduledTime are required",
       });
     }
 
-    const existingSession = await TelemedicineSession.findOne({ appointmentId });
+    const existingSession = await TelemedicineSession.findOne({
+      appointmentId: String(appointmentId),
+    });
+
     if (existingSession) {
       return res.status(400).json({
         message: "Session already exists for this appointment",
       });
     }
 
-    const appointment = await getAppointmentById(appointmentId);
+    const appointmentResponse = await getAppointmentById(appointmentId);
+    const appointment = appointmentResponse?.appointment;
 
     if (!appointment) {
       return res.status(404).json({
@@ -34,42 +58,19 @@ const createSession = async (req, res) => {
 
     if (String(appointment.doctorId) !== String(req.user.userId)) {
       return res.status(403).json({
-        message: "You can create sessions only for your own appointments",
+        message: "You can only create sessions for your own appointments",
       });
     }
 
-    if (!["confirmed", "pending"].includes(appointment.status)) {
+    if (String(appointment.patientId) !== String(patientId)) {
       return res.status(400).json({
-        message: "Telemedicine session can only be created for pending or confirmed appointments",
+        message: "Provided patientId does not match the appointment",
       });
     }
 
-    const resolvedScheduledDate = scheduledDate || appointment.appointmentDate;
-    const resolvedScheduledTime = scheduledTime || appointment.appointmentTime;
-
-    if (!appointment.patientId || !appointment.doctorId || !resolvedScheduledDate || !resolvedScheduledTime) {
-      return res.status(400).json({
-        message: "The linked appointment is missing patient, doctor, date or time details",
-      });
-    }
-
-    if (
-      scheduledDate &&
-      appointment.appointmentDate &&
-      String(appointment.appointmentDate) !== String(scheduledDate)
-    ) {
-      return res.status(400).json({
-        message: "Scheduled date does not match the appointment date",
-      });
-    }
-
-    if (
-      scheduledTime &&
-      appointment.appointmentTime &&
-      String(appointment.appointmentTime) !== String(scheduledTime)
-    ) {
-      return res.status(400).json({
-        message: "Scheduled time does not match the appointment time",
+    if (!["pending", "confirmed"].includes(String(appointment.status))) {
+      return res.status(409).json({
+        message: `Cannot create a telemedicine session for a ${appointment.status} appointment`,
       });
     }
 
@@ -77,13 +78,13 @@ const createSession = async (req, res) => {
     const meetingLink = `https://meet.jit.si/${roomName}`;
 
     const session = await TelemedicineSession.create({
-      appointmentId,
-      patientId: String(appointment.patientId),
-      doctorId: String(appointment.doctorId),
+      appointmentId: String(appointmentId),
+      patientId: String(patientId),
+      doctorId: String(req.user.userId),
       roomName,
       meetingLink,
-      scheduledDate: resolvedScheduledDate,
-      scheduledTime: resolvedScheduledTime,
+      scheduledDate: String(scheduledDate),
+      scheduledTime: String(scheduledTime),
       status: "scheduled",
     });
 
@@ -93,7 +94,7 @@ const createSession = async (req, res) => {
     });
   } catch (error) {
     return res.status(error.status || 500).json({
-      message: "Failed to create session",
+      message: error.message || "Failed to create session",
       error: error.message,
     });
   }
@@ -101,9 +102,10 @@ const createSession = async (req, res) => {
 
 const getAllSessions = async (req, res) => {
   try {
-    const query = req.user.role === "doctor"
-      ? { doctorId: String(req.user.userId) }
-      : { patientId: String(req.user.userId) };
+    const query =
+      req.user.role === "doctor"
+        ? { doctorId: String(req.user.userId) }
+        : { patientId: String(req.user.userId) };
 
     const sessions = await TelemedicineSession.find(query).sort({ createdAt: -1 });
     return res.status(200).json(sessions);
@@ -126,7 +128,13 @@ const getSessionStats = async (req, res) => {
     const today = new Date().toISOString().split("T")[0];
     const doctorId = String(req.user.userId);
 
-    const [totalSessions, activeSessions, completedSessions, cancelledSessions, todaySessions] = await Promise.all([
+    const [
+      totalSessions,
+      activeSessions,
+      completedSessions,
+      cancelledSessions,
+      todaySessions,
+    ] = await Promise.all([
       TelemedicineSession.countDocuments({ doctorId }),
       TelemedicineSession.countDocuments({ doctorId, status: "active" }),
       TelemedicineSession.countDocuments({ doctorId, status: "completed" }),
@@ -154,17 +162,10 @@ const getSessionById = async (req, res) => {
     const session = await TelemedicineSession.findById(req.params.id);
 
     if (!session) {
-      return res.status(404).json({
-        message: "Session not found",
-      });
+      return res.status(404).json({ message: "Session not found" });
     }
 
-    const currentUserId = String(req.user.userId);
-    const allowed =
-      (req.user.role === "doctor" && String(session.doctorId) === currentUserId) ||
-      (req.user.role === "patient" && String(session.patientId) === currentUserId);
-
-    if (!allowed) {
+    if (!authorizeSessionAccess(req, session)) {
       return res.status(403).json({
         message: "You do not have access to this session",
       });
@@ -186,17 +187,10 @@ const getSessionByAppointmentId = async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({
-        message: "Session not found",
-      });
+      return res.status(404).json({ message: "Session not found" });
     }
 
-    const currentUserId = String(req.user.userId);
-    const allowed =
-      (req.user.role === "doctor" && String(session.doctorId) === currentUserId) ||
-      (req.user.role === "patient" && String(session.patientId) === currentUserId);
-
-    if (!allowed) {
+    if (!authorizeSessionAccess(req, session)) {
       return res.status(403).json({
         message: "You do not have access to this session",
       });
@@ -274,36 +268,44 @@ const updateSessionStatus = async (req, res) => {
     }
 
     const { status } = req.body;
-    const validStatuses = ["scheduled", "active", "completed", "cancelled"];
 
-    if (!validStatuses.includes(status)) {
+    if (!SESSION_STATUSES.includes(status)) {
       return res.status(400).json({
         message: "Invalid status value",
       });
     }
 
-    const updatedSession = await TelemedicineSession.findOneAndUpdate(
-      {
-        appointmentId: req.params.appointmentId,
-        doctorId: String(req.user.userId),
-      },
-      { status },
-      { new: true, runValidators: true }
-    );
+    const session = await TelemedicineSession.findOne({
+      appointmentId: req.params.appointmentId,
+      doctorId: String(req.user.userId),
+    });
 
-    if (!updatedSession) {
+    if (!session) {
       return res.status(404).json({
         message: "Session not found",
       });
     }
 
+    session.status = status;
+    await session.save();
+
+    const mappedAppointmentStatus = SESSION_TO_APPOINTMENT_STATUS_MAP[status];
+
+    if (mappedAppointmentStatus) {
+      await updateAppointmentStatus(
+        req.params.appointmentId,
+        mappedAppointmentStatus,
+        `Synced from telemedicine session status: ${status}`
+      );
+    }
+
     return res.status(200).json({
       message: "Session status updated successfully",
-      session: updatedSession,
+      session,
     });
   } catch (error) {
-    return res.status(500).json({
-      message: "Failed to update session status",
+    return res.status(error.status || 500).json({
+      message: error.message || "Failed to update session status",
       error: error.message,
     });
   }
@@ -324,8 +326,13 @@ const updateSessionNotes = async (req, res) => {
         appointmentId: req.params.appointmentId,
         doctorId: String(req.user.userId),
       },
-      { notes: String(notes || "") },
-      { new: true, runValidators: true }
+      {
+        notes: String(notes || ""),
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
     );
 
     if (!updatedSession) {

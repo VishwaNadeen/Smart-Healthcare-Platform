@@ -17,14 +17,32 @@ function AppointmentRoleRedirect() {
   }
 
   if (auth.role === "doctor") {
-    return <Navigate to="/appointments/doctor" replace state={{ from: location }} />;
+    return (
+      <Navigate
+        to="/appointments/doctor"
+        replace
+        state={{ from: location }}
+      />
+    );
   }
 
   if (auth.role === "patient") {
-    return <Navigate to="/appointments/patient" replace state={{ from: location }} />;
+    return (
+      <Navigate
+        to="/appointments/patient"
+        replace
+        state={{ from: location }}
+      />
+    );
   }
 
-  return <Navigate to={getRoleHomePath(auth.role)} replace state={{ from: location }} />;
+  return (
+    <Navigate
+      to={getRoleHomePath(auth.role)}
+      replace
+      state={{ from: location }}
+    />
+  );
 }
 
 export const appointmentRoutes = (

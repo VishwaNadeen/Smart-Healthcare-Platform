@@ -15,6 +15,7 @@ const generateToken = (user) => {
     {
       userId: user._id,
       username: user.username,
+      email: user.email,
       role: user.role,
     },
     process.env.JWT_SECRET,
@@ -64,6 +65,7 @@ const verifyOtp = (user, field, otp) => {
   }
 
   const isMatch = hashOtp(otp) === data.codeHash;
+
   if (!isMatch) {
     data.attempts += 1;
   }
@@ -115,15 +117,12 @@ const findUserByIdentifier = async (identifier) => {
   }
 
   return User.findOne({
-    $or: [
-      { email: normalizedIdentifier.toLowerCase() },
-      { username: normalizedIdentifier },
-    ],
+    $or: [{ email: normalizedIdentifier.toLowerCase() }, { username: normalizedIdentifier }],
   });
 };
 
 const registerUser = async ({ username, email, password, role }) => {
-  const normalizedEmail = email.toLowerCase().trim();
+  const normalizedEmail = normalizeEmail(email);
   const normalizedUsername = normalizeUsername(username);
 
   if (!normalizedUsername) {
@@ -151,7 +150,7 @@ const registerUser = async ({ username, email, password, role }) => {
 };
 
 const requestEmailVerificationOtp = async ({ email }) => {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedEmail = normalizeEmail(email);
   const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
@@ -177,7 +176,7 @@ const requestEmailVerificationOtp = async ({ email }) => {
 };
 
 const verifyEmailOtp = async ({ email, otp }) => {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedEmail = normalizeEmail(email);
   const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
@@ -248,15 +247,16 @@ const ensureAdminUser = async () => {
 };
 
 const loginUser = async ({ email, password }) => {
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
+  const normalizedEmail = normalizeEmail(email);
+  const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
     throw new Error("Invalid email or password");
   }
 
-  const isPasswordMatch = await bcrypt.compare(password, user.password);
+  const isMatch = await bcrypt.compare(password, user.password);
 
-  if (!isPasswordMatch) {
+  if (!isMatch) {
     throw new Error("Invalid email or password");
   }
 
@@ -278,35 +278,22 @@ const loginUser = async ({ email, password }) => {
 };
 
 const logoutUser = async (userId, token) => {
-  const user = await User.findById(userId);
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  user.tokens = user.tokens.filter((item) => item.token !== token);
-  await user.save();
+  await User.findByIdAndUpdate(userId, {
+    $pull: { tokens: { token } },
+  });
 };
 
 const deleteUserAccount = async (userId) => {
-  const user = await User.findByIdAndDelete(userId);
-
-  if (!user) {
-    throw new Error("User not found");
-  }
+  await User.findByIdAndDelete(userId);
 };
 
 const deleteUserByEmail = async (email) => {
-  const normalizedEmail = String(email || "").toLowerCase().trim();
-
-  if (!normalizedEmail) {
-    throw new Error("Email is required");
-  }
-
-  const user = await User.findOneAndDelete({ email: normalizedEmail });
+  const normalizedEmail = normalizeEmail(email);
+  const deletedUser = await User.findOneAndDelete({ email: normalizedEmail });
 
   return {
-    deleted: Boolean(user),
+    deleted: Boolean(deletedUser),
+    email: normalizedEmail,
   };
 };
 
@@ -318,7 +305,11 @@ const requestLoginOtp = async ({ identifier, role }) => {
   }
 
   if (role && user.role !== role) {
-    throw new Error(`This account is not registered as ${role}`);
+    throw new Error("User role does not match");
+  }
+
+  if (!user.isEmailVerified) {
+    throw new Error("Please verify your email before logging in");
   }
 
   const otp = generateOtp();
@@ -326,10 +317,7 @@ const requestLoginOtp = async ({ identifier, role }) => {
   await user.save();
   await deliverOtp({ user, otp, purpose: "login" });
 
-  return {
-    otp: process.env.NODE_ENV === "production" ? undefined : otp,
-    expiresInMinutes: OTP_TTL_MINUTES,
-  };
+  return { expiresInMinutes: OTP_TTL_MINUTES };
 };
 
 const verifyLoginOtp = async ({ identifier, otp, role }) => {
@@ -340,10 +328,11 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
   }
 
   if (role && user.role !== role) {
-    throw new Error(`This account is not registered as ${role}`);
+    throw new Error("User role does not match");
   }
 
   const isValid = verifyOtp(user, "otpLogin", otp);
+
   if (!isValid) {
     await user.save();
     throw new Error("Invalid OTP");
@@ -356,22 +345,19 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
   await user.save();
 
   return {
-    user: {
-      id: user._id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-    },
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
     token,
   };
 };
 
 const requestPasswordResetOtp = async ({ identifier }) => {
-  const normalizedEmail = normalizeEmail(identifier);
-  const user = await User.findOne({ email: normalizedEmail });
+  const user = await findUserByIdentifier(identifier);
 
   if (!user) {
-    throw new Error("No auth account found with this email");
+    throw new Error("User not found");
   }
 
   const otp = generateOtp();
@@ -392,6 +378,7 @@ const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
   }
 
   const isValid = verifyOtp(user, "otpReset", otp);
+
   if (!isValid) {
     await user.save();
     throw new Error("Invalid OTP");
@@ -400,6 +387,7 @@ const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
   const hashedPassword = await bcrypt.hash(newPassword, 10);
   user.password = hashedPassword;
   clearOtp(user, "otpReset");
+  user.tokens = [];
   await user.save();
 };
 
@@ -438,9 +426,9 @@ const getUserStats = async () => {
 };
 
 module.exports = {
+  ensureAdminUser,
   registerUser,
   loginUser,
-  ensureAdminUser,
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
