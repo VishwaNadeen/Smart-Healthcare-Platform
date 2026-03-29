@@ -1,103 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import PatientAppointmentCard from "../../components/appointments/PatientAppointmentCard";
 import {
-  getSessionsByPatientId,
-  type TelemedicineSession,
-} from "../../services/telemedicineApi";
+  cancelAppointment,
+  getPatientAppointments,
+  type Appointment,
+} from "../../services/appointmentApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
-
-function getSessionDateTime(session: TelemedicineSession) {
-  return new Date(`${session.scheduledDate}T${session.scheduledTime}`);
-}
-
-function formatDate(dateString: string) {
-  const date = new Date(dateString);
-
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatTime(timeString: string) {
-  const [hours = "00", minutes = "00"] = timeString.split(":");
-  const date = new Date();
-  date.setHours(Number(hours), Number(minutes), 0, 0);
-
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function SessionCard({
-  session,
-  actionLabel,
-  actionTo,
-}: {
-  session: TelemedicineSession;
-  actionLabel: string;
-  actionTo: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-medium text-blue-600">
-            Appointment ID: {session.appointmentId}
-          </p>
-          <h3 className="mt-1 text-lg font-semibold text-slate-800">
-            Consultation Session
-          </h3>
-          <p className="mt-1 text-sm text-slate-500">
-            {formatDate(session.scheduledDate)} • {formatTime(session.scheduledTime)}
-          </p>
-        </div>
-
-        <span
-          className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-            session.status === "completed"
-              ? "bg-green-100 text-green-700"
-              : session.status === "active"
-              ? "bg-blue-100 text-blue-700"
-              : session.status === "cancelled"
-              ? "bg-red-100 text-red-700"
-              : "bg-amber-100 text-amber-700"
-          }`}
-        >
-          {session.status}
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Link
-          to={`/session/${session.appointmentId}`}
-          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          View Details
-        </Link>
-
-        <Link
-          to={actionTo}
-          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          {actionLabel}
-        </Link>
-      </div>
-    </div>
-  );
-}
 
 export default function PatientAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
-  const [sessions, setSessions] = useState<TelemedicineSession[]>([]);
+
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadPatientSessions() {
-      if (!auth.userId) {
+    async function loadAppointments() {
+      if (!auth.token) {
         setErrorMessage("No patient login found.");
         setIsLoading(false);
         return;
@@ -105,175 +28,244 @@ export default function PatientAppointmentsPage() {
 
       try {
         setErrorMessage("");
-        const data = await getSessionsByPatientId(auth.userId);
-        setSessions(data);
+        const data = await getPatientAppointments(auth.token);
+        setAppointments(Array.isArray(data) ? data : []);
       } catch (error: unknown) {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "Failed to load patient appointments."
+            : "Failed to load appointments."
         );
       } finally {
         setIsLoading(false);
       }
     }
 
-    loadPatientSessions();
-  }, [auth.userId]);
+    loadAppointments();
+  }, [auth.token]);
 
-  const sortedSessions = useMemo(() => {
-    return [...sessions].sort(
-      (a, b) => getSessionDateTime(a).getTime() - getSessionDateTime(b).getTime()
-    );
-  }, [sessions]);
+  const filteredAppointments = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-  const upcomingSessions = useMemo(() => {
-    const now = new Date();
+    return appointments.filter((appointment) => {
+      const matchesSearch =
+        !query ||
+        appointment.doctorName.toLowerCase().includes(query) ||
+        appointment.specialization.toLowerCase().includes(query) ||
+        (appointment.reason || "").toLowerCase().includes(query) ||
+        appointment._id.toLowerCase().includes(query);
 
-    return sortedSessions.filter((session) => {
-      const sessionDate = getSessionDateTime(session);
-      return session.status !== "completed" && session.status !== "cancelled" && sessionDate >= now;
+      const isVisibleStatus =
+        appointment.status === "pending" || appointment.status === "confirmed";
+
+      return matchesSearch && isVisibleStatus;
     });
-  }, [sortedSessions]);
+  }, [appointments, search]);
 
-  const completedSessions = useMemo(() => {
-    return sortedSessions.filter((session) => session.status === "completed");
-  }, [sortedSessions]);
+  const activeAppointments = useMemo(() => {
+    return filteredAppointments
+      .filter((appointment) => appointment.status === "confirmed")
+      .sort((a, b) => {
+        const aDate = new Date(
+          `${a.appointmentDate}T${a.appointmentTime}`
+        ).getTime();
+        const bDate = new Date(
+          `${b.appointmentDate}T${b.appointmentTime}`
+        ).getTime();
+        return aDate - bDate;
+      });
+  }, [filteredAppointments]);
 
-  const activeSession = useMemo(() => {
-    return sortedSessions.find((session) => session.status === "active") ?? null;
-  }, [sortedSessions]);
+  const pendingAppointments = useMemo(() => {
+    return filteredAppointments
+      .filter((appointment) => appointment.status === "pending")
+      .sort((a, b) => {
+        const aDate = new Date(
+          `${a.appointmentDate}T${a.appointmentTime}`
+        ).getTime();
+        const bDate = new Date(
+          `${b.appointmentDate}T${b.appointmentTime}`
+        ).getTime();
+        return aDate - bDate;
+      });
+  }, [filteredAppointments]);
+
+  async function handleCancelAppointment(appointmentId: string) {
+    if (!auth.token) {
+      setErrorMessage("You must be logged in to cancel an appointment.");
+      return;
+    }
+
+    try {
+      setCancellingId(appointmentId);
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      const response = await cancelAppointment(auth.token, appointmentId);
+
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment._id === appointmentId
+            ? {
+                ...appointment,
+                status: "cancelled",
+              }
+            : appointment
+        )
+      );
+
+      setSuccessMessage(response.message || "Appointment cancelled successfully.");
+    } catch (error: unknown) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to cancel appointment."
+      );
+    } finally {
+      setCancellingId(null);
+    }
+  }
 
   return (
-    <section className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+    <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-3xl bg-gradient-to-r from-blue-600 to-cyan-500 p-6 text-white shadow-lg sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-100">
-            Patient Appointments
-          </p>
-          <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
-            Manage your consultations
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm text-blue-50 sm:text-base">
-            View upcoming appointments, access your active consultation, and check
-            completed session history from one page.
-          </p>
+        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                My Appointments
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
+                View your active appointments first, then check pending requests
+                and manage your bookings easily.
+              </p>
+            </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href="#upcoming"
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
-            >
-              Upcoming Appointments
-            </a>
-            <a
-              href="#history"
-              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Completed History
-            </a>
-            <Link
-              to="/patient-sessions"
-              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Open Patient Sessions
-            </Link>
-          </div>
-        </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Link
+                to="/appointments/create"
+                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                + Create Appointment
+              </Link>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Upcoming</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {upcomingSessions.length}
-            </p>
+              <Link
+                to="/appointments/history"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancelled & Completed
+              </Link>
+            </div>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Completed</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {completedSessions.length}
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Active Session</p>
-            <p className="mt-2 text-lg font-bold text-slate-800">
-              {activeSession ? activeSession.appointmentId : "No active session"}
-            </p>
+          <div className="mt-5 border-t border-slate-100 pt-5">
+            <div className="w-full lg:w-96">
+              <input
+                type="text"
+                placeholder="Search doctor, specialization, reason, ID..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white"
+              />
+            </div>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errorMessage}
           </div>
         )}
 
+        {successMessage && (
+          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {successMessage}
+          </div>
+        )}
+
         {isLoading ? (
-          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm">
-            Loading patient appointments...
+          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
+            Loading appointments...
+          </div>
+        ) : activeAppointments.length === 0 && pendingAppointments.length === 0 ? (
+          <div className="mt-6 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-slate-100">
+            <div className="mx-auto max-w-md">
+              <h3 className="text-xl font-bold text-slate-900">
+                No appointments found
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                You do not have any active or pending appointments right now.
+              </p>
+              <Link
+                to="/appointments/create"
+                className="mt-6 inline-flex rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                Create Appointment
+              </Link>
+            </div>
           </div>
         ) : (
-          <>
-            <div id="upcoming" className="mt-10">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-800">
-                  Upcoming Appointments
-                </h2>
+          <div className="mt-6 space-y-8">
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Active Appointments
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Approved appointments ready for consultation.
+                  </p>
+                </div>
               </div>
 
-              <div className="grid gap-4">
-                {upcomingSessions.length === 0 ? (
-                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
-                    No upcoming appointments found.
-                  </div>
-                ) : (
-                  upcomingSessions.map((session) => (
-                    <SessionCard
-                      key={session._id}
-                      session={session}
-                      actionLabel={
-                        session.status === "active"
-                          ? "Join Consultation"
-                          : "Open Waiting Room"
-                      }
-                      actionTo={
-                        session.status === "active"
-                          ? `/consultation/${session.appointmentId}`
-                          : `/waiting-room/${session.appointmentId}`
-                      }
+              {activeAppointments.length > 0 ? (
+                <div className="space-y-4">
+                  {activeAppointments.map((appointment) => (
+                    <PatientAppointmentCard
+                      key={appointment._id}
+                      appointment={appointment}
+                      onCancel={handleCancelAppointment}
+                      isCancelling={cancellingId === appointment._id}
                     />
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-sm text-slate-500">
+                  No active appointments available.
+                </div>
+              )}
             </div>
 
-            <div id="history" className="mt-10">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-800">
-                  Completed Session History
-                </h2>
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Pending Appointments
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Requests waiting for doctor approval.
+                  </p>
+                </div>
               </div>
 
-              <div className="grid gap-4">
-                {completedSessions.length === 0 ? (
-                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
-                    No completed sessions found.
-                  </div>
-                ) : (
-                  completedSessions.map((session) => (
-                    <SessionCard
-                      key={session._id}
-                      session={session}
-                      actionLabel="Open Summary"
-                      actionTo={`/session-summary/${session.appointmentId}`}
+              {pendingAppointments.length > 0 ? (
+                <div className="space-y-4">
+                  {pendingAppointments.map((appointment) => (
+                    <PatientAppointmentCard
+                      key={appointment._id}
+                      appointment={appointment}
+                      onCancel={handleCancelAppointment}
+                      isCancelling={cancellingId === appointment._id}
                     />
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-sm text-slate-500">
+                  No pending appointments available.
+                </div>
+              )}
             </div>
-          </>
+          </div>
         )}
       </div>
     </section>

@@ -34,12 +34,27 @@ export type TelemedicineStatsResponse = {
   todaySessions: number;
 };
 
+function getStoredTelemedicineToken() {
+  const rawAuth = localStorage.getItem("telemedicine_auth");
+
+  if (!rawAuth) {
+    return "";
+  }
+
+  try {
+    const parsedAuth = JSON.parse(rawAuth);
+    return typeof parsedAuth.token === "string" ? parsedAuth.token : "";
+  } catch {
+    return "";
+  }
+}
+
 function getAuthHeaders() {
-  const token = localStorage.getItem("token");
+  const token = getStoredTelemedicineToken();
 
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token ?? ""}`,
+    Authorization: token ? `Bearer ${token}` : "",
   };
 }
 

@@ -5,30 +5,10 @@ import {
   type TelemedicineSession,
 } from "../../services/telemedicineApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
+import SessionCard from "../../components/appointments/DoctorSessionCard";
 
 function getSessionDateTime(session: TelemedicineSession) {
   return new Date(`${session.scheduledDate}T${session.scheduledTime}`);
-}
-
-function formatDate(dateString: string) {
-  const date = new Date(dateString);
-
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatTime(timeString: string) {
-  const [hours = "00", minutes = "00"] = timeString.split(":");
-  const date = new Date();
-  date.setHours(Number(hours), Number(minutes), 0, 0);
-
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function isSameDay(dateA: Date, dateB: Date) {
@@ -36,64 +16,6 @@ function isSameDay(dateA: Date, dateB: Date) {
     dateA.getFullYear() === dateB.getFullYear() &&
     dateA.getMonth() === dateB.getMonth() &&
     dateA.getDate() === dateB.getDate()
-  );
-}
-
-function SessionCard({
-  session,
-  actionLabel,
-  actionTo,
-}: {
-  session: TelemedicineSession;
-  actionLabel: string;
-  actionTo: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-medium text-blue-600">
-            Appointment ID: {session.appointmentId}
-          </p>
-          <h3 className="mt-1 text-lg font-semibold text-slate-800">
-            Doctor Consultation Slot
-          </h3>
-          <p className="mt-1 text-sm text-slate-500">
-            {formatDate(session.scheduledDate)} • {formatTime(session.scheduledTime)}
-          </p>
-        </div>
-
-        <span
-          className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-            session.status === "completed"
-              ? "bg-green-100 text-green-700"
-              : session.status === "active"
-              ? "bg-blue-100 text-blue-700"
-              : session.status === "cancelled"
-              ? "bg-red-100 text-red-700"
-              : "bg-amber-100 text-amber-700"
-          }`}
-        >
-          {session.status}
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Link
-          to={`/session/${session.appointmentId}`}
-          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          View Details
-        </Link>
-
-        <Link
-          to={actionTo}
-          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          {actionLabel}
-        </Link>
-      </div>
-    </div>
   );
 }
 
@@ -114,7 +36,7 @@ export default function DoctorAppointmentsPage() {
       try {
         setErrorMessage("");
         const data = await getSessionsByDoctorId(auth.userId);
-        setSessions(data);
+        setSessions(Array.isArray(data) ? data : []);
       } catch (error: unknown) {
         setErrorMessage(
           error instanceof Error
@@ -137,193 +59,96 @@ export default function DoctorAppointmentsPage() {
 
   const today = new Date();
 
-  const todaySessions = useMemo(() => {
-    return sortedSessions.filter((session) =>
-      isSameDay(getSessionDateTime(session), today)
+  const currentSessions = useMemo(() => {
+    return sortedSessions.filter(
+      (session) =>
+        session.status === "active" ||
+        session.status === "scheduled" ||
+        isSameDay(getSessionDateTime(session), today)
     );
-  }, [sortedSessions]);
-
-  const activeSessions = useMemo(() => {
-    return sortedSessions.filter((session) => session.status === "active");
-  }, [sortedSessions]);
-
-  const completedSessions = useMemo(() => {
-    return sortedSessions.filter((session) => session.status === "completed");
-  }, [sortedSessions]);
-
-  const scheduledSessions = useMemo(() => {
-    return sortedSessions.filter((session) => session.status === "scheduled");
-  }, [sortedSessions]);
+  }, [sortedSessions, today]);
 
   return (
-    <section className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+    <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-800 to-cyan-600 p-6 text-white shadow-lg sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-100">
-            Doctor Appointments
-          </p>
-          <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
-            Manage your daily schedule
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm text-blue-50 sm:text-base">
-            Review today’s sessions, jump to requests and history sections, and
-            access your telemedicine workflow from one dashboard page.
-          </p>
+        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Doctor Appointments
+              </h1>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href="#today-sessions"
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
-            >
-              Today Sessions
-            </a>
-            <a
-              href="#appointment-requests"
-              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Appointment Requests
-            </a>
-            <a
-              href="#completed-history"
-              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Completed History
-            </a>
-            <Link
-              to="/doctor-sessions"
-              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Open Doctor Sessions
-            </Link>
-          </div>
-        </div>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+                Manage your current appointments, review requests, and continue
+                consultations from one place.
+              </p>
+            </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Today Sessions</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {todaySessions.length}
-            </p>
-          </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Link
+                to="/appointments/requests"
+                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                View Appointment Requests
+              </Link>
 
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Active</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {activeSessions.length}
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Scheduled</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {scheduledSessions.length}
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Completed</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {completedSessions.length}
-            </p>
+              <Link
+                to="/session-history"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Completed Sessions
+              </Link>
+            </div>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errorMessage}
           </div>
         )}
 
         {isLoading ? (
-          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm">
+          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
             Loading doctor appointments...
           </div>
         ) : (
-          <>
-            <div id="today-sessions" className="mt-10">
-              <h2 className="mb-4 text-2xl font-bold text-slate-800">
-                Today Sessions
+          <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+            <div className="mb-5">
+              <h2 className="text-xl font-bold text-slate-900">
+                Current Sessions
               </h2>
 
-              <div className="grid gap-4">
-                {todaySessions.length === 0 ? (
-                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
-                    No sessions scheduled for today.
-                  </div>
-                ) : (
-                  todaySessions.map((session) => (
-                    <SessionCard
-                      key={session._id}
-                      session={session}
-                      actionLabel={
-                        session.status === "active"
-                          ? "Join Consultation"
-                          : "Open Waiting Room"
-                      }
-                      actionTo={
-                        session.status === "active"
-                          ? `/consultation/${session.appointmentId}`
-                          : `/waiting-room/${session.appointmentId}`
-                      }
-                    />
-                  ))
-                )}
-              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                Active, scheduled, and today’s sessions are shown here.
+              </p>
             </div>
 
-            <div id="appointment-requests" className="mt-10">
-              <h2 className="mb-4 text-2xl font-bold text-slate-800">
-                Appointment Requests
-              </h2>
-
-              <div className="rounded-2xl bg-white p-6 shadow-sm">
-                <p className="text-sm text-slate-600">
-                  This section is ready for your doctor-side appointment request
-                  feature. Until that page is built, use the doctor sessions page
-                  and telemedicine dashboard as the quick access points.
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Link
-                    to="/doctor-sessions"
-                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                  >
-                    Go to Doctor Sessions
-                  </Link>
-
-                  <Link
-                    to="/telemedicine-dashboard"
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Open Dashboard
-                  </Link>
-                </div>
+            {currentSessions.length > 0 ? (
+              <div className="space-y-4">
+                {currentSessions.map((session) => (
+                  <SessionCard
+                    key={session._id}
+                    session={session}
+                    actionLabel={
+                      session.status === "active"
+                        ? "Join Consultation"
+                        : "Open Waiting Room"
+                    }
+                    actionTo={
+                      session.status === "active"
+                        ? `/consultation/${session.appointmentId}`
+                        : `/waiting-room/${session.appointmentId}`
+                    }
+                  />
+                ))}
               </div>
-            </div>
-
-            <div id="completed-history" className="mt-10">
-              <h2 className="mb-4 text-2xl font-bold text-slate-800">
-                Completed Sessions History
-              </h2>
-
-              <div className="grid gap-4">
-                {completedSessions.length === 0 ? (
-                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
-                    No completed sessions found.
-                  </div>
-                ) : (
-                  completedSessions.map((session) => (
-                    <SessionCard
-                      key={session._id}
-                      session={session}
-                      actionLabel="Open Summary"
-                      actionTo={`/session-summary/${session.appointmentId}`}
-                    />
-                  ))
-                )}
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-sm text-slate-500">
+                No current sessions found.
               </div>
-            </div>
-          </>
+            )}
+          </div>
         )}
       </div>
     </section>

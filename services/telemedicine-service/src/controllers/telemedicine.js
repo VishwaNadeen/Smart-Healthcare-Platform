@@ -12,11 +12,52 @@ const SESSION_TO_APPOINTMENT_STATUS_MAP = {
   cancelled: "cancelled",
 };
 
+const hasValidInternalSecret = (req) => {
+  const expectedSecret = process.env.INTERNAL_SERVICE_SECRET;
+
+  if (!expectedSecret) {
+    return true;
+  }
+
+  return req.headers["x-internal-service-secret"] === expectedSecret;
+};
+
+const getDoctorIdentityValues = (req) => {
+  return [...new Set([
+    String(req.user?.userId || ""),
+    String(req.user?.doctorProfileId || ""),
+  ].filter(Boolean))];
+};
+
+const createSessionRecord = async ({
+  appointmentId,
+  patientId,
+  doctorId,
+  scheduledDate,
+  scheduledTime,
+}) => {
+  const roomName = `healthcare-${appointmentId}`;
+  const meetingLink = `https://meet.jit.si/${roomName}`;
+
+  return TelemedicineSession.create({
+    appointmentId: String(appointmentId),
+    patientId: String(patientId),
+    doctorId: String(doctorId),
+    roomName,
+    meetingLink,
+    scheduledDate: String(scheduledDate),
+    scheduledTime: String(scheduledTime),
+    status: "scheduled",
+  });
+};
+
 const authorizeSessionAccess = (req, session) => {
   const currentUserId = String(req.user.userId);
+  const doctorIds = getDoctorIdentityValues(req);
 
   return (
-    (req.user.role === "doctor" && String(session.doctorId) === currentUserId) ||
+    (req.user.role === "doctor" &&
+      doctorIds.includes(String(session.doctorId))) ||
     (req.user.role === "patient" && String(session.patientId) === currentUserId)
   );
 };
@@ -49,6 +90,7 @@ const createSession = async (req, res) => {
 
     const appointmentResponse = await getAppointmentById(appointmentId);
     const appointment = appointmentResponse?.appointment;
+    const doctorIds = getDoctorIdentityValues(req);
 
     if (!appointment) {
       return res.status(404).json({
@@ -56,7 +98,7 @@ const createSession = async (req, res) => {
       });
     }
 
-    if (String(appointment.doctorId) !== String(req.user.userId)) {
+    if (!doctorIds.includes(String(appointment.doctorId))) {
       return res.status(403).json({
         message: "You can only create sessions for your own appointments",
       });
@@ -74,18 +116,85 @@ const createSession = async (req, res) => {
       });
     }
 
-    const roomName = `healthcare-${appointmentId}`;
-    const meetingLink = `https://meet.jit.si/${roomName}`;
+    const session = await createSessionRecord({
+      appointmentId,
+      patientId,
+      doctorId: appointment.doctorId,
+      scheduledDate,
+      scheduledTime,
+    });
 
-    const session = await TelemedicineSession.create({
-      appointmentId: String(appointmentId),
-      patientId: String(patientId),
-      doctorId: String(req.user.userId),
-      roomName,
-      meetingLink,
-      scheduledDate: String(scheduledDate),
-      scheduledTime: String(scheduledTime),
-      status: "scheduled",
+    return res.status(201).json({
+      message: "Telemedicine session created successfully",
+      session,
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      message: error.message || "Failed to create session",
+      error: error.message,
+    });
+  }
+};
+
+const createSessionInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const { appointmentId } = req.body || {};
+
+    if (!appointmentId) {
+      return res.status(400).json({
+        message: "appointmentId is required",
+      });
+    }
+
+    const normalizedAppointmentId = String(appointmentId);
+
+    const existingSession = await TelemedicineSession.findOne({
+      appointmentId: normalizedAppointmentId,
+    });
+
+    if (existingSession) {
+      return res.status(200).json({
+        message: "Telemedicine session already exists",
+        session: existingSession,
+      });
+    }
+
+    const appointmentResponse = await getAppointmentById(normalizedAppointmentId);
+    const appointment = appointmentResponse?.appointment;
+
+    if (!appointment) {
+      return res.status(404).json({
+        message: "Appointment not found",
+      });
+    }
+
+    if (
+      !appointment.patientId ||
+      !appointment.doctorId ||
+      !appointment.appointmentDate ||
+      !appointment.appointmentTime
+    ) {
+      return res.status(400).json({
+        message: "Appointment is missing required telemedicine fields",
+      });
+    }
+
+    if (!["pending", "confirmed"].includes(String(appointment.status))) {
+      return res.status(409).json({
+        message: `Cannot create a telemedicine session for a ${appointment.status} appointment`,
+      });
+    }
+
+    const session = await createSessionRecord({
+      appointmentId: normalizedAppointmentId,
+      patientId: appointment.patientId,
+      doctorId: appointment.doctorId,
+      scheduledDate: appointment.appointmentDate,
+      scheduledTime: appointment.appointmentTime,
     });
 
     return res.status(201).json({
@@ -102,9 +211,10 @@ const createSession = async (req, res) => {
 
 const getAllSessions = async (req, res) => {
   try {
+    const doctorIds = getDoctorIdentityValues(req);
     const query =
       req.user.role === "doctor"
-        ? { doctorId: String(req.user.userId) }
+        ? { doctorId: { $in: doctorIds } }
         : { patientId: String(req.user.userId) };
 
     const sessions = await TelemedicineSession.find(query).sort({ createdAt: -1 });
@@ -126,7 +236,7 @@ const getSessionStats = async (req, res) => {
     }
 
     const today = new Date().toISOString().split("T")[0];
-    const doctorId = String(req.user.userId);
+    const doctorIds = getDoctorIdentityValues(req);
 
     const [
       totalSessions,
@@ -135,11 +245,23 @@ const getSessionStats = async (req, res) => {
       cancelledSessions,
       todaySessions,
     ] = await Promise.all([
-      TelemedicineSession.countDocuments({ doctorId }),
-      TelemedicineSession.countDocuments({ doctorId, status: "active" }),
-      TelemedicineSession.countDocuments({ doctorId, status: "completed" }),
-      TelemedicineSession.countDocuments({ doctorId, status: "cancelled" }),
-      TelemedicineSession.countDocuments({ doctorId, scheduledDate: today }),
+      TelemedicineSession.countDocuments({ doctorId: { $in: doctorIds } }),
+      TelemedicineSession.countDocuments({
+        doctorId: { $in: doctorIds },
+        status: "active",
+      }),
+      TelemedicineSession.countDocuments({
+        doctorId: { $in: doctorIds },
+        status: "completed",
+      }),
+      TelemedicineSession.countDocuments({
+        doctorId: { $in: doctorIds },
+        status: "cancelled",
+      }),
+      TelemedicineSession.countDocuments({
+        doctorId: { $in: doctorIds },
+        scheduledDate: today,
+      }),
     ]);
 
     return res.status(200).json({
@@ -213,14 +335,17 @@ const getSessionsByDoctorId = async (req, res) => {
       });
     }
 
-    if (String(req.params.doctorId) !== String(req.user.userId)) {
+    const requestedDoctorId = String(req.params.doctorId);
+    const doctorIds = getDoctorIdentityValues(req);
+
+    if (!doctorIds.includes(requestedDoctorId)) {
       return res.status(403).json({
         message: "You can only view your own sessions",
       });
     }
 
     const sessions = await TelemedicineSession.find({
-      doctorId: req.params.doctorId,
+      doctorId: { $in: doctorIds },
     }).sort({ createdAt: -1 });
 
     return res.status(200).json(sessions);
@@ -277,7 +402,7 @@ const updateSessionStatus = async (req, res) => {
 
     const session = await TelemedicineSession.findOne({
       appointmentId: req.params.appointmentId,
-      doctorId: String(req.user.userId),
+      doctorId: { $in: getDoctorIdentityValues(req) },
     });
 
     if (!session) {
@@ -324,7 +449,7 @@ const updateSessionNotes = async (req, res) => {
     const updatedSession = await TelemedicineSession.findOneAndUpdate(
       {
         appointmentId: req.params.appointmentId,
-        doctorId: String(req.user.userId),
+        doctorId: { $in: getDoctorIdentityValues(req) },
       },
       {
         notes: String(notes || ""),
@@ -355,6 +480,7 @@ const updateSessionNotes = async (req, res) => {
 
 module.exports = {
   createSession,
+  createSessionInternal,
   getAllSessions,
   getSessionStats,
   getSessionById,

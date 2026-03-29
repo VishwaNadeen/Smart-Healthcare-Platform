@@ -2,6 +2,7 @@ import { Route, Navigate, useLocation } from "react-router-dom";
 import MainLayout from "../layouts/mainLayout";
 import PatientAppointmentsPage from "../pages/appointments/patientAppointments";
 import DoctorAppointmentsPage from "../pages/appointments/doctorAppointments";
+import DoctorAppointmentRequestsPage from "../pages/appointments/appointmentRequests";
 import RequireTelemedicineRole from "../components/telemedicine/RequireTelemedicineRole";
 import {
   getRoleHomePath,
@@ -73,6 +74,17 @@ export const appointmentRoutes = (
         <MainLayout>
           <RequireTelemedicineRole allowedRoles={["doctor"]}>
             <DoctorAppointmentsPage />
+          </RequireTelemedicineRole>
+        </MainLayout>
+      }
+    />
+
+    <Route
+      path="/appointments/requests"
+      element={
+        <MainLayout>
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorAppointmentRequestsPage />
           </RequireTelemedicineRole>
         </MainLayout>
       }

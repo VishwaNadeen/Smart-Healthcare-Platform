@@ -1,5 +1,8 @@
 const Appointment = require("../models/appointmentModel");
 const { enforceDoctorAppointmentOwnership } = require("../middleware/authMiddleware");
+const {
+  createTelemedicineSessionForAppointment,
+} = require("../services/telemedicineService");
 
 const ACTIVE_APPOINTMENT_STATUSES = ["pending", "confirmed"];
 const APPOINTMENT_STATUSES = ["pending", "confirmed", "completed", "cancelled"];
@@ -170,7 +173,8 @@ const getAppointmentById = async (req, res) => {
 
 const getAppointmentsByDoctorId = async (req, res) => {
   try {
-    const appointments = await Appointment.find({ doctorId: req.user.id }).sort({ createdAt: -1 });
+    const doctorId = req.user?.doctorProfileId || req.params.doctorId || req.user?.id;
+    const appointments = await Appointment.find({ doctorId }).sort({ createdAt: -1 });
     res.status(200).json(appointments);
   } catch (error) {
     res.status(500).json({
@@ -350,12 +354,17 @@ const updateAppointmentStatus = async (req, res) => {
     }
 
     if (appointment.status !== status) {
+      const previousStatus = appointment.status;
       const allowedTransitions = STATUS_TRANSITIONS[appointment.status] || [];
 
       if (!allowedTransitions.includes(status)) {
         return res.status(409).json({
           message: `Invalid status transition from ${appointment.status} to ${status}`,
         });
+      }
+
+      if (previousStatus === "pending" && status === "confirmed") {
+        await createTelemedicineSessionForAppointment(appointment._id);
       }
 
       appointment.status = status;
