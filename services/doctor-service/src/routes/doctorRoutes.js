@@ -8,7 +8,7 @@ const {
   getMyDoctorProfile,
   getDoctorById,
   updateMyDoctorProfile,
-  deleteDoctor,
+  deleteMyDoctorProfile,
   getMyAvailability,
   updateMyAvailability,
 } = require("../controllers/doctorController");
@@ -24,6 +24,8 @@ router.post("/", createDoctor);
 */
 router.get("/me", authMiddleware.requireDoctorAuth, getMyDoctorProfile);
 router.put("/me", authMiddleware.requireDoctorAuth, updateMyDoctorProfile);
+router.delete("/me", authMiddleware.requireDoctorAuth, deleteMyDoctorProfile);
+
 router.get("/me/availability", authMiddleware.requireDoctorAuth, getMyAvailability);
 router.put("/me/availability", authMiddleware.requireDoctorAuth, updateMyAvailability);
 

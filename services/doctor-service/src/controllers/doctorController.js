@@ -426,6 +426,39 @@ const deleteDoctor = async (req, res) => {
   }
 };
 
+const deleteMyDoctorProfile = async (req, res) => {
+  try {
+    const doctor = await ensureDoctorIdentity(req, res);
+    if (!doctor) return;
+
+    const doctorEmail = doctor.email;
+
+    await doctor.deleteOne();
+
+    let authDeleteResult = null;
+
+    try {
+      authDeleteResult = await deleteAuthAccountByEmail(doctorEmail);
+    } catch (authError) {
+      return res.status(500).json({
+        message:
+          "Doctor profile deleted, but failed to delete auth account. Please clean up auth-service manually.",
+        error: authError?.response?.data?.message || authError.message,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Doctor profile and auth account deleted successfully",
+      authDeleteResult,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to delete doctor profile",
+      error: error.message,
+    });
+  }
+};
+
 const getMyDoctorProfile = async (req, res) => {
   try {
     const doctor = await ensureDoctorIdentity(req, res);
@@ -550,6 +583,7 @@ module.exports = {
   deleteDoctor,
   getMyDoctorProfile,
   updateMyDoctorProfile,
+  deleteMyDoctorProfile,
   getMyAvailability,
   updateMyAvailability,
 };
