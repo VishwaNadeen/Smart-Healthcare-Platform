@@ -1,13 +1,64 @@
 const { getAuthProfile } = require("../services/authService");
-const getDoctorServiceUrl = () => process.env.DOCTOR_SERVICE_URL || "http://localhost:5003";
 
-const getUserIdFromUser = (user) =>
-  user?._id || user?.id || user?.userId || user?.patientId || user?.sub || null;
+const getDoctorServiceUrl = () =>
+  process.env.DOCTOR_SERVICE_URL || "http://localhost:5003";
 
-const getRoleFromUser = (user) =>
-  (user?.role || user?.userType || user?.accountType || "").toLowerCase();
+const extractBearerToken = (req) => {
+  const authHeader = req.headers.authorization || "";
 
-const getDoctorProfileFromDoctorService = async (token) => {
+  if (!authHeader.startsWith("Bearer ")) {
+    const error = new Error("Authorization token is required");
+    error.status = 401;
+    throw error;
+  }
+
+  return authHeader.split(" ")[1];
+};
+
+const normalizeRole = (role) => {
+  const normalizedRole = String(role || "").toLowerCase();
+
+  if (normalizedRole === "user" || normalizedRole === "patient") {
+    return "patient";
+  }
+
+  if (normalizedRole === "doctor") {
+    return "doctor";
+  }
+
+  if (normalizedRole === "admin") {
+    return "admin";
+  }
+
+  return normalizedRole;
+};
+
+const buildUserFromProfile = (profile) => {
+  const user = profile?.user;
+
+  if (!user?._id || !user?.role) {
+    const error = new Error("Invalid auth profile response");
+    error.status = 401;
+    throw error;
+  }
+
+  return {
+    id: String(user._id),
+    username: user.username || "",
+    email: user.email || "",
+    role: normalizeRole(user.role),
+  };
+};
+
+const getAuthUser = async (req) => {
+  const token = extractBearerToken(req);
+  const profile = await getAuthProfile(token);
+
+  req.token = token;
+  return buildUserFromProfile(profile);
+};
+
+const getCurrentDoctorProfile = async (token) => {
   const response = await fetch(`${getDoctorServiceUrl()}/api/doctors/me`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -26,150 +77,94 @@ const getDoctorProfileFromDoctorService = async (token) => {
   return data;
 };
 
-const getAuthContext = async (req) => {
-  const authHeader = req.headers.authorization || "";
-
-  if (!authHeader.startsWith("Bearer ")) {
-    return { errorStatus: 401, message: "Authorization token is required" };
-  }
-
-  const token = authHeader.split(" ")[1];
-
+const requirePatientAuth = async (req, res, next) => {
   try {
-    const response = await getAuthProfile(token);
-    const authUser = response.user || {};
-    const userId = getUserIdFromUser(authUser);
-    const role = getRoleFromUser(authUser);
+    const user = await getAuthUser(req);
 
-    if (!userId) {
-      return { errorStatus: 401, message: "Invalid auth profile: missing user id" };
+    if (user.role !== "patient") {
+      return res.status(403).json({
+        message: "Only patients can access this endpoint",
+      });
     }
 
-    return {
-      user: {
-        id: userId,
-        role,
-        tokenPayload: authUser,
-      },
-    };
+    req.user = user;
+    next();
   } catch (error) {
-    return {
-      errorStatus: error.status || 401,
-      message: error.data?.message || error.message || "Unauthorized",
-    };
-  }
-};
-
-const requirePatientAuth = async (req, res, next) => {
-  const authContext = await getAuthContext(req);
-
-  if (authContext.errorStatus) {
-    return res.status(authContext.errorStatus).json({
-      message: authContext.message,
+    return res.status(error.status || 401).json({
+      message: error.message || "Unauthorized",
     });
   }
-
-  const role = authContext.user.role;
-  if (role && role !== "patient") {
-    return res.status(403).json({
-      message: "Only patients can access this endpoint",
-    });
-  }
-
-  req.user = {
-    ...authContext.user,
-    role: role || "patient",
-  };
-
-  return next();
 };
 
 const requireDoctorAuth = async (req, res, next) => {
-  const authContext = await getAuthContext(req);
-
-  if (authContext.errorStatus) {
-    return res.status(authContext.errorStatus).json({
-      message: authContext.message,
-    });
-  }
-
-  const role = authContext.user.role;
-  if (role && role !== "doctor") {
-    return res.status(403).json({
-      message: "Only doctors can access this endpoint",
-    });
-  }
-
-  req.user = {
-    ...authContext.user,
-    role: role || "doctor",
-  };
-
   try {
-    const token = req.headers.authorization.split(" ")[1];
-    const doctorProfile = await getDoctorProfileFromDoctorService(token);
-    req.user.doctorRecordId = doctorProfile?._id || null;
+    const user = await getAuthUser(req);
+
+    if (user.role !== "doctor") {
+      return res.status(403).json({
+        message: "Only doctors can access this endpoint",
+      });
+    }
+
+    try {
+      const doctorProfile = await getCurrentDoctorProfile(req.token);
+
+      if (doctorProfile?._id) {
+        user.doctorProfileId = String(doctorProfile._id);
+      }
+    } catch (error) {
+      if (error?.status === 404) {
+        return res.status(404).json({
+          message: "Doctor profile not found for this account",
+        });
+      }
+    }
+
+    req.user = user;
+    next();
   } catch (error) {
-    return res.status(error.status || 502).json({
-      message: error.data?.message || error.message || "Failed to load doctor profile",
+    return res.status(error.status || 401).json({
+      message: error.message || "Unauthorized",
     });
   }
-
-  return next();
 };
 
 const enforceDoctorParamOwnership = (req, res, next) => {
-  const requestedDoctorId = req.params.doctorId;
-  const authenticatedDoctorId = req.user?.id;
+  const requestedDoctorId = String(req.params.doctorId || "");
+  const authDoctorId = String(req.user?.id || "");
+  const profileDoctorId = String(req.user?.doctorProfileId || "");
 
-  if (!authenticatedDoctorId) {
-    return res.status(401).json({
-      message: "Doctor authentication is required",
-    });
-  }
-
-  const authenticatedDoctorRecordId = req.user?.doctorRecordId;
-
-  const isAuthUserIdMatch = String(requestedDoctorId) === String(authenticatedDoctorId);
-  const isDoctorRecordIdMatch =
-    authenticatedDoctorRecordId && String(requestedDoctorId) === String(authenticatedDoctorRecordId);
-
-  if (!isAuthUserIdMatch && !isDoctorRecordIdMatch) {
+  if (
+    requestedDoctorId !== authDoctorId &&
+    requestedDoctorId !== profileDoctorId
+  ) {
     return res.status(403).json({
       message: "You can only access your own appointments",
     });
   }
 
-  return next();
+  next();
 };
 
 const enforceDoctorAppointmentOwnership = (req, appointment) => {
-  const authenticatedDoctorId = req.user?.doctorRecordId;
+  const appointmentDoctorId = String(appointment.doctorId || "");
+  const authDoctorId = String(req.user?.id || "");
+  const profileDoctorId = String(req.user?.doctorProfileId || "");
 
-  if (!authenticatedDoctorId) {
-    return false;
-  }
-
-  return String(appointment.doctorId) === String(authenticatedDoctorId);
+  return (
+    appointmentDoctorId === authDoctorId ||
+    appointmentDoctorId === profileDoctorId
+  );
 };
 
 const enforcePatientParamOwnership = (req, res, next) => {
-  const requestedPatientId = req.params.patientId;
-  const authenticatedPatientId = req.user?.id;
-
-  if (!authenticatedPatientId) {
-    return res.status(401).json({
-      message: "Patient authentication is required",
-    });
-  }
-
-  if (String(requestedPatientId) !== String(authenticatedPatientId)) {
+  if (String(req.params.patientId) !== String(req.user?.id)) {
     return res.status(403).json({
       message: "You can only access your own appointments",
     });
   }
 
-  return next();
+  next();
 };
 
 module.exports = {

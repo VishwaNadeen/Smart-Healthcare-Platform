@@ -3,6 +3,7 @@ const router = express.Router();
 
 const {
   createSession,
+  createSessionInternal,
   getAllSessions,
   getSessionStats,
   getSessionById,
@@ -13,6 +14,8 @@ const {
   updateSessionNotes,
 } = require("../controllers/telemedicine");
 const authMiddleware = require("../middleware/authMiddleware");
+
+router.post("/internal/session", createSessionInternal);
 
 router.use(authMiddleware);
 

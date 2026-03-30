@@ -12,6 +12,7 @@ const {
   resetPasswordWithOtp,
   verifyCurrentUserPassword,
   getUserStats,
+  getUserById,
 } = require("../services/authService");
 
 const serializeUser = (user) => ({
@@ -218,6 +219,29 @@ const deleteByEmailInternal = async (req, res) => {
   }
 };
 
+const getUserByIdInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({
+        message: "Forbidden",
+      });
+    }
+
+    const user = await getUserById(req.params.id);
+
+    return res.status(200).json({
+      user,
+    });
+  } catch (error) {
+    const message = error.message || "Failed to fetch user";
+
+    return res.status(message === "User not found" ? 404 : 500).json({
+      message,
+      error: message,
+    });
+  }
+};
+
 const requestLoginOtpController = async (req, res) => {
   try {
     const { identifier, role } = req.body;
@@ -365,6 +389,7 @@ module.exports = {
   logout,
   deleteMe,
   deleteByEmailInternal,
+  getUserByIdInternal,
   me,
   stats,
   requestEmailVerification,

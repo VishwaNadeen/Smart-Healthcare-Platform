@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import ChatPanel from "../../components/telemedicine/ChatPanel";
 import FileUploadPanel from "../../components/telemedicine/FileUploadPanel";
@@ -15,6 +15,77 @@ import {
   getStoredTelemedicineAuth,
 } from "../../utils/telemedicineAuth";
 
+type JitsiMeetApi = {
+  dispose: () => void;
+};
+
+declare global {
+  interface Window {
+    JitsiMeetExternalAPI?: new (
+      domain: string,
+      options: Record<string, unknown>
+    ) => JitsiMeetApi;
+  }
+}
+
+function loadJitsiExternalApiScript(): Promise<void> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Window is not available"));
+  }
+
+  if (window.JitsiMeetExternalAPI) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script[data-jitsi-external-api="true"]'
+    );
+
+    const handleLoad = () => resolve();
+    const handleError = () =>
+      reject(new Error("Failed to load the Jitsi Meet embed script"));
+
+    if (existingScript) {
+      existingScript.addEventListener("load", handleLoad, { once: true });
+      existingScript.addEventListener("error", handleError, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://meet.jit.si/external_api.js";
+    script.async = true;
+    script.dataset.jitsiExternalApi = "true";
+    script.addEventListener("load", handleLoad, { once: true });
+    script.addEventListener("error", handleError, { once: true });
+    document.body.appendChild(script);
+  });
+}
+
+function getMeetingConfig(session: TelemedicineSession | null) {
+  if (!session) {
+    return {
+      domain: "meet.jit.si",
+      roomName: "",
+    };
+  }
+
+  try {
+    const url = new URL(session.meetingLink);
+    const roomName = url.pathname.replace(/^\/+/, "");
+
+    return {
+      domain: url.hostname || "meet.jit.si",
+      roomName: roomName || session.roomName || "",
+    };
+  } catch {
+    return {
+      domain: "meet.jit.si",
+      roomName: session.roomName || "",
+    };
+  }
+}
+
 export default function Consultation() {
   const { appointmentId } = useParams<{ appointmentId: string }>();
   const navigate = useNavigate();
@@ -28,6 +99,14 @@ export default function Consultation() {
   const [savingNotes, setSavingNotes] = useState(false);
   const [noteSavedMessage, setNoteSavedMessage] = useState("");
   const [seconds, setSeconds] = useState(0);
+  const [meetingOpen, setMeetingOpen] = useState(false);
+  const [meetingLoading, setMeetingLoading] = useState(false);
+  const [meetingError, setMeetingError] = useState("");
+  const meetingContainerRef = useRef<HTMLDivElement | null>(null);
+  const jitsiApiRef = useRef<JitsiMeetApi | null>(null);
+  const canPatientJoin = session?.status === "active";
+  const canOpenMeetingLink = Boolean(isDoctor || canPatientJoin);
+  const { domain, roomName } = getMeetingConfig(session);
 
   useEffect(() => {
     let timerId: number | undefined;
@@ -125,6 +204,77 @@ export default function Consultation() {
     return `${hrs}:${mins}:${secs}`;
   }
 
+  useEffect(() => {
+    if (!meetingOpen || !canOpenMeetingLink || !roomName) {
+      jitsiApiRef.current?.dispose();
+      jitsiApiRef.current = null;
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function mountMeeting() {
+      try {
+        setMeetingLoading(true);
+        setMeetingError("");
+
+        await loadJitsiExternalApiScript();
+
+        if (
+          isCancelled ||
+          !meetingContainerRef.current ||
+          !window.JitsiMeetExternalAPI
+        ) {
+          return;
+        }
+
+        jitsiApiRef.current?.dispose();
+        jitsiApiRef.current = null;
+        meetingContainerRef.current.innerHTML = "";
+
+        jitsiApiRef.current = new window.JitsiMeetExternalAPI(domain, {
+          roomName,
+          parentNode: meetingContainerRef.current,
+          width: "100%",
+          height: "100%",
+          userInfo: {
+            displayName: auth.username || (isDoctor ? "Doctor" : "Patient"),
+            email: auth.email || undefined,
+          },
+          configOverwrite: {
+            prejoinPageEnabled: false,
+          },
+        });
+      } catch (error) {
+        setMeetingError(
+          error instanceof Error
+            ? error.message
+            : "Failed to open the embedded meeting"
+        );
+      } finally {
+        if (!isCancelled) {
+          setMeetingLoading(false);
+        }
+      }
+    }
+
+    mountMeeting();
+
+    return () => {
+      isCancelled = true;
+      jitsiApiRef.current?.dispose();
+      jitsiApiRef.current = null;
+    };
+  }, [
+    auth.email,
+    auth.username,
+    canOpenMeetingLink,
+    domain,
+    isDoctor,
+    meetingOpen,
+    roomName,
+  ]);
+
   if (!auth.userId || !role) {
     return (
       <TelemedicineAccessNotice
@@ -163,9 +313,6 @@ export default function Consultation() {
       />
     );
   }
-
-  const canPatientJoin = session.status === "active";
-  const canOpenMeetingLink = isDoctor || canPatientJoin;
   const consultationStateLabel =
     session.status === "scheduled"
       ? isDoctor
@@ -176,6 +323,7 @@ export default function Consultation() {
         : session.status === "completed"
           ? "Completed"
           : "Cancelled";
+
 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6 md:px-8">
@@ -200,25 +348,55 @@ export default function Consultation() {
               </div>
             </div>
 
-            <div className="flex aspect-video items-center justify-center bg-slate-900 px-6 text-center text-white">
-              <div>
-                <p className="text-lg font-semibold">
-                  {isDoctor
-                    ? "Doctor Consultation Room"
-                    : "Patient Consultation Room"}
-                </p>
-                <p className="mt-2 text-sm text-slate-300">
-                  {session.status === "active"
-                    ? "The video session is active."
-                    : session.status === "scheduled"
-                      ? isDoctor
-                        ? "Start the session when you are ready to see the patient."
-                        : "Please wait until your doctor starts the consultation."
-                      : session.status === "completed"
-                        ? "This consultation has ended."
-                        : "This consultation is not available."}
-                </p>
-              </div>
+            <div className="relative flex aspect-video items-center justify-center bg-slate-900 px-6 text-center text-white">
+              {meetingOpen && canOpenMeetingLink ? (
+                <>
+                  <div
+                    ref={meetingContainerRef}
+                    className="h-full w-full overflow-hidden"
+                  />
+
+                  {meetingLoading ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/85 px-6 text-center">
+                      <p className="text-sm font-medium text-slate-200">
+                        Loading meeting...
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {meetingError ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 px-6 text-center">
+                      <div>
+                        <p className="text-lg font-semibold">
+                          Meeting failed to load
+                        </p>
+                        <p className="mt-2 text-sm text-slate-300">
+                          {meetingError}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div>
+                  <p className="text-lg font-semibold">
+                    {isDoctor
+                      ? "Doctor Consultation Room"
+                      : "Patient Consultation Room"}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-300">
+                    {session.status === "active"
+                      ? "The video session is active."
+                      : session.status === "scheduled"
+                        ? isDoctor
+                          ? "Start the session when you are ready to see the patient."
+                          : "Please wait until your doctor starts the consultation."
+                        : session.status === "completed"
+                          ? "This consultation has ended."
+                          : "This consultation is not available."}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 p-4 md:p-6">
@@ -232,14 +410,19 @@ export default function Consultation() {
               ) : null}
 
               {canOpenMeetingLink ? (
-                <a
-                  href={session.meetingLink}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  onClick={() => {
+                    setMeetingError("");
+                    setMeetingOpen((current) => !current);
+                  }}
                   className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
                 >
-                  {isDoctor ? "Open Meeting Link" : "Join Call"}
-                </a>
+                  {meetingOpen
+                    ? "Hide Meeting"
+                    : isDoctor
+                      ? "Open Meeting"
+                      : "Join Call"}
+                </button>
               ) : (
                 <button
                   disabled

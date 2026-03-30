@@ -7,6 +7,7 @@ export type LoginResponse = {
   email: string;
   role: "doctor" | "patient" | "admin";
   token: string;
+  doctorProfileId?: string | null;
 };
 
 export type RequestEmailVerificationResponse = {

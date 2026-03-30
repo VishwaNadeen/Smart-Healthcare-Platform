@@ -1,13 +1,13 @@
 import { Routes, Route } from "react-router-dom";
 import HomePage from "../pages/home/homePage";
 import LoginPage from "../pages/auth/login";
+import VerifyEmailPage from "../pages/auth/VerifyEmail";
 import MainLayout from "../layouts/mainLayout";
 
 import { telemedicineRoutes } from "./telemedicineRoutes";
 import { patientRoutes } from "./patientRoutes";
 import { appointmentRoutes } from "./appointmentRoutes";
-import VerifyEmailPage from "../pages/auth/VerifyEmail";
-import ForgotPasswordPage from "../pages/auth/ForgotPassword";
+import { profileRoutes } from "./profileRoutes";
 
 export default function AppRoutes() {
   return (
@@ -20,6 +20,7 @@ export default function AppRoutes() {
           </MainLayout>
         }
       />
+
       <Route
         path="/login"
         element={
@@ -28,11 +29,13 @@ export default function AppRoutes() {
           </MainLayout>
         }
       />
+
       <Route path="/verify-email" element={<VerifyEmailPage />} />
-     
+
       {telemedicineRoutes}
       {patientRoutes}
       {appointmentRoutes}
+      {profileRoutes}
     </Routes>
   );
 }

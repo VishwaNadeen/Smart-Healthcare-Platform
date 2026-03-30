@@ -41,8 +41,8 @@ const PatientProfile = () => {
   const [deleting, setDeleting] = useState(false);
   const [showDeletePrompt, setShowDeletePrompt] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [, setSuccessMessage] = useState("");
+  const [, setErrorMessage] = useState("");
 
   const auth = getStoredTelemedicineAuth();
   const token = auth.token || "";

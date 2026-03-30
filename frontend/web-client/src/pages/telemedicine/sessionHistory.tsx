@@ -88,12 +88,6 @@ export default function SessionHistory() {
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Link
-                    to={`/session/${session.appointmentId}`}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-                  >
-                    View Details
-                  </Link>
-                  <Link
                     to={`/session-summary/${session.appointmentId}`}
                     className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
                   >

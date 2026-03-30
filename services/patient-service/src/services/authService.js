@@ -1,7 +1,7 @@
 const axios = require("axios");
 
 const getAuthServiceUrl = () =>
-  process.env.AUTH_SERVICE_URL || "http://localhost:5003";
+  process.env.AUTH_SERVICE_URL || "http://localhost:5002";
 
 const getInternalHeaders = () => {
   const headers = {};
@@ -14,15 +14,12 @@ const getInternalHeaders = () => {
 };
 
 const registerPatientAuth = async ({ firstName, lastName, email, password }) => {
-  const response = await axios.post(
-    `${getAuthServiceUrl()}/api/auth/register`,
-    {
-      username: `${firstName} ${lastName}`.trim(),
-      email,
-      password,
-      role: "patient",
-    }
-  );
+  const response = await axios.post(`${getAuthServiceUrl()}/api/auth/register`, {
+    username: `${firstName} ${lastName}`.trim(),
+    email,
+    password,
+    role: "patient",
+  });
 
   return response.data;
 };
