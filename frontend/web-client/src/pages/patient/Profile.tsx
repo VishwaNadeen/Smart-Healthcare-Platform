@@ -150,9 +150,8 @@ const PatientProfile = () => {
   const [deleting, setDeleting] = useState(false);
   const [showDeletePrompt, setShowDeletePrompt] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
-  const [phoneInputValue, setPhoneInputValue] = useState("+94");
-  const [errors, setErrors] = useState<FormErrors>({});
-
+  const [, setSuccessMessage] = useState("");
+  const [, setErrorMessage] = useState("");
   const auth = getStoredTelemedicineAuth();
   const token = auth.token || "";
 

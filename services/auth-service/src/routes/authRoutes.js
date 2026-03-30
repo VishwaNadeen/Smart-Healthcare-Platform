@@ -7,6 +7,7 @@ const {
   logout,
   deleteMe,
   deleteByEmailInternal,
+  getUserByIdInternal,
   me,
   stats,
   requestEmailVerification,

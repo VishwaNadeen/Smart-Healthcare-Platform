@@ -1,127 +1,128 @@
-const { getAuthProfile } = require("../services/authProfileService");
 const Doctor = require("../models/doctorModel");
+const { getAuthProfile } = require("../services/authProfileService");
 
-const getUserIdFromUser = (user) =>
-  user?._id || user?.id || user?.userId || user?.sub || user?.doctorId || null;
+const buildAuthUser = (profile) => {
+  const user = profile?.user;
 
-const getRoleFromUser = (user) =>
-  (user?.role || user?.userType || user?.accountType || "").toLowerCase();
+  if (!user?._id || !user?.role) {
+    const error = new Error("Invalid auth profile response");
+    error.status = 401;
+    throw error;
+  }
 
-const getAuthContext = async (req) => {
+  return {
+    id: String(user._id),
+    username: user.username || "",
+    email: user.email || "",
+    role: String(user.role || "").toLowerCase(),
+  };
+};
+
+const getDecodedToken = async (req) => {
   const authHeader = req.headers.authorization || "";
 
   if (!authHeader.startsWith("Bearer ")) {
-    return { errorStatus: 401, message: "Authorization token is required" };
+    const error = new Error("Authorization token is required");
+    error.status = 401;
+    throw error;
   }
 
   const token = authHeader.split(" ")[1];
+  const profile = await getAuthProfile(token);
 
-  try {
-    const response = await getAuthProfile(token);
-    const authUser = response.user || {};
-    const userId = getUserIdFromUser(authUser);
-    const role = getRoleFromUser(authUser);
-
-    if (!userId) {
-      return { errorStatus: 401, message: "Invalid auth profile: missing user id" };
-    }
-
-    return {
-      user: {
-        id: userId,
-        role,
-        tokenPayload: authUser,
-      },
-    };
-  } catch (error) {
-    return {
-      errorStatus: error.status || 401,
-      message: error.data?.message || error.message || "Unauthorized",
-    };
-  }
+  req.token = token;
+  return buildAuthUser(profile);
 };
 
 const requireAuth = async (req, res, next) => {
-  const authContext = await getAuthContext(req);
-
-  if (authContext.errorStatus) {
-    return res.status(authContext.errorStatus).json({
-      message: authContext.message,
+  try {
+    req.user = await getDecodedToken(req);
+    next();
+  } catch (error) {
+    return res.status(error.status || 401).json({
+      message: error.message || "Unauthorized",
     });
   }
-
-  req.user = {
-    ...authContext.user,
-    role: authContext.user.role || "",
-  };
-
-  return next();
 };
 
 const requireDoctorAuth = async (req, res, next) => {
-  const authContext = await getAuthContext(req);
+  try {
+    const user = await getDecodedToken(req);
 
-  if (authContext.errorStatus) {
-    return res.status(authContext.errorStatus).json({
-      message: authContext.message,
+    if (user.role !== "doctor") {
+      return res.status(403).json({
+        message: "Doctor access is required",
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(error.status || 401).json({
+      message: error.message || "Unauthorized",
     });
   }
-
-  if (authContext.user.role !== "doctor") {
-    return res.status(403).json({
-      message: "Doctor access is required",
-    });
-  }
-
-  req.user = authContext.user;
-  return next();
 };
 
 const requireAdminAuth = async (req, res, next) => {
-  const authContext = await getAuthContext(req);
+  try {
+    const user = await getDecodedToken(req);
 
-  if (authContext.errorStatus) {
-    return res.status(authContext.errorStatus).json({
-      message: authContext.message,
+    if (user.role !== "admin") {
+      return res.status(403).json({
+        message: "Admin access is required",
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(error.status || 401).json({
+      message: error.message || "Unauthorized",
     });
   }
-
-  if (authContext.user.role !== "admin") {
-    return res.status(403).json({
-      message: "Admin access is required",
-    });
-  }
-
-  req.user = authContext.user;
-  return next();
 };
 
 const enforceDoctorResourceOwnership = async (req, res, next) => {
-  if (req.user?.role === "admin") {
-    return next();
-  }
+  try {
+    if (req.user?.role === "admin") {
+      return next();
+    }
 
-  if (req.user?.role !== "doctor") {
-    return res.status(403).json({
-      message: "Doctor access is required",
+    if (req.user?.role !== "doctor") {
+      return res.status(403).json({
+        message: "Doctor access is required",
+      });
+    }
+
+    const doctor = await Doctor.findById(req.params.id).select("_id +authUserId email");
+
+    if (!doctor) {
+      return res.status(404).json({
+        message: "Doctor not found",
+      });
+    }
+
+    const ownsByAuthUserId =
+      String(doctor.authUserId || "") === String(req.user.id || "");
+
+    const ownsByEmail =
+      req.user.email &&
+      String(doctor.email || "").toLowerCase() === req.user.email.toLowerCase();
+
+    if (!ownsByAuthUserId && !ownsByEmail) {
+      return res.status(403).json({
+        message: "You can only modify your own doctor profile",
+      });
+    }
+
+    next();
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to authorize doctor resource",
+      error: error.message,
     });
   }
-
-  const doctor = await Doctor.findById(req.params.id).select("_id +authUserId");
-
-  if (!doctor) {
-    return res.status(404).json({
-      message: "Doctor not found",
-    });
-  }
-
-  if (String(doctor.authUserId || "") !== String(req.user.id)) {
-    return res.status(403).json({
-      message: "You can only modify your own doctor profile",
-    });
-  }
-
-  return next();
 };
 
 module.exports = {

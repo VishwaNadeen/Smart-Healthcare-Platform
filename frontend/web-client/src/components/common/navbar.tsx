@@ -2,15 +2,19 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useToast } from "./ToastProvider";
 import { logoutUser } from "../../services/authApi";
+import { getCurrentDoctorProfile } from "../../services/doctorApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
 import {
   clearTelemedicineAuth,
   getPostLoginPath,
   getStoredTelemedicineAuth,
+  type TelemedicineRole,
 } from "../../utils/telemedicineAuth";
 
-const PROFILE_NAME_KEY = "patientProfileName";
-const PROFILE_IMAGE_KEY = "patientProfileImage";
+const PATIENT_PROFILE_NAME_KEY = "patientProfileName";
+const PATIENT_PROFILE_IMAGE_KEY = "patientProfileImage";
+const DOCTOR_PROFILE_NAME_KEY = "doctorProfileName";
+const DOCTOR_PROFILE_IMAGE_KEY = "doctorProfileImage";
 const PROFILE_UPDATED_EVENT = "patient-profile-updated";
 
 const navLinks = [
@@ -36,6 +40,53 @@ function getInitials(name?: string, email?: string) {
   return "U";
 }
 
+function getProfileStorageKeys(role: TelemedicineRole | null) {
+  if (role === "patient") {
+    return {
+      nameKey: PATIENT_PROFILE_NAME_KEY,
+      imageKey: PATIENT_PROFILE_IMAGE_KEY,
+    };
+  }
+
+  if (role === "doctor") {
+    return {
+      nameKey: DOCTOR_PROFILE_NAME_KEY,
+      imageKey: DOCTOR_PROFILE_IMAGE_KEY,
+    };
+  }
+
+  return null;
+}
+
+function getStoredProfileName(role: TelemedicineRole | null, fallback = "") {
+  const keys = getProfileStorageKeys(role);
+  return (keys ? localStorage.getItem(keys.nameKey) || "" : "") || fallback;
+}
+
+function getStoredProfileImage(role: TelemedicineRole | null) {
+  const keys = getProfileStorageKeys(role);
+  return keys ? localStorage.getItem(keys.imageKey) || "" : "";
+}
+
+function clearStoredProfiles() {
+  localStorage.removeItem(PATIENT_PROFILE_NAME_KEY);
+  localStorage.removeItem(PATIENT_PROFILE_IMAGE_KEY);
+  localStorage.removeItem(DOCTOR_PROFILE_NAME_KEY);
+  localStorage.removeItem(DOCTOR_PROFILE_IMAGE_KEY);
+}
+
+function getProfilePath(role: TelemedicineRole | null) {
+  if (role === "patient") {
+    return "/profile/patient";
+  }
+
+  if (role === "doctor") {
+    return "/profile/doctor";
+  }
+
+  return "/";
+}
+
 export default function Navbar() {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -43,23 +94,28 @@ export default function Navbar() {
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
   const [actionError, setActionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [profileImage, setProfileImage] = useState(
-    () => localStorage.getItem(PROFILE_IMAGE_KEY) || ""
-  );
   const auth = getStoredTelemedicineAuth();
+  const [profileName, setProfileName] = useState(() =>
+    getStoredProfileName(auth.role, auth.username || "")
+  );
+  const [profileImage, setProfileImage] = useState(() =>
+    getStoredProfileImage(auth.role)
+  );
 
-  const storedPatientName =
-    localStorage.getItem(PROFILE_NAME_KEY) ||
-    auth.username ||
-    "";
+  const initials = getInitials(profileName, auth.email ?? undefined);
 
-  const initials = getInitials(storedPatientName, auth.email ?? undefined);
+  useEffect(() => {
+    setProfileName(getStoredProfileName(auth.role, auth.username || ""));
+    setProfileImage(getStoredProfileImage(auth.role));
+  }, [auth.role, auth.username]);
 
   useEffect(() => {
     let isActive = true;
+    const profileKeys = getProfileStorageKeys(auth.role);
 
     async function loadNavbarProfile() {
-      if (!auth.isAuthenticated || auth.role !== "patient" || !auth.token) {
+      if (!auth.isAuthenticated || !auth.token || !profileKeys) {
+        setProfileName(auth.username || "");
         setProfileImage("");
         if (auth.role !== "patient") {
           localStorage.removeItem(PROFILE_IMAGE_KEY);
@@ -69,23 +125,50 @@ export default function Navbar() {
       }
 
       try {
-        const patient = await getCurrentPatientProfile(auth.token);
+        if (auth.role === "patient") {
+          const patient = await getCurrentPatientProfile(auth.token);
+
+          if (!isActive) {
+            return;
+          }
+
+          const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.trim();
+
+          if (fullName) {
+            localStorage.setItem(profileKeys.nameKey, fullName);
+          } else {
+            localStorage.removeItem(profileKeys.nameKey);
+          }
+
+          localStorage.setItem(profileKeys.imageKey, patient.profileImage || "");
+          setProfileName(fullName || auth.username || "");
+          setProfileImage(patient.profileImage || "");
+          return;
+        }
+
+        const doctor = await getCurrentDoctorProfile(auth.token);
 
         if (!isActive) {
           return;
         }
 
-        setProfileImage(patient.profileImage || "");
-        localStorage.setItem(PROFILE_IMAGE_KEY, patient.profileImage || "");
+        const fullName = doctor.fullName?.trim() || "";
 
-        const fullName = `${patient.firstName || ""} ${patient.lastName || ""}`.trim();
         if (fullName) {
-          localStorage.setItem(PROFILE_NAME_KEY, fullName);
+          localStorage.setItem(profileKeys.nameKey, fullName);
+        } else {
+          localStorage.removeItem(profileKeys.nameKey);
         }
+
+        localStorage.setItem(profileKeys.imageKey, doctor.profileImage || "");
+        setProfileName(fullName || auth.username || "");
+        setProfileImage(doctor.profileImage || "");
       } catch {
         if (isActive) {
+          localStorage.removeItem(profileKeys.nameKey);
+          localStorage.removeItem(profileKeys.imageKey);
+          setProfileName(auth.username || "");
           setProfileImage("");
-          localStorage.removeItem(PROFILE_IMAGE_KEY);
         }
       }
     }
@@ -95,11 +178,12 @@ export default function Navbar() {
     return () => {
       isActive = false;
     };
-  }, [auth.isAuthenticated, auth.role, auth.token]);
+  }, [auth.isAuthenticated, auth.role, auth.token, auth.username]);
 
   useEffect(() => {
     function syncProfileFromStorage() {
-      setProfileImage(localStorage.getItem(PROFILE_IMAGE_KEY) || "");
+      setProfileName(getStoredProfileName(auth.role, auth.username || ""));
+      setProfileImage(getStoredProfileImage(auth.role));
     }
 
     window.addEventListener(PROFILE_UPDATED_EVENT, syncProfileFromStorage);
@@ -107,7 +191,7 @@ export default function Navbar() {
     return () => {
       window.removeEventListener(PROFILE_UPDATED_EVENT, syncProfileFromStorage);
     };
-  }, []);
+  }, [auth.role, auth.username]);
 
   async function handleLogout() {
     setActionError("");
@@ -123,6 +207,7 @@ export default function Navbar() {
       setActionError(message);
       showToast(message, "error");
     } finally {
+      clearStoredProfiles();
       clearTelemedicineAuth();
       showToast("Logged out successfully.", "success");
       setShowLogoutPrompt(false);
@@ -224,7 +309,7 @@ export default function Navbar() {
 
                 <div className="hidden lg:block">
                   <p className="text-sm font-semibold text-slate-800">
-                    {storedPatientName || "My Profile"}
+                    {profileName || "My Profile"}
                   </p>
                   <p className="text-xs text-slate-500">View profile</p>
                 </div>
@@ -317,6 +402,7 @@ export default function Navbar() {
             <div className="mt-2 grid gap-3">
               <Link
                 to={getPostLoginPath(auth.role)}
+
                 onClick={() => setIsOpen(false)}
                 className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 transition hover:bg-blue-50"
               >
@@ -334,7 +420,7 @@ export default function Navbar() {
 
                 <div>
                   <p className="text-sm font-semibold text-slate-800">
-                    {storedPatientName || "My Profile"}
+                    {profileName || "My Profile"}
                   </p>
                   <p className="text-xs text-slate-500">Open profile</p>
                 </div>

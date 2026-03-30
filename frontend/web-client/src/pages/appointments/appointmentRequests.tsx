@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { PATIENT_API_URL } from "../../config/api";
-import {
-  getDoctorAppointments,
-  updateDoctorAppointmentStatus,
-  type Appointment,
-  type AppointmentStatus,
-} from "../../services/appointmentApi";
+import { APPOINTMENT_API_URL, PATIENT_API_URL } from "../../config/api";
+import type { Appointment, AppointmentStatus } from "../../services/appointmentApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
 type PatientProfile = {
@@ -56,13 +51,13 @@ async function parseResponse<T>(response: Response): Promise<T> {
   }
 
   if (data === null) {
-    throw new Error("Empty response received from service");
+    throw new Error("Empty response received from appointment service");
   }
 
   return data as T;
 }
 
-export default function DoctorAppointmentsPage() {
+export default function DoctorAppointmentRequestsPage() {
   const auth = getStoredTelemedicineAuth();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -84,50 +79,56 @@ export default function DoctorAppointmentsPage() {
 
       try {
         setErrorMessage("");
-        const nextAppointments = await getDoctorAppointments(auth.token, auth.userId);
-        setAppointments(Array.isArray(nextAppointments) ? nextAppointments : []);
 
-        const patientIds = [
-          ...new Set(
-            (Array.isArray(nextAppointments) ? nextAppointments : []).map(
-              (appointment) => appointment.patientId
-            )
-          ),
-        ];
+        const response = await fetch(
+          `${APPOINTMENT_API_URL}/doctor/${auth.userId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${auth.token}`,
+            },
+          }
+        );
 
-        if (patientIds.length === 0) {
+        const data = await parseResponse<Appointment[]>(response);
+        const nextAppointments = Array.isArray(data) ? data : [];
+
+        setAppointments(nextAppointments);
+
+        const patientIds = [...new Set(nextAppointments.map((appointment) => appointment.patientId))];
+
+        if (patientIds.length > 0) {
+          const patientEntries = await Promise.all(
+            patientIds.map(async (patientId) => {
+              try {
+                const patientResponse = await fetch(`${PATIENT_API_URL}/${patientId}`);
+                const patient = await parseResponse<PatientProfile>(patientResponse);
+
+                return [patientId, patient] as const;
+              } catch {
+                return [patientId, null] as const;
+              }
+            })
+          );
+
+          setPatientsById(
+            patientEntries.reduce<Record<string, PatientProfile>>((accumulator, entry) => {
+              const [patientId, patient] = entry;
+
+              if (patient) {
+                accumulator[patientId] = patient;
+              }
+
+              return accumulator;
+            }, {})
+          );
+        } else {
           setPatientsById({});
-          return;
         }
-
-        const patientEntries = await Promise.all(
-          patientIds.map(async (patientId) => {
-            try {
-              const patientResponse = await fetch(`${PATIENT_API_URL}/${patientId}`);
-              const patient = await parseResponse<PatientProfile>(patientResponse);
-              return [patientId, patient] as const;
-            } catch {
-              return [patientId, null] as const;
-            }
-          })
-        );
-
-        setPatientsById(
-          patientEntries.reduce<Record<string, PatientProfile>>((accumulator, entry) => {
-            const [patientId, patient] = entry;
-
-            if (patient) {
-              accumulator[patientId] = patient;
-            }
-
-            return accumulator;
-          }, {})
-        );
       } catch (error: unknown) {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "Failed to load doctor appointments."
+            : "Failed to load appointment requests."
         );
       } finally {
         setIsLoading(false);
@@ -141,13 +142,18 @@ export default function DoctorAppointmentsPage() {
     return appointments
       .filter((appointment) => appointment.status === "pending")
       .sort((a, b) => {
-        const aDate = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
-        const bDate = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
+        const aDate = new Date(
+          `${a.appointmentDate}T${a.appointmentTime}`
+        ).getTime();
+        const bDate = new Date(
+          `${b.appointmentDate}T${b.appointmentTime}`
+        ).getTime();
+
         return aDate - bDate;
       });
   }, [appointments]);
 
-  async function handleUpdateAppointmentStatus(
+  async function updateAppointmentStatus(
     appointmentId: string,
     status: Extract<AppointmentStatus, "confirmed" | "cancelled">
   ) {
@@ -161,7 +167,22 @@ export default function DoctorAppointmentsPage() {
       setErrorMessage("");
       setSuccessMessage("");
 
-      const data = await updateDoctorAppointmentStatus(auth.token, appointmentId, status);
+      const response = await fetch(
+        `${APPOINTMENT_API_URL}/${appointmentId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${auth.token}`,
+          },
+          body: JSON.stringify({ status }),
+        }
+      );
+
+      const data = await parseResponse<{
+        message?: string;
+        appointment?: Appointment;
+      }>(response);
 
       setAppointments((currentAppointments) =>
         currentAppointments.map((appointment) =>
@@ -209,8 +230,8 @@ export default function DoctorAppointmentsPage() {
               </h1>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-                View only patient appointment requests here. Approved sessions will
-                appear under the consultation tab.
+                Review pending appointment requests from your patients and
+                update them directly from the database.
               </p>
             </div>
           </div>
@@ -307,12 +328,12 @@ export default function DoctorAppointmentsPage() {
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Contact
                           </p>
-                          <p className="mt-1 text-sm font-semibold text-slate-800">
+                          <p className="mt-1 text-sm font-semibold capitalize text-slate-800">
                             {patientsById[appointment.patientId]?.phone || "Not available"}
                           </p>
                         </div>
 
-                        <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2 xl:col-span-4">
+                        <div className="rounded-xl bg-slate-50 p-3">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Appointment ID
                           </p>
@@ -327,7 +348,7 @@ export default function DoctorAppointmentsPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          handleUpdateAppointmentStatus(appointment._id, "confirmed")
+                          updateAppointmentStatus(appointment._id, "confirmed")
                         }
                         disabled={isUpdating}
                         className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -338,7 +359,7 @@ export default function DoctorAppointmentsPage() {
                       <button
                         type="button"
                         onClick={() =>
-                          handleUpdateAppointmentStatus(appointment._id, "cancelled")
+                          updateAppointmentStatus(appointment._id, "cancelled")
                         }
                         disabled={isUpdating}
                         className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"

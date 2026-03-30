@@ -6,6 +6,26 @@ export type TelemedicineStatus =
   | "completed"
   | "cancelled";
 
+export type TelemedicineParticipantDetails = {
+  id?: string;
+  name?: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  specialization?: string;
+  profileImage?: string;
+};
+
+export type TelemedicineAppointmentDetails = {
+  id?: string;
+  status?: string;
+  date?: string;
+  time?: string;
+  reason?: string;
+  symptoms?: string;
+  consultationType?: string;
+};
+
 export type TelemedicineSession = {
   _id: string;
   appointmentId: string;
@@ -19,6 +39,15 @@ export type TelemedicineSession = {
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+
+  // Enriched fields from backend
+  doctorName?: string;
+  doctorSpecialization?: string;
+  patientName?: string;
+
+  doctor?: TelemedicineParticipantDetails;
+  patient?: TelemedicineParticipantDetails;
+  appointment?: TelemedicineAppointmentDetails;
 };
 
 export type SessionResponse = {
@@ -34,12 +63,27 @@ export type TelemedicineStatsResponse = {
   todaySessions: number;
 };
 
+function getStoredTelemedicineToken() {
+  const rawAuth = localStorage.getItem("telemedicine_auth");
+
+  if (!rawAuth) {
+    return "";
+  }
+
+  try {
+    const parsedAuth = JSON.parse(rawAuth);
+    return typeof parsedAuth.token === "string" ? parsedAuth.token : "";
+  } catch {
+    return "";
+  }
+}
+
 function getAuthHeaders() {
-  const token = localStorage.getItem("token");
+  const token = getStoredTelemedicineToken();
 
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token ?? ""}`,
+    Authorization: token ? `Bearer ${token}` : "",
   };
 }
 
@@ -267,7 +311,15 @@ export async function uploadTelemedicineFile(payload: {
   uploadedByRole: "doctor" | "patient";
   file: File;
 }): Promise<FileResponse> {
-  const token = localStorage.getItem("token");
+  const rawAuth = localStorage.getItem("telemedicine_auth");
+  let token = "";
+
+  try {
+    const parsedAuth = rawAuth ? JSON.parse(rawAuth) : null;
+    token = typeof parsedAuth?.token === "string" ? parsedAuth.token : "";
+  } catch {
+    token = "";
+  }
 
   const formData = new FormData();
   formData.append("appointmentId", payload.appointmentId);
@@ -277,7 +329,7 @@ export async function uploadTelemedicineFile(payload: {
   const response = await fetch(`${TELEMEDICINE_API_URL}/files`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token ?? ""}`,
+      Authorization: token ? `Bearer ${token}` : "",
     },
     body: formData,
   });

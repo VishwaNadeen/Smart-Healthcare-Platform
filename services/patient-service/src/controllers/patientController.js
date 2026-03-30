@@ -9,13 +9,8 @@ const {
 } = require("../services/authService");
 
 const deleteCloudinaryImage = async (publicId) => {
-  if (!publicId) {
-    return;
-  }
-
-  await cloudinary.uploader.destroy(publicId, {
-    resource_type: "image",
-  });
+  if (!publicId) return;
+  await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
 };
 
 const normalizeEmail = (email) =>
@@ -157,7 +152,6 @@ const createPatient = async (req, res) => {
 const getAllPatients = async (_req, res) => {
   try {
     const patients = await Patient.find().sort({ createdAt: -1 });
-
     res.status(200).json(patients);
   } catch (error) {
     res.status(500).json({
@@ -167,15 +161,12 @@ const getAllPatients = async (_req, res) => {
   }
 };
 
-// Get current patient
 const getCurrentPatient = async (req, res) => {
   try {
     const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
-      return res.status(404).json({
-        message: "Patient profile not found",
-      });
+      return res.status(404).json({ message: "Patient profile not found" });
     }
 
     if (!patient.authUserId && req.authUser?.id) {
@@ -192,15 +183,12 @@ const getCurrentPatient = async (req, res) => {
   }
 };
 
-// Get patient by ID
 const getPatientById = async (req, res) => {
   try {
     const patient = await Patient.findById(req.params.id);
 
     if (!patient) {
-      return res.status(404).json({
-        message: "Patient not found",
-      });
+      return res.status(404).json({ message: "Patient not found" });
     }
 
     res.status(200).json(patient);
@@ -212,7 +200,6 @@ const getPatientById = async (req, res) => {
   }
 };
 
-// Update current patient
 const updateCurrentPatient = async (req, res) => {
   try {
     const requestedEmail = normalizeEmail(req.body.email);
@@ -220,9 +207,7 @@ const updateCurrentPatient = async (req, res) => {
     const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
-      return res.status(404).json({
-        message: "Patient profile not found",
-      });
+      return res.status(404).json({ message: "Patient profile not found" });
     }
 
     if (!patient.authUserId && req.authUser?.id) {
@@ -258,21 +243,16 @@ const updateCurrentPatient = async (req, res) => {
   }
 };
 
-// Upload current patient profile image
 const uploadCurrentPatientProfileImage = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({
-        message: "Please select an image",
-      });
+      return res.status(400).json({ message: "Please select an image" });
     }
 
     const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
-      return res.status(404).json({
-        message: "Patient profile not found",
-      });
+      return res.status(404).json({ message: "Patient profile not found" });
     }
 
     if (!patient.authUserId && req.authUser?.id) {
@@ -320,15 +300,12 @@ const uploadCurrentPatientProfileImage = async (req, res) => {
   }
 };
 
-// Remove current patient profile image
 const removeCurrentPatientProfileImage = async (req, res) => {
   try {
     const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
-      return res.status(404).json({
-        message: "Patient profile not found",
-      });
+      return res.status(404).json({ message: "Patient profile not found" });
     }
 
     if (patient.profileImagePublicId) {
@@ -351,7 +328,6 @@ const removeCurrentPatientProfileImage = async (req, res) => {
   }
 };
 
-// Delete current patient
 const deleteCurrentPatient = async (req, res) => {
   try {
     const { password } = req.body;
@@ -367,9 +343,7 @@ const deleteCurrentPatient = async (req, res) => {
     const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
-      return res.status(404).json({
-        message: "Patient profile not found",
-      });
+      return res.status(404).json({ message: "Patient profile not found" });
     }
 
     if (patient.profileImagePublicId) {

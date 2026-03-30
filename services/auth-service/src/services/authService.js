@@ -9,12 +9,14 @@ const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const DOCTOR_SERVICE_URL = process.env.DOCTOR_SERVICE_URL || "http://localhost:5003";
 
 const generateToken = (user) => {
   return jwt.sign(
     {
       userId: user._id,
       username: user.username,
+      email: user.email,
       role: user.role,
     },
     process.env.JWT_SECRET,
@@ -64,6 +66,7 @@ const verifyOtp = (user, field, otp) => {
   }
 
   const isMatch = hashOtp(otp) === data.codeHash;
+
   if (!isMatch) {
     data.attempts += 1;
   }
@@ -88,6 +91,53 @@ const normalizeUsername = (username) =>
 
 const normalizeIdentifier = (identifier) => String(identifier || "").trim();
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+
+const getDoctorProfileId = async (token) => {
+  const response = await fetch(`${DOCTOR_SERVICE_URL}/api/doctors/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(data.message || "Failed to fetch doctor profile");
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data?._id ? String(data._id) : null;
+};
+
+const buildLoginPayload = async (user, token) => {
+  const payload = {
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    token,
+  };
+
+  if (user.role !== "doctor") {
+    return payload;
+  }
+
+  try {
+    return {
+      ...payload,
+      doctorProfileId: await getDoctorProfileId(token),
+    };
+  } catch (error) {
+    console.error("Failed to enrich doctor login payload:", error.message);
+
+    return {
+      ...payload,
+      doctorProfileId: null,
+    };
+  }
+};
 
 const buildUniqueUsername = async (username) => {
   const baseUsername = normalizeUsername(username);
@@ -115,15 +165,12 @@ const findUserByIdentifier = async (identifier) => {
   }
 
   return User.findOne({
-    $or: [
-      { email: normalizedIdentifier.toLowerCase() },
-      { username: normalizedIdentifier },
-    ],
+    $or: [{ email: normalizedIdentifier.toLowerCase() }, { username: normalizedIdentifier }],
   });
 };
 
 const registerUser = async ({ username, email, password, role }) => {
-  const normalizedEmail = email.toLowerCase().trim();
+  const normalizedEmail = normalizeEmail(email);
   const normalizedUsername = normalizeUsername(username);
 
   if (!normalizedUsername) {
@@ -151,7 +198,7 @@ const registerUser = async ({ username, email, password, role }) => {
 };
 
 const requestEmailVerificationOtp = async ({ email }) => {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedEmail = normalizeEmail(email);
   const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
@@ -177,7 +224,7 @@ const requestEmailVerificationOtp = async ({ email }) => {
 };
 
 const verifyEmailOtp = async ({ email, otp }) => {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedEmail = normalizeEmail(email);
   const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
@@ -248,15 +295,16 @@ const ensureAdminUser = async () => {
 };
 
 const loginUser = async ({ email, password }) => {
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
+  const normalizedEmail = normalizeEmail(email);
+  const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
     throw new Error("Invalid email or password");
   }
 
-  const isPasswordMatch = await bcrypt.compare(password, user.password);
+  const isMatch = await bcrypt.compare(password, user.password);
 
-  if (!isPasswordMatch) {
+  if (!isMatch) {
     throw new Error("Invalid email or password");
   }
 
@@ -268,45 +316,43 @@ const loginUser = async ({ email, password }) => {
   user.tokens.push({ token });
   await user.save();
 
-  return {
-    id: user._id,
-    username: user.username,
-    email: user.email,
-    role: user.role,
-    token,
-  };
+  return buildLoginPayload(user, token);
 };
 
 const logoutUser = async (userId, token) => {
+  await User.findByIdAndUpdate(userId, {
+    $pull: { tokens: { token } },
+  });
+};
+
+const deleteUserAccount = async (userId) => {
+  await User.findByIdAndDelete(userId);
+};
+
+const deleteUserByEmail = async (email) => {
+  const normalizedEmail = normalizeEmail(email);
+  const deletedUser = await User.findOneAndDelete({ email: normalizedEmail });
+
+  return {
+    deleted: Boolean(deletedUser),
+    email: normalizedEmail,
+  };
+};
+
+const getUserById = async (userId) => {
   const user = await User.findById(userId);
 
   if (!user) {
     throw new Error("User not found");
   }
 
-  user.tokens = user.tokens.filter((item) => item.token !== token);
-  await user.save();
-};
-
-const deleteUserAccount = async (userId) => {
-  const user = await User.findByIdAndDelete(userId);
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-};
-
-const deleteUserByEmail = async (email) => {
-  const normalizedEmail = String(email || "").toLowerCase().trim();
-
-  if (!normalizedEmail) {
-    throw new Error("Email is required");
-  }
-
-  const user = await User.findOneAndDelete({ email: normalizedEmail });
-
   return {
-    deleted: Boolean(user),
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
   };
 };
 
@@ -318,7 +364,11 @@ const requestLoginOtp = async ({ identifier, role }) => {
   }
 
   if (role && user.role !== role) {
-    throw new Error(`This account is not registered as ${role}`);
+    throw new Error("User role does not match");
+  }
+
+  if (!user.isEmailVerified) {
+    throw new Error("Please verify your email before logging in");
   }
 
   const otp = generateOtp();
@@ -326,10 +376,7 @@ const requestLoginOtp = async ({ identifier, role }) => {
   await user.save();
   await deliverOtp({ user, otp, purpose: "login" });
 
-  return {
-    otp: process.env.NODE_ENV === "production" ? undefined : otp,
-    expiresInMinutes: OTP_TTL_MINUTES,
-  };
+  return { expiresInMinutes: OTP_TTL_MINUTES };
 };
 
 const verifyLoginOtp = async ({ identifier, otp, role }) => {
@@ -340,10 +387,11 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
   }
 
   if (role && user.role !== role) {
-    throw new Error(`This account is not registered as ${role}`);
+    throw new Error("User role does not match");
   }
 
   const isValid = verifyOtp(user, "otpLogin", otp);
+
   if (!isValid) {
     await user.save();
     throw new Error("Invalid OTP");
@@ -355,23 +403,14 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
   user.tokens.push({ token });
   await user.save();
 
-  return {
-    user: {
-      id: user._id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-    },
-    token,
-  };
+  return buildLoginPayload(user, token);
 };
 
 const requestPasswordResetOtp = async ({ identifier }) => {
-  const normalizedEmail = normalizeEmail(identifier);
-  const user = await User.findOne({ email: normalizedEmail });
+  const user = await findUserByIdentifier(identifier);
 
   if (!user) {
-    throw new Error("No auth account found with this email");
+    throw new Error("User not found");
   }
 
   const otp = generateOtp();
@@ -392,6 +431,7 @@ const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
   }
 
   const isValid = verifyOtp(user, "otpReset", otp);
+
   if (!isValid) {
     await user.save();
     throw new Error("Invalid OTP");
@@ -400,6 +440,7 @@ const resetPasswordWithOtp = async ({ identifier, otp, newPassword }) => {
   const hashedPassword = await bcrypt.hash(newPassword, 10);
   user.password = hashedPassword;
   clearOtp(user, "otpReset");
+  user.tokens = [];
   await user.save();
 };
 
@@ -438,12 +479,13 @@ const getUserStats = async () => {
 };
 
 module.exports = {
+  ensureAdminUser,
   registerUser,
   loginUser,
-  ensureAdminUser,
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
+  getUserById,
   requestEmailVerificationOtp,
   verifyEmailOtp,
   requestLoginOtp,
