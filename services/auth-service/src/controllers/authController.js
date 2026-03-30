@@ -27,7 +27,7 @@ const hasValidInternalSecret = (req) => {
   const expectedSecret = process.env.INTERNAL_SERVICE_SECRET;
 
   if (!expectedSecret) {
-    return true;
+    return false;
   }
 
   return req.headers["x-internal-service-secret"] === expectedSecret;
@@ -66,7 +66,10 @@ const register = async (req, res) => {
       try {
         await deleteUserAccount(createdUser._id);
       } catch (rollbackError) {
-        console.error("Failed to roll back auth user after register error:", rollbackError.message);
+        console.error(
+          "Failed to roll back auth user after register error:",
+          rollbackError.message
+        );
       }
     }
 

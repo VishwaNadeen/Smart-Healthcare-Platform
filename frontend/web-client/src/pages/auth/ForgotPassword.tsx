@@ -13,8 +13,32 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  function isValidEmail(value: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  }
+
+  function isValidOtp(value: string) {
+    return /^[0-9]{4,8}$/.test(value.trim());
+  }
+
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      const message = "Email is required.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      const message = "Enter a valid email address.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setMessage("");
@@ -25,7 +49,7 @@ export default function ForgotPasswordPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: trimmedEmail }),
       });
 
       const data = await response.json();
@@ -49,6 +73,52 @@ export default function ForgotPasswordPage() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+    const trimmedOtp = otp.trim();
+    const trimmedNewPassword = newPassword.trim();
+
+    if (!trimmedEmail) {
+      const message = "Email is required.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      const message = "Enter a valid email address.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (!trimmedOtp) {
+      const message = "OTP is required.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (!isValidOtp(trimmedOtp)) {
+      const message = "OTP must contain only digits and be 4 to 8 characters long.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (!trimmedNewPassword) {
+      const message = "New password is required.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (trimmedNewPassword.length < 6 || trimmedNewPassword.length > 100) {
+      const message = "New password must be between 6 and 100 characters.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setMessage("");
@@ -60,9 +130,9 @@ export default function ForgotPasswordPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          identifier: email,
-          otp,
-          newPassword,
+          identifier: trimmedEmail,
+          otp: trimmedOtp,
+          newPassword: trimmedNewPassword,
         }),
       });
 

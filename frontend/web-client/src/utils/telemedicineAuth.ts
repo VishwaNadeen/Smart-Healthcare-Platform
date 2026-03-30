@@ -63,6 +63,21 @@ export function clearTelemedicineAuth() {
   window.localStorage.removeItem(TELEMEDICINE_AUTH_STORAGE_KEY);
 }
 
+function isSafeRedirectPath(pathname: string | null | undefined): pathname is string {
+  if (!pathname || typeof pathname !== "string") {
+    return false;
+  }
+
+  return (
+    pathname.startsWith("/") &&
+    pathname !== "/login" &&
+    pathname !== "/register" &&
+    pathname !== "/signup" &&
+    pathname !== "/verify-email" &&
+    pathname !== "/forgot-password"
+  );
+}
+
 export function getStoredTelemedicineAuth(): TelemedicineAuthState {
   if (typeof window === "undefined") {
     return {
@@ -121,7 +136,7 @@ export function getStoredTelemedicineAuth(): TelemedicineAuthState {
     actorRole: role === "doctor" || role === "patient" ? role : null,
     username,
     email,
-    isAuthenticated: Boolean(token || role || userId),
+    isAuthenticated: Boolean(token && role && userId),
   };
 }
 
@@ -135,6 +150,21 @@ export function getRoleHomePath(role: TelemedicineRole | null): string {
   }
 
   return "/";
+}
+
+export function getPostLoginPath(
+  role: TelemedicineRole | null,
+  fromPathname?: string | null
+): string {
+  if (isSafeRedirectPath(fromPathname)) {
+    return fromPathname;
+  }
+
+  if (role === "patient") {
+    return "/patient/profile";
+  }
+
+  return getRoleHomePath(role);
 }
 
 export function canAccessTelemedicineSession(

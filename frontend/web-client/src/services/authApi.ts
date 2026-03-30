@@ -42,8 +42,18 @@ async function handleResponse<T>(response: Response): Promise<T> {
   const data = (await response.json().catch(() => null)) as T | null;
 
   if (!response.ok) {
-    const errorMessage =
+    const validationMessage =
       typeof data === "object" &&
+      data !== null &&
+      "errors" in data &&
+      Array.isArray(data.errors) &&
+      typeof data.errors[0] === "string"
+        ? data.errors[0]
+        : null;
+
+    const errorMessage =
+      validationMessage ||
+      (typeof data === "object" &&
       data !== null &&
       "error" in data &&
       typeof data.error === "string"
@@ -53,7 +63,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
             "message" in data &&
             typeof data.message === "string"
           ? data.message
-        : `Request failed with status ${response.status}`;
+        : `Request failed with status ${response.status}`);
 
     throw new Error(errorMessage);
   }
