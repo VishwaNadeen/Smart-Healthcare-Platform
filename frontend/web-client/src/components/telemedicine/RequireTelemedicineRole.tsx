@@ -26,6 +26,7 @@ export default function RequireTelemedicineRole({
         description="This page needs a real login session. Sign in to load your doctor or patient role from the backend."
         actionLabel="Go to Login"
         actionTo="/login"
+        actionState={{ from: location }}
       />
     );
   }

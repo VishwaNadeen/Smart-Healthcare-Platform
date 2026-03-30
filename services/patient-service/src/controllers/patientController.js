@@ -3,6 +3,8 @@ const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
 const {
   registerPatientAuth,
+  verifyAuthPassword,
+  deleteAuthAccount,
   deleteAuthAccountByEmail,
 } = require("../services/authService");
 
@@ -11,11 +13,44 @@ const deleteCloudinaryImage = async (publicId) => {
   await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
 };
 
-const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+const normalizeEmail = (email) =>
+  typeof email === "string" ? email.trim().toLowerCase() : "";
 
+const buildPatientPayload = (body = {}) => ({
+  firstName: body.firstName,
+  lastName: body.lastName,
+  email: normalizeEmail(body.email),
+  countryCode: body.countryCode,
+  phone: body.phone,
+  birthday: body.birthday,
+  gender: body.gender,
+  address: body.address,
+  country: body.country,
+});
+
+const findPatientForAuthUser = async (authUser) => {
+  if (!authUser) {
+    return null;
+  }
+
+  if (authUser.id) {
+    const patientByAuthId = await Patient.findOne({ authUserId: authUser.id });
+    if (patientByAuthId) {
+      return patientByAuthId;
+    }
+  }
+
+  if (authUser.email) {
+    return Patient.findOne({ email: normalizeEmail(authUser.email) });
+  }
+
+  return null;
+};
+
+// Create patient with auth-service registration
 const createPatient = async (req, res) => {
-  let authUserCreated = false;
-  let normalizedEmail = "";
+  let authRegistration = null;
+  let createdPatient = null;
 
   try {
     const {
@@ -29,14 +64,12 @@ const createPatient = async (req, res) => {
       gender,
       address,
       country,
-    } = req.body || {};
-
-    normalizedEmail = normalizeEmail(email);
+    } = req.body;
 
     if (
       !firstName ||
       !lastName ||
-      !normalizedEmail ||
+      !email ||
       !password ||
       !countryCode ||
       !phone ||
@@ -45,83 +78,77 @@ const createPatient = async (req, res) => {
       !country
     ) {
       return res.status(400).json({
-        message:
-          "firstName, lastName, email, password, countryCode, phone, birthday, gender and country are required",
+        message: "All required fields must be provided",
       });
     }
 
-    const existingPatient = await Patient.findOne({ email: normalizedEmail });
+    const normalizedEmail = normalizeEmail(email);
 
+    const existingPatient = await Patient.findOne({ email: normalizedEmail });
     if (existingPatient) {
       return res.status(409).json({
         message: "Patient already exists with this email",
       });
     }
 
-    const authResponse = await registerPatientAuth({
+    authRegistration = await registerPatientAuth({
       firstName,
       lastName,
       email: normalizedEmail,
       password,
     });
 
-    authUserCreated = true;
-
-    const patient = await Patient.create({
-      firstName: String(firstName).trim(),
-      lastName: String(lastName).trim(),
+    const patientPayload = buildPatientPayload({
+      firstName,
+      lastName,
       email: normalizedEmail,
-      countryCode: String(countryCode).trim(),
-      phone: String(phone).trim(),
+      countryCode,
+      phone,
       birthday,
-      gender: String(gender).trim().toLowerCase(),
-      address: String(address || "").trim(),
-      country: String(country).trim(),
+      gender,
+      address,
+      country,
     });
 
-    return res.status(201).json({
-      message:
-        authResponse?.message ||
-        "Patient account created successfully. Please verify your email to continue.",
-      verificationRequired: authResponse?.verificationRequired ?? true,
-      expiresInMinutes: authResponse?.expiresInMinutes,
-      patient,
+    patientPayload.authUserId = authRegistration?.user?.id || "";
+
+    createdPatient = await Patient.create(patientPayload);
+
+    res.status(201).json({
+      message: "Patient created successfully",
+      patient: createdPatient,
+      verificationRequired: authRegistration?.verificationRequired,
+      expiresInMinutes: authRegistration?.expiresInMinutes,
     });
   } catch (error) {
-    /*
-      Roll back auth user if auth account was created
-      but patient profile creation failed after that
-    */
-    if (authUserCreated && normalizedEmail) {
+    if (!createdPatient && authRegistration?.user?.email) {
       try {
-        await deleteAuthAccountByEmail(normalizedEmail);
+        await deleteAuthAccountByEmail(authRegistration.user.email);
       } catch (rollbackError) {
         console.error(
-          "Failed to roll back auth user after patient creation error:",
+          "Failed to roll back auth account after patient creation failure:",
           rollbackError.message
         );
       }
     }
 
-    const status =
-      error?.response?.status ||
-      (error.message && error.message.toLowerCase().includes("already exists")
-        ? 409
-        : 500);
+    const statusCode =
+      error.response?.status ||
+      (error.message?.includes("already exists") ? 409 : 500);
 
-    const message =
-      error?.response?.data?.message ||
-      error?.response?.data?.error ||
+    const errorMessage =
+      error.response?.data?.message ||
       error.message ||
       "Failed to create patient";
 
-    return res.status(status).json({
-      message,
-      error: message,
+    res.status(statusCode).json({
+      message: errorMessage,
+      error: errorMessage,
     });
   }
 };
 
+// Get all patients
 const getAllPatients = async (_req, res) => {
   try {
     const patients = await Patient.find().sort({ createdAt: -1 });
@@ -136,11 +163,15 @@ const getAllPatients = async (_req, res) => {
 
 const getCurrentPatient = async (req, res) => {
   try {
-    const email = req.authUser.email;
-    const patient = await Patient.findOne({ email });
+    const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
       return res.status(404).json({ message: "Patient profile not found" });
+    }
+
+    if (!patient.authUserId && req.authUser?.id) {
+      patient.authUserId = req.authUser.id;
+      await patient.save();
     }
 
     res.status(200).json(patient);
@@ -171,16 +202,16 @@ const getPatientById = async (req, res) => {
 
 const updateCurrentPatient = async (req, res) => {
   try {
-    const email = req.authUser.email;
-    const requestedEmail =
-      typeof req.body.email === "string"
-        ? req.body.email.trim().toLowerCase()
-        : "";
+    const requestedEmail = normalizeEmail(req.body.email);
 
-    const patient = await Patient.findOne({ email });
+    const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
       return res.status(404).json({ message: "Patient profile not found" });
+    }
+
+    if (!patient.authUserId && req.authUser?.id) {
+      patient.authUserId = req.authUser.id;
     }
 
     if (requestedEmail && requestedEmail !== patient.email) {
@@ -214,17 +245,21 @@ const updateCurrentPatient = async (req, res) => {
 
 const uploadCurrentPatientProfileImage = async (req, res) => {
   try {
-    const email = req.authUser.email;
-
     if (!req.file) {
       return res.status(400).json({ message: "Please select an image" });
     }
 
-    const patient = await Patient.findOne({ email });
+    const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
       return res.status(404).json({ message: "Patient profile not found" });
     }
+
+    if (!patient.authUserId && req.authUser?.id) {
+      patient.authUserId = req.authUser.id;
+    }
+
+    const oldPublicId = patient.profileImagePublicId;
 
     const uploadFromBuffer = () =>
       new Promise((resolve, reject) => {
@@ -244,13 +279,13 @@ const uploadCurrentPatientProfileImage = async (req, res) => {
 
     const result = await uploadFromBuffer();
 
-    if (patient.profileImagePublicId) {
-      await deleteCloudinaryImage(patient.profileImagePublicId);
-    }
-
     patient.profileImage = result.secure_url;
     patient.profileImagePublicId = result.public_id;
     await patient.save();
+
+    if (oldPublicId) {
+      await deleteCloudinaryImage(oldPublicId);
+    }
 
     res.status(200).json({
       message: "Profile image uploaded successfully",
@@ -267,8 +302,7 @@ const uploadCurrentPatientProfileImage = async (req, res) => {
 
 const removeCurrentPatientProfileImage = async (req, res) => {
   try {
-    const email = req.authUser.email;
-    const patient = await Patient.findOne({ email });
+    const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
       return res.status(404).json({ message: "Patient profile not found" });
@@ -296,8 +330,17 @@ const removeCurrentPatientProfileImage = async (req, res) => {
 
 const deleteCurrentPatient = async (req, res) => {
   try {
-    const email = req.authUser.email;
-    const patient = await Patient.findOne({ email });
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        message: "Password is required to delete your profile",
+      });
+    }
+
+    await verifyAuthPassword(req.token, password);
+
+    const patient = await findPatientForAuthUser(req.authUser);
 
     if (!patient) {
       return res.status(404).json({ message: "Patient profile not found" });
@@ -308,15 +351,21 @@ const deleteCurrentPatient = async (req, res) => {
     }
 
     await patient.deleteOne();
+    await deleteAuthAccount(req.token);
 
     res.status(200).json({
-      message:
-        "Patient profile deleted successfully. Delete the auth account separately through auth-service if needed.",
+      message: "Patient account deleted successfully",
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Failed to delete patient profile",
-      error: error.message,
+    const statusCode = error.response?.status || 500;
+    const errorMessage =
+      error.response?.data?.message ||
+      error.message ||
+      "Failed to delete patient account";
+
+    res.status(statusCode).json({
+      message: errorMessage,
+      error: errorMessage,
     });
   }
 };

@@ -6,6 +6,7 @@ import { getCurrentDoctorProfile } from "../../services/doctorApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
 import {
   clearTelemedicineAuth,
+  getPostLoginPath,
   getStoredTelemedicineAuth,
   type TelemedicineRole,
 } from "../../utils/telemedicineAuth";
@@ -90,6 +91,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
+  const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
   const [actionError, setActionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const auth = getStoredTelemedicineAuth();
@@ -115,6 +117,10 @@ export default function Navbar() {
       if (!auth.isAuthenticated || !auth.token || !profileKeys) {
         setProfileName(auth.username || "");
         setProfileImage("");
+        if (auth.role !== "patient") {
+          localStorage.removeItem(PROFILE_IMAGE_KEY);
+          localStorage.removeItem(PROFILE_NAME_KEY);
+        }
         return;
       }
 
@@ -204,6 +210,7 @@ export default function Navbar() {
       clearStoredProfiles();
       clearTelemedicineAuth();
       showToast("Logged out successfully.", "success");
+      setShowLogoutPrompt(false);
       setIsSubmitting(false);
       setIsOpen(false);
       navigate("/login", { replace: true });
@@ -212,6 +219,39 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-blue-200/40 bg-white/80 backdrop-blur-md shadow-sm">
+      {showLogoutPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-md rounded-3xl border border-blue-200 bg-white p-8 shadow-2xl">
+            <h2 className="text-center text-xl font-semibold text-slate-900">
+              Confirm Logout
+            </h2>
+            <p className="mt-3 text-center text-sm leading-6 text-slate-600">
+              Are you sure you want to log out of your account?
+            </p>
+
+            <div className="mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setShowLogoutPrompt(false)}
+                disabled={isSubmitting}
+                className="min-w-[140px] rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-70"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isSubmitting}
+                className="min-w-[140px] rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-70"
+              >
+                {isSubmitting ? "Logging out..." : "Yes, Logout"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <Link
           to="/"
@@ -251,7 +291,7 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <>
               <Link
-                to={getProfilePath(auth.role)}
+                to={getPostLoginPath(auth.role)}
                 className="group flex items-center gap-3 rounded-full px-2 py-1 transition hover:bg-blue-50"
                 title="My Profile"
               >
@@ -277,7 +317,7 @@ export default function Navbar() {
 
               <button
                 type="button"
-                onClick={handleLogout}
+                onClick={() => setShowLogoutPrompt(true)}
                 disabled={isSubmitting}
                 className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg disabled:opacity-70"
               >
@@ -287,7 +327,7 @@ export default function Navbar() {
           ) : (
             <>
               <Link
-                to="/signup"
+                to="/register"
                 className="rounded-full border border-blue-200 bg-white px-5 py-2 text-sm font-semibold text-blue-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
               >
                 Sign Up
@@ -361,7 +401,8 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <div className="mt-2 grid gap-3">
               <Link
-                to={getProfilePath(auth.role)}
+                to={getPostLoginPath(auth.role)}
+
                 onClick={() => setIsOpen(false)}
                 className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 transition hover:bg-blue-50"
               >
@@ -387,7 +428,7 @@ export default function Navbar() {
 
               <button
                 type="button"
-                onClick={handleLogout}
+                onClick={() => setShowLogoutPrompt(true)}
                 disabled={isSubmitting}
                 className="rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition-all duration-300 hover:bg-blue-700 disabled:opacity-70"
               >
@@ -397,7 +438,7 @@ export default function Navbar() {
           ) : (
             <div className="mt-2 grid grid-cols-2 gap-3">
               <Link
-                to="/signup"
+                to="/register"
                 onClick={() => setIsOpen(false)}
                 className="rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-semibold text-blue-700 transition-all duration-300 hover:bg-blue-50"
               >
