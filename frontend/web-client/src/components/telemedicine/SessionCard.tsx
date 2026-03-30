@@ -9,6 +9,36 @@ type SessionCardProps = {
   role?: TelemedicineActorRole;
 };
 
+function getDisplayValue(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function getSessionName(
+  session: TelemedicineSession,
+  key: "doctor" | "patient"
+) {
+  const data = session as TelemedicineSession & {
+    doctorName?: string;
+    doctorFullName?: string;
+    patientName?: string;
+    patientFullName?: string;
+  };
+
+  if (key === "doctor") {
+    return (
+      getDisplayValue(data.doctorName, "") ||
+      getDisplayValue(data.doctorFullName, "") ||
+      "Doctor"
+    );
+  }
+
+  return (
+    getDisplayValue(data.patientName, "") ||
+    getDisplayValue(data.patientFullName, "") ||
+    "Patient"
+  );
+}
+
 export default function SessionCard({
   session,
   role = "patient",
@@ -17,18 +47,22 @@ export default function SessionCard({
     session.scheduledDate,
     session.scheduledTime
   );
+
   const isDoctor = role === "doctor";
   const isCompleted = session.status === "completed";
   const isCancelled = session.status === "cancelled";
   const isScheduled = session.status === "scheduled";
   const isActive = session.status === "active";
 
+  const doctorName = getSessionName(session, "doctor");
+  const patientName = getSessionName(session, "patient");
+
   function renderPrimaryAction() {
     if (isCompleted) {
       return (
         <Link
           to={`/session-summary/${session.appointmentId}`}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+          className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:flex-1"
         >
           View Summary
         </Link>
@@ -39,7 +73,7 @@ export default function SessionCard({
       return (
         <button
           disabled
-          className="cursor-not-allowed rounded-lg bg-gray-300 px-4 py-2 text-sm font-medium text-gray-600"
+          className="w-full cursor-not-allowed rounded-xl bg-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-600 sm:flex-1"
         >
           Session Cancelled
         </button>
@@ -50,7 +84,7 @@ export default function SessionCard({
       return (
         <Link
           to={`/waiting-room/${session.appointmentId}`}
-          className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-600"
+          className="inline-flex w-full items-center justify-center rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-600 sm:flex-1"
         >
           Open Waiting Room
         </Link>
@@ -60,10 +94,10 @@ export default function SessionCard({
     if (isDoctor && isScheduled) {
       return (
         <Link
-          to={`/consultation/${session.appointmentId}`}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+          to={`/waiting-room/${session.appointmentId}`}
+          className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:flex-1"
         >
-          Open Consultation Room
+          Open Waiting Room
         </Link>
       );
     }
@@ -72,7 +106,7 @@ export default function SessionCard({
       return (
         <Link
           to={`/consultation/${session.appointmentId}`}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+          className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 sm:flex-1"
         >
           Join Consultation
         </Link>
@@ -82,82 +116,103 @@ export default function SessionCard({
     return (
       <button
         disabled
-        className="cursor-not-allowed rounded-lg bg-gray-300 px-4 py-2 text-sm font-medium text-gray-600"
+        className="w-full cursor-not-allowed rounded-xl bg-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-600 sm:flex-1"
       >
-        Consultation not available yet
+        Consultation Not Available Yet
       </button>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-bold text-gray-800">
-            Appointment #{session.appointmentId}
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">Room: {session.roomName}</p>
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+      <div className="flex flex-col gap-5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-base font-bold text-blue-700">
+              {isDoctor ? "PT" : "DR"}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="break-words text-lg font-bold text-slate-900">
+                  {isDoctor ? patientName : doctorName}
+                </h3>
+                <StatusBadge status={session.status} />
+              </div>
+
+              <p className="mt-1 text-sm font-medium text-cyan-700">
+                {isDoctor ? "Patient Session" : "Doctor Consultation"}
+              </p>
+
+              <p className="mt-2 text-sm text-slate-500">
+                {isDoctor ? (
+                  <>
+                    <span className="font-semibold text-slate-700">Doctor:</span>{" "}
+                    {doctorName}
+                  </>
+                ) : (
+                  <>
+                    <span className="font-semibold text-slate-700">Patient:</span>{" "}
+                    {patientName}
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Date
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">
+                {session.scheduledDate || "Not available"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Time
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-800">
+                {session.scheduledTime || "Not available"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Room Name
+              </p>
+              <p className="mt-1 break-all text-sm font-semibold text-slate-800">
+                {session.roomName || "Not available"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Session Status
+              </p>
+              <p className="mt-1 text-sm font-semibold capitalize text-slate-800">
+                {session.status || "Not available"}
+              </p>
+            </div>
+          </div>
+
+          {session.notes?.trim() && (
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Notes
+              </p>
+              <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-700">
+                {session.notes}
+              </p>
+            </div>
+          )}
         </div>
 
-        <StatusBadge status={session.status} />
-      </div>
-
-      <div className="grid gap-2 text-sm text-gray-700 sm:grid-cols-2">
-        <p>
-          <span className="font-semibold">Date:</span> {session.scheduledDate}
-        </p>
-
-        <p>
-          <span className="font-semibold">Time:</span> {session.scheduledTime}
-        </p>
-
-        {isDoctor ? (
-          <p>
-            <span className="font-semibold">Patient ID:</span> {session.patientId}
-          </p>
-        ) : (
-          <p>
-            <span className="font-semibold">Doctor ID:</span> {session.doctorId}
-          </p>
-        )}
-
-        <p>
-          <span className="font-semibold">Meeting:</span>{" "}
-          <a
-            href={session.meetingLink}
-            target="_blank"
-            rel="noreferrer"
-            className="text-blue-600 hover:underline"
-          >
-            Open Link
-          </a>
-        </p>
-      </div>
-
-      {session.notes?.trim() && (
-        <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
-          <span className="font-semibold">Notes:</span> {session.notes}
+        <div className="flex w-full flex-col gap-3 sm:flex-row">
+          {renderPrimaryAction()}
         </div>
-      )}
-
-      <div className="mt-5 flex flex-wrap gap-3">
-        <Link
-          to={`/session/${session.appointmentId}`}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-        >
-          View Details
-        </Link>
-
-        {renderPrimaryAction()}
-
-        <a
-          href={session.meetingLink}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-        >
-          Meeting Link
-        </a>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ const {
   logout,
   deleteMe,
   deleteByEmailInternal,
+  getUserByIdInternal,
   me,
   stats,
   requestEmailVerification,
@@ -36,6 +37,7 @@ router.delete("/me", authMiddleware, deleteMe);
 
 // internal route for cross-service rollback/cleanup
 router.delete("/internal/users/by-email", deleteByEmailInternal);
+router.get("/internal/users/:id", getUserByIdInternal);
 
 router.get(
   "/doctor/dashboard",

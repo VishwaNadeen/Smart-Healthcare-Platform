@@ -8,7 +8,6 @@ import { getStoredTelemedicineAuth } from "../utils/telemedicineAuth";
 import Consultation from "../pages/telemedicine/consultation";
 import DoctorSessions from "../pages/telemedicine/doctorsessions";
 import PatientSessions from "../pages/telemedicine/Patientsessions";
-import SessionDetails from "../pages/telemedicine/sessiondetails";
 import WaitingRoom from "../pages/telemedicine/waitingroom";
 import SessionSummary from "../pages/telemedicine/sessionsummary";
 import SessionHistory from "../pages/telemedicine/sessionHistory";
@@ -26,7 +25,7 @@ function ConsultationRedirect() {
   if (auth.role === "doctor") {
     return (
       <Navigate
-        to="/consultation/doctor"
+        to="/doctor-sessions"
         replace
         state={{ from: location }}
       />
@@ -36,7 +35,7 @@ function ConsultationRedirect() {
   if (auth.role === "patient") {
     return (
       <Navigate
-        to="/consultation/patient"
+        to="/patient-sessions"
         replace
         state={{ from: location }}
       />
@@ -102,17 +101,6 @@ export const telemedicineRoutes = (
     />
 
     <Route
-      path="/session/:appointmentId"
-      element={
-        <MainLayout>
-          <RequireTelemedicineRole allowedRoles={["doctor", "patient"]}>
-            <SessionDetails />
-          </RequireTelemedicineRole>
-        </MainLayout>
-      }
-    />
-
-    <Route
       path="/waiting-room/:appointmentId"
       element={
         <FullScreenLayout>
@@ -149,7 +137,7 @@ export const telemedicineRoutes = (
       path="/session-history"
       element={
         <MainLayout>
-          <RequireTelemedicineRole allowedRoles={["patient"]}>
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
             <SessionHistory />
           </RequireTelemedicineRole>
         </MainLayout>
@@ -171,7 +159,7 @@ export const telemedicineRoutes = (
       path="/telemedicine-statistics"
       element={
         <MainLayout>
-          <RequireTelemedicineRole allowedRoles={["doctor", "patient"]}>
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
             <Statistics />
           </RequireTelemedicineRole>
         </MainLayout>

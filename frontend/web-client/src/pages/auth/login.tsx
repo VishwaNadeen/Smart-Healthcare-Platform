@@ -64,6 +64,7 @@ export default function LoginPage() {
         username: result.username,
         email: result.email,
         role: result.role,
+        doctorProfileId: result.doctorProfileId,
       });
 
       if (result.role === "patient") {

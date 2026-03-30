@@ -8,6 +8,7 @@ export const TELEMEDICINE_AUTH_STORAGE_KEY = "telemedicine_auth";
 export type TelemedicineAuthState = {
   token: string | null;
   userId: string | null;
+  doctorProfileId: string | null;
   role: TelemedicineRole | null;
   actorRole: TelemedicineActorRole | null;
   username: string | null;
@@ -19,6 +20,7 @@ function getEmptyTelemedicineAuthState(): TelemedicineAuthState {
   return {
     token: null,
     userId: null,
+    doctorProfileId: null,
     role: null,
     actorRole: null,
     username: null,
@@ -53,6 +55,7 @@ export function saveTelemedicineAuth(auth: {
   username: string;
   email: string;
   role: string;
+  doctorProfileId?: string | null;
 }) {
   const normalizedRole = normalizeTelemedicineRole(auth.role);
 
@@ -65,6 +68,7 @@ export function saveTelemedicineAuth(auth: {
     JSON.stringify({
       token: auth.token,
       userId: auth.id,
+      doctorProfileId: auth.doctorProfileId || null,
       username: auth.username,
       email: auth.email,
       role: normalizedRole,
@@ -102,6 +106,7 @@ export function getStoredTelemedicineAuth(): TelemedicineAuthState {
 
   const token = normalizeString(parsedValue.token);
   const userId = normalizeString(parsedValue.userId);
+  const doctorProfileId = normalizeString(parsedValue.doctorProfileId);
   const role = normalizeTelemedicineRole(parsedValue.role);
   const username = normalizeString(parsedValue.username);
   const email = normalizeString(parsedValue.email);
@@ -109,6 +114,7 @@ export function getStoredTelemedicineAuth(): TelemedicineAuthState {
   return {
     token,
     userId,
+    doctorProfileId,
     role,
     actorRole: role === "doctor" || role === "patient" ? role : null,
     username,
@@ -146,8 +152,28 @@ export function canAccessTelemedicineSession(
   }
 
   if (auth.actorRole === "doctor") {
-    return auth.userId === session.doctorId;
+    const sessionDoctorId = normalizeString(session.doctorId);
+    const nestedDoctorId = normalizeString((session as any)?.doctor?.id);
+    const nestedDoctorUserId = normalizeString((session as any)?.doctor?.userId);
+
+    return (
+      auth.userId === sessionDoctorId ||
+      auth.userId === nestedDoctorId ||
+      auth.userId === nestedDoctorUserId ||
+      (auth.doctorProfileId !== null &&
+        (auth.doctorProfileId === sessionDoctorId ||
+          auth.doctorProfileId === nestedDoctorId ||
+          auth.doctorProfileId === nestedDoctorUserId))
+    );
   }
 
-  return auth.userId === session.patientId;
+  const sessionPatientId = normalizeString(session.patientId);
+  const nestedPatientId = normalizeString((session as any)?.patient?.id);
+  const nestedPatientUserId = normalizeString((session as any)?.patient?.userId);
+
+  return (
+    auth.userId === sessionPatientId ||
+    auth.userId === nestedPatientId ||
+    auth.userId === nestedPatientUserId
+  );
 }

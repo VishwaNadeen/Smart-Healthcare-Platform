@@ -9,6 +9,7 @@ const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const DOCTOR_SERVICE_URL = process.env.DOCTOR_SERVICE_URL || "http://localhost:5003";
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -90,6 +91,53 @@ const normalizeUsername = (username) =>
 
 const normalizeIdentifier = (identifier) => String(identifier || "").trim();
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+
+const getDoctorProfileId = async (token) => {
+  const response = await fetch(`${DOCTOR_SERVICE_URL}/api/doctors/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(data.message || "Failed to fetch doctor profile");
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data?._id ? String(data._id) : null;
+};
+
+const buildLoginPayload = async (user, token) => {
+  const payload = {
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    token,
+  };
+
+  if (user.role !== "doctor") {
+    return payload;
+  }
+
+  try {
+    return {
+      ...payload,
+      doctorProfileId: await getDoctorProfileId(token),
+    };
+  } catch (error) {
+    console.error("Failed to enrich doctor login payload:", error.message);
+
+    return {
+      ...payload,
+      doctorProfileId: null,
+    };
+  }
+};
 
 const buildUniqueUsername = async (username) => {
   const baseUsername = normalizeUsername(username);
@@ -268,13 +316,7 @@ const loginUser = async ({ email, password }) => {
   user.tokens.push({ token });
   await user.save();
 
-  return {
-    id: user._id,
-    username: user.username,
-    email: user.email,
-    role: user.role,
-    token,
-  };
+  return buildLoginPayload(user, token);
 };
 
 const logoutUser = async (userId, token) => {
@@ -294,6 +336,23 @@ const deleteUserByEmail = async (email) => {
   return {
     deleted: Boolean(deletedUser),
     email: normalizedEmail,
+  };
+};
+
+const getUserById = async (userId) => {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  return {
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
   };
 };
 
@@ -344,13 +403,7 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
   user.tokens.push({ token });
   await user.save();
 
-  return {
-    id: user._id,
-    username: user.username,
-    email: user.email,
-    role: user.role,
-    token,
-  };
+  return buildLoginPayload(user, token);
 };
 
 const requestPasswordResetOtp = async ({ identifier }) => {
@@ -432,6 +485,7 @@ module.exports = {
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
+  getUserById,
   requestEmailVerificationOtp,
   verifyEmailOtp,
   requestLoginOtp,

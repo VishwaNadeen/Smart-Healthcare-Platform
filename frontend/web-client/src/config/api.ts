@@ -15,6 +15,7 @@ const TELEMEDICINE_SERVICE_URL =
 
 export const AUTH_API_URL = `${AUTH_SERVICE_URL}/api/auth`;
 export const DOCTOR_API_URL = `${DOCTOR_SERVICE_URL}/api/doctors`;
+export const DOCTOR_SPECIALTY_API_URL = `${DOCTOR_SERVICE_URL}/api/specialties`;
 export const PATIENT_API_URL = `${PATIENT_SERVICE_URL}/api/patients`;
 export const APPOINTMENT_API_URL = `${APPOINTMENT_SERVICE_URL}/api/appointments`;
 export const TELEMEDICINE_API_URL = `${TELEMEDICINE_SERVICE_URL}/api/telemedicine`;

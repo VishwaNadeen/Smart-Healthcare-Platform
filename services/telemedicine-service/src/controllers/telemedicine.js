@@ -3,6 +3,7 @@ const {
   getAppointmentById,
   updateAppointmentStatus,
 } = require("../services/appointmentService");
+const { getAuthUserById } = require("../services/authProfileService");
 
 const SESSION_STATUSES = ["scheduled", "active", "completed", "cancelled"];
 const SESSION_TO_APPOINTMENT_STATUS_MAP = {
@@ -23,10 +24,12 @@ const hasValidInternalSecret = (req) => {
 };
 
 const getDoctorIdentityValues = (req) => {
-  return [...new Set([
-    String(req.user?.userId || ""),
-    String(req.user?.doctorProfileId || ""),
-  ].filter(Boolean))];
+  return [
+    ...new Set(
+      [String(req.user?.userId || ""), String(req.user?.doctorProfileId || "")]
+        .filter(Boolean)
+    ),
+  ];
 };
 
 const createSessionRecord = async ({
@@ -62,6 +65,160 @@ const authorizeSessionAccess = (req, session) => {
   );
 };
 
+const pickFirstString = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+};
+
+const getAppointmentPayload = async (appointmentId) => {
+  try {
+    const response = await getAppointmentById(String(appointmentId));
+    return response?.appointment || null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const buildEnrichedSession = async (sessionDoc) => {
+  const session =
+    typeof sessionDoc.toObject === "function" ? sessionDoc.toObject() : sessionDoc;
+
+  const [appointment, patientAuthUser] = await Promise.all([
+    getAppointmentPayload(session.appointmentId),
+    getAuthUserById(String(session.patientId)).catch(() => null),
+  ]);
+
+  const doctorObject =
+    appointment?.doctor ||
+    appointment?.doctorDetails ||
+    appointment?.doctorProfile ||
+    null;
+
+  const patientObject =
+    appointment?.patient ||
+    appointment?.patientDetails ||
+    appointment?.patientProfile ||
+    null;
+
+  const doctorName = pickFirstString(
+    appointment?.doctorName,
+    appointment?.doctorFullName,
+    doctorObject?.fullName,
+    doctorObject?.name,
+    doctorObject?.username
+  );
+
+  const doctorSpecialization = pickFirstString(
+    appointment?.doctorSpecialization,
+    appointment?.specialization,
+    doctorObject?.specialization,
+    doctorObject?.speciality,
+    doctorObject?.department
+  );
+
+  const patientName = pickFirstString(
+    appointment?.patientName,
+    appointment?.patientFullName,
+    patientObject?.fullName,
+    patientObject?.name,
+    patientObject?.username,
+    patientAuthUser?.username
+  );
+
+  return {
+    ...session,
+    doctorName: doctorName || undefined,
+    doctorSpecialization: doctorSpecialization || undefined,
+    patientName: patientName || undefined,
+    doctor: {
+      id: pickFirstString(
+        String(session.doctorId || ""),
+        String(doctorObject?._id || ""),
+        String(doctorObject?.id || "")
+      ) || undefined,
+      name: doctorName || undefined,
+      fullName: pickFirstString(
+        appointment?.doctorFullName,
+        doctorObject?.fullName,
+        doctorName
+      ) || undefined,
+      email: pickFirstString(doctorObject?.email) || undefined,
+      phone: pickFirstString(doctorObject?.phone) || undefined,
+      specialization: doctorSpecialization || undefined,
+      profileImage: pickFirstString(
+        doctorObject?.profileImage,
+        doctorObject?.profileImageUrl,
+        doctorObject?.imageUrl
+      ) || undefined,
+    },
+    patient: {
+      id: pickFirstString(
+        String(session.patientId || ""),
+        String(patientObject?._id || ""),
+        String(patientObject?.id || "")
+      ) || undefined,
+      name: patientName || undefined,
+      fullName: pickFirstString(
+        appointment?.patientFullName,
+        patientObject?.fullName,
+        patientAuthUser?.username,
+        patientName
+      ) || undefined,
+      email: pickFirstString(
+        patientObject?.email,
+        patientAuthUser?.email
+      ) || undefined,
+      phone: pickFirstString(patientObject?.phone) || undefined,
+      profileImage: pickFirstString(
+        patientObject?.profileImage,
+        patientObject?.profileImageUrl,
+        patientObject?.imageUrl
+      ) || undefined,
+    },
+    appointment: {
+      id: pickFirstString(
+        String(appointment?._id || ""),
+        String(appointment?.id || ""),
+        String(session.appointmentId || "")
+      ) || undefined,
+      status: pickFirstString(appointment?.status) || undefined,
+      date:
+        pickFirstString(
+          appointment?.appointmentDate,
+          appointment?.date,
+          session.scheduledDate
+        ) || undefined,
+      time:
+        pickFirstString(
+          appointment?.appointmentTime,
+          appointment?.time,
+          session.scheduledTime
+        ) || undefined,
+      reason: pickFirstString(
+        appointment?.reason,
+        appointment?.appointmentReason,
+        appointment?.description
+      ) || undefined,
+      symptoms: pickFirstString(
+        appointment?.symptoms,
+        appointment?.symptomSummary
+      ) || undefined,
+      consultationType: pickFirstString(
+        appointment?.consultationType,
+        appointment?.type
+      ) || undefined,
+    },
+  };
+};
+
+const enrichSessions = async (sessions) => {
+  return Promise.all(sessions.map((session) => buildEnrichedSession(session)));
+};
+
 const createSession = async (req, res) => {
   try {
     if (req.user.role !== "doctor") {
@@ -70,11 +227,13 @@ const createSession = async (req, res) => {
       });
     }
 
-    const { appointmentId, patientId, scheduledDate, scheduledTime } = req.body || {};
+    const { appointmentId, patientId, scheduledDate, scheduledTime } =
+      req.body || {};
 
     if (!appointmentId || !patientId || !scheduledDate || !scheduledTime) {
       return res.status(400).json({
-        message: "appointmentId, patientId, scheduledDate and scheduledTime are required",
+        message:
+          "appointmentId, patientId, scheduledDate and scheduledTime are required",
       });
     }
 
@@ -124,9 +283,11 @@ const createSession = async (req, res) => {
       scheduledTime,
     });
 
+    const enrichedSession = await buildEnrichedSession(session);
+
     return res.status(201).json({
       message: "Telemedicine session created successfully",
-      session,
+      session: enrichedSession,
     });
   } catch (error) {
     return res.status(error.status || 500).json({
@@ -157,9 +318,11 @@ const createSessionInternal = async (req, res) => {
     });
 
     if (existingSession) {
+      const enrichedExistingSession = await buildEnrichedSession(existingSession);
+
       return res.status(200).json({
         message: "Telemedicine session already exists",
-        session: existingSession,
+        session: enrichedExistingSession,
       });
     }
 
@@ -197,9 +360,11 @@ const createSessionInternal = async (req, res) => {
       scheduledTime: appointment.appointmentTime,
     });
 
+    const enrichedSession = await buildEnrichedSession(session);
+
     return res.status(201).json({
       message: "Telemedicine session created successfully",
-      session,
+      session: enrichedSession,
     });
   } catch (error) {
     return res.status(error.status || 500).json({
@@ -218,7 +383,9 @@ const getAllSessions = async (req, res) => {
         : { patientId: String(req.user.userId) };
 
     const sessions = await TelemedicineSession.find(query).sort({ createdAt: -1 });
-    return res.status(200).json(sessions);
+    const enrichedSessions = await enrichSessions(sessions);
+
+    return res.status(200).json(enrichedSessions);
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch sessions",
@@ -293,7 +460,9 @@ const getSessionById = async (req, res) => {
       });
     }
 
-    return res.status(200).json(session);
+    const enrichedSession = await buildEnrichedSession(session);
+
+    return res.status(200).json(enrichedSession);
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch session",
@@ -318,7 +487,9 @@ const getSessionByAppointmentId = async (req, res) => {
       });
     }
 
-    return res.status(200).json(session);
+    const enrichedSession = await buildEnrichedSession(session);
+
+    return res.status(200).json(enrichedSession);
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch session",
@@ -348,7 +519,9 @@ const getSessionsByDoctorId = async (req, res) => {
       doctorId: { $in: doctorIds },
     }).sort({ createdAt: -1 });
 
-    return res.status(200).json(sessions);
+    const enrichedSessions = await enrichSessions(sessions);
+
+    return res.status(200).json(enrichedSessions);
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch doctor sessions",
@@ -375,7 +548,9 @@ const getSessionsByPatientId = async (req, res) => {
       patientId: req.params.patientId,
     }).sort({ createdAt: -1 });
 
-    return res.status(200).json(sessions);
+    const enrichedSessions = await enrichSessions(sessions);
+
+    return res.status(200).json(enrichedSessions);
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch patient sessions",
@@ -424,9 +599,11 @@ const updateSessionStatus = async (req, res) => {
       );
     }
 
+    const enrichedSession = await buildEnrichedSession(session);
+
     return res.status(200).json({
       message: "Session status updated successfully",
-      session,
+      session: enrichedSession,
     });
   } catch (error) {
     return res.status(error.status || 500).json({
@@ -466,9 +643,11 @@ const updateSessionNotes = async (req, res) => {
       });
     }
 
+    const enrichedSession = await buildEnrichedSession(updatedSession);
+
     return res.status(200).json({
       message: "Session notes updated successfully",
-      session: updatedSession,
+      session: enrichedSession,
     });
   } catch (error) {
     return res.status(500).json({

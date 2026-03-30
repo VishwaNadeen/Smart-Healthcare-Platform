@@ -30,6 +30,16 @@ export type Appointment = {
   updatedAt?: string;
 };
 
+export type CreateAppointmentPayload = {
+  doctorId: string;
+  doctorName: string;
+  specialization: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  reason?: string;
+  paymentStatus?: PaymentStatus;
+};
+
 async function handleAppointmentResponse<T>(response: Response): Promise<T> {
   const data = (await response.json().catch(() => null)) as
     | (T & { message?: string; error?: string })
@@ -70,6 +80,85 @@ export async function getPatientAppointments(
   }
 
   return handleAppointmentResponse<Appointment[]>(response);
+}
+
+export async function createAppointment(
+  token: string,
+  payload: CreateAppointmentPayload
+): Promise<{ message: string; appointment: Appointment }> {
+  let response: Response;
+
+  try {
+    response = await fetch(APPOINTMENT_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the appointment service. Please check that it is running."
+    );
+  }
+
+  return handleAppointmentResponse<{ message: string; appointment: Appointment }>(
+    response
+  );
+}
+
+export async function getDoctorAppointments(
+  token: string,
+  doctorId: string
+): Promise<Appointment[]> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${APPOINTMENT_API_URL}/doctor/${doctorId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the appointment service. Please check that it is running."
+    );
+  }
+
+  return handleAppointmentResponse<Appointment[]>(response);
+}
+
+export async function updateDoctorAppointmentStatus(
+  token: string,
+  appointmentId: string,
+  status: Extract<AppointmentStatus, "confirmed" | "completed" | "cancelled">,
+  note?: string
+): Promise<{ message: string; appointment?: Appointment }> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${APPOINTMENT_API_URL}/${appointmentId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        status,
+        ...(note ? { note } : {}),
+      }),
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the appointment service. Please check that it is running."
+    );
+  }
+
+  return handleAppointmentResponse<{ message: string; appointment?: Appointment }>(
+    response
+  );
 }
 
 export async function cancelAppointment(

@@ -44,51 +44,29 @@ export default function PatientAppointmentsPage() {
     loadAppointments();
   }, [auth.token]);
 
-  const filteredAppointments = useMemo(() => {
+  const pendingAppointments = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return appointments.filter((appointment) => {
-      const matchesSearch =
-        !query ||
-        appointment.doctorName.toLowerCase().includes(query) ||
-        appointment.specialization.toLowerCase().includes(query) ||
-        (appointment.reason || "").toLowerCase().includes(query) ||
-        appointment._id.toLowerCase().includes(query);
-
-      const isVisibleStatus =
-        appointment.status === "pending" || appointment.status === "confirmed";
-
-      return matchesSearch && isVisibleStatus;
-    });
-  }, [appointments, search]);
-
-  const activeAppointments = useMemo(() => {
-    return filteredAppointments
-      .filter((appointment) => appointment.status === "confirmed")
-      .sort((a, b) => {
-        const aDate = new Date(
-          `${a.appointmentDate}T${a.appointmentTime}`
-        ).getTime();
-        const bDate = new Date(
-          `${b.appointmentDate}T${b.appointmentTime}`
-        ).getTime();
-        return aDate - bDate;
-      });
-  }, [filteredAppointments]);
-
-  const pendingAppointments = useMemo(() => {
-    return filteredAppointments
+    return appointments
       .filter((appointment) => appointment.status === "pending")
+      .filter((appointment) => {
+        if (!query) {
+          return true;
+        }
+
+        return (
+          appointment.doctorName.toLowerCase().includes(query) ||
+          appointment.specialization.toLowerCase().includes(query) ||
+          (appointment.reason || "").toLowerCase().includes(query) ||
+          appointment._id.toLowerCase().includes(query)
+        );
+      })
       .sort((a, b) => {
-        const aDate = new Date(
-          `${a.appointmentDate}T${a.appointmentTime}`
-        ).getTime();
-        const bDate = new Date(
-          `${b.appointmentDate}T${b.appointmentTime}`
-        ).getTime();
+        const aDate = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
+        const bDate = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
         return aDate - bDate;
       });
-  }, [filteredAppointments]);
+  }, [appointments, search]);
 
   async function handleCancelAppointment(appointmentId: string) {
     if (!auth.token) {
@@ -136,8 +114,8 @@ export default function PatientAppointmentsPage() {
                 My Appointments
               </h1>
               <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-                View your active appointments first, then check pending requests
-                and manage your bookings easily.
+                This page shows only pending appointment requests. Approved sessions
+                will appear in the consultation tab.
               </p>
             </div>
 
@@ -187,14 +165,14 @@ export default function PatientAppointmentsPage() {
           <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
             Loading appointments...
           </div>
-        ) : activeAppointments.length === 0 && pendingAppointments.length === 0 ? (
+        ) : pendingAppointments.length === 0 ? (
           <div className="mt-6 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-slate-100">
             <div className="mx-auto max-w-md">
               <h3 className="text-xl font-bold text-slate-900">
-                No appointments found
+                No pending appointments found
               </h3>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                You do not have any active or pending appointments right now.
+                You do not have any pending appointment requests right now.
               </p>
               <Link
                 to="/appointments/create"
@@ -205,65 +183,25 @@ export default function PatientAppointmentsPage() {
             </div>
           </div>
         ) : (
-          <div className="mt-6 space-y-8">
-            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">
-                    Active Appointments
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Approved appointments ready for consultation.
-                  </p>
-                </div>
-              </div>
-
-              {activeAppointments.length > 0 ? (
-                <div className="space-y-4">
-                  {activeAppointments.map((appointment) => (
-                    <PatientAppointmentCard
-                      key={appointment._id}
-                      appointment={appointment}
-                      onCancel={handleCancelAppointment}
-                      isCancelling={cancellingId === appointment._id}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-sm text-slate-500">
-                  No active appointments available.
-                </div>
-              )}
+          <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
+            <div className="mb-5">
+              <h2 className="text-xl font-bold text-slate-900">
+                Pending Appointments
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Requests waiting for doctor approval.
+              </p>
             </div>
 
-            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">
-                    Pending Appointments
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Requests waiting for doctor approval.
-                  </p>
-                </div>
-              </div>
-
-              {pendingAppointments.length > 0 ? (
-                <div className="space-y-4">
-                  {pendingAppointments.map((appointment) => (
-                    <PatientAppointmentCard
-                      key={appointment._id}
-                      appointment={appointment}
-                      onCancel={handleCancelAppointment}
-                      isCancelling={cancellingId === appointment._id}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-sm text-slate-500">
-                  No pending appointments available.
-                </div>
-              )}
+            <div className="space-y-4">
+              {pendingAppointments.map((appointment) => (
+                <PatientAppointmentCard
+                  key={appointment._id}
+                  appointment={appointment}
+                  onCancel={handleCancelAppointment}
+                  isCancelling={cancellingId === appointment._id}
+                />
+              ))}
             </div>
           </div>
         )}

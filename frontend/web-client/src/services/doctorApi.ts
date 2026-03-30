@@ -1,4 +1,4 @@
-import { DOCTOR_API_URL } from "../config/api";
+import { DOCTOR_API_URL, DOCTOR_SPECIALTY_API_URL } from "../config/api";
 
 export type DoctorProfileResponse = {
   _id: string;
@@ -30,6 +30,13 @@ export type DoctorProfileResponse = {
   status?: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
+};
+
+export type DoctorSpecialty = {
+  _id: string;
+  name: string;
+  description?: string;
+  isActive?: boolean;
 };
 
 async function handleDoctorResponse<T>(response: Response): Promise<T> {
@@ -78,4 +85,52 @@ export async function getCurrentDoctorProfile(
   }
 
   return handleDoctorResponse<DoctorProfileResponse>(response);
+}
+
+export async function getDoctorSpecialties(): Promise<DoctorSpecialty[]> {
+  let response: Response;
+
+  try {
+    response = await fetch(DOCTOR_SPECIALTY_API_URL, {
+      method: "GET",
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the doctor service. Please check that it is running."
+    );
+  }
+
+  return handleDoctorResponse<DoctorSpecialty[]>(response);
+}
+
+export async function getDoctors(params?: {
+  specialization?: string;
+  acceptsNewAppointments?: boolean;
+}): Promise<DoctorProfileResponse[]> {
+  let response: Response;
+
+  try {
+    const url = new URL(DOCTOR_API_URL);
+
+    if (params?.specialization) {
+      url.searchParams.set("specialization", params.specialization);
+    }
+
+    if (params?.acceptsNewAppointments !== undefined) {
+      url.searchParams.set(
+        "acceptsNewAppointments",
+        String(params.acceptsNewAppointments)
+      );
+    }
+
+    response = await fetch(url.toString(), {
+      method: "GET",
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the doctor service. Please check that it is running."
+    );
+  }
+
+  return handleDoctorResponse<DoctorProfileResponse[]>(response);
 }

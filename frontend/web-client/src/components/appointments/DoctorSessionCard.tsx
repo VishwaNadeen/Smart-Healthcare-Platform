@@ -67,13 +67,6 @@ export default function SessionCard({
 
       <div className="mt-4 flex flex-wrap gap-3">
         <Link
-          to={`/session/${session.appointmentId}`}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          View Details
-        </Link>
-
-        <Link
           to={actionTo}
           className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
         >
