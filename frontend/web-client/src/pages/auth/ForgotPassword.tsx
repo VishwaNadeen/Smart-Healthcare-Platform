@@ -1,15 +1,20 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../../components/common/ToastProvider";
 import { AUTH_API_URL } from "../../config/api";
+import {
+  requestPasswordResetOtp,
+} from "../../services/authApi";
 
 export default function ForgotPasswordPage() {
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [step, setStep] = useState<"request" | "reset">("request");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -21,8 +26,7 @@ export default function ForgotPasswordPage() {
     return /^[0-9]{4,8}$/.test(value.trim());
   }
 
-  const handleRequestOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const requestOtp = async (nextStep: "request" | "reset") => {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail) {
@@ -39,35 +43,46 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    setLoading(true);
     setError("");
     setMessage("");
 
     try {
-      const response = await fetch(`${AUTH_API_URL}/forgot-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: trimmedEmail }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to request OTP");
-      }
-
-      setStep("reset");
-      setMessage("OTP sent to your account.");
-      showToast("OTP sent to your account.", "success");
+      const result = await requestPasswordResetOtp({ email: trimmedEmail });
+      setStep(nextStep);
+      setMessage(result.message || "OTP sent to your account.");
+      showToast(result.message || "OTP sent to your account.", "success");
+      return true;
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Something went wrong";
       setError(message);
       showToast(message, "error");
+      return false;
+    }
+  };
+
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await requestOtp("reset");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setResending(true);
+    setError("");
+
+    try {
+      await requestOtp("reset");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -142,10 +157,16 @@ export default function ForgotPasswordPage() {
         throw new Error(data.message || "Failed to reset password");
       }
 
-      setMessage("Password reset successful. You can login now.");
       showToast("Password reset successful. You can login now.", "success");
       setOtp("");
       setNewPassword("");
+      navigate("/login", {
+        replace: true,
+        state: {
+          registeredEmail: trimmedEmail,
+          successMessage: "Password reset successful. You can login now.",
+        },
+      });
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Something went wrong";
@@ -230,6 +251,22 @@ export default function ForgotPasswordPage() {
             </Link>
           </p>
         </form>
+
+        {step === "reset" && (
+          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-center">
+            <p className="text-sm text-slate-600">
+              Didn&apos;t receive the OTP?
+            </p>
+            <button
+              type="button"
+              onClick={handleResendOtp}
+              disabled={resending || !email.trim()}
+              className="mt-3 w-full rounded-xl border border-blue-200 bg-white py-3 font-semibold text-blue-700 transition hover:bg-blue-50 disabled:opacity-60"
+            >
+              {resending ? "Sending..." : "Resend OTP"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

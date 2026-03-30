@@ -30,6 +30,10 @@ export type BasicAuthResponse = {
   message: string;
 };
 
+export type RequestPasswordResetOtpResponse = {
+  message: string;
+};
+
 export type UserStatsResponse = {
   message: string;
   totalUsers: number;
@@ -165,4 +169,26 @@ export async function verifyEmail(payload: {
   }
 
   return handleResponse<VerifyEmailResponse>(response);
+}
+
+export async function requestPasswordResetOtp(payload: {
+  email: string;
+}): Promise<RequestPasswordResetOtpResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${AUTH_API_URL}/forgot-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the auth service. Please check that it is running."
+    );
+  }
+
+  return handleResponse<RequestPasswordResetOtpResponse>(response);
 }
