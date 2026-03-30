@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PATIENT_API_URL } from "../../config/api";
+import DoctorAppointmentRequestCard from "../../components/appointments/AppointmentRequestCard";
 import {
   getDoctorAppointments,
   updateDoctorAppointmentStatus,
@@ -15,31 +16,6 @@ type PatientProfile = {
   email: string;
   phone: string;
 };
-
-function formatDate(dateString: string) {
-  const date = new Date(dateString);
-
-  if (Number.isNaN(date.getTime())) {
-    return dateString;
-  }
-
-  return date.toLocaleDateString("en-LK", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatTime(timeString: string) {
-  const [hours = "00", minutes = "00"] = timeString.split(":");
-  const date = new Date();
-  date.setHours(Number(hours), Number(minutes), 0, 0);
-
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const data = (await response.json().catch(() => null)) as
@@ -191,13 +167,6 @@ export default function DoctorAppointmentsPage() {
     }
   }
 
-  function getPatientDisplayName(patientId: string) {
-    const patient = patientsById[patientId];
-    const fullName = `${patient?.firstName || ""} ${patient?.lastName || ""}`.trim();
-
-    return fullName || `Patient ${patientId.slice(-6)}`;
-  }
-
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
@@ -245,109 +214,23 @@ export default function DoctorAppointmentsPage() {
             </div>
           </div>
         ) : (
-          <div className="mt-6 space-y-4">
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {pendingAppointments.map((appointment) => {
               const isUpdating = updatingId === appointment._id;
 
               return (
-                <div
+                <DoctorAppointmentRequestCard
                   key={appointment._id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h2 className="text-lg font-bold text-slate-900">
-                          {getPatientDisplayName(appointment.patientId)}
-                        </h2>
-
-                        <span className="rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                          Pending
-                        </span>
-                      </div>
-
-                      <p className="mt-1 text-sm font-medium text-cyan-700">
-                        {patientsById[appointment.patientId]?.email || appointment.patientId}
-                      </p>
-
-                      <p className="mt-3 text-sm leading-6 text-slate-600">
-                        {appointment.reason?.trim() ||
-                          "No reason provided for this appointment."}
-                      </p>
-
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <div className="rounded-xl bg-slate-50 p-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Patient ID
-                          </p>
-                          <p className="mt-1 break-all text-sm font-semibold text-slate-800">
-                            {appointment.patientId}
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl bg-slate-50 p-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Date
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-slate-800">
-                            {formatDate(appointment.appointmentDate)}
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl bg-slate-50 p-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Time
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-slate-800">
-                            {formatTime(appointment.appointmentTime)}
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl bg-slate-50 p-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Contact
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-slate-800">
-                            {patientsById[appointment.patientId]?.phone || "Not available"}
-                          </p>
-                        </div>
-
-                        <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2 xl:col-span-4">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Appointment ID
-                          </p>
-                          <p className="mt-1 break-all text-sm font-semibold text-slate-800">
-                            {appointment._id}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex w-full flex-col gap-3 lg:w-56">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleUpdateAppointmentStatus(appointment._id, "confirmed")
-                        }
-                        disabled={isUpdating}
-                        className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isUpdating ? "Updating..." : "Accept Request"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleUpdateAppointmentStatus(appointment._id, "cancelled")
-                        }
-                        disabled={isUpdating}
-                        className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isUpdating ? "Updating..." : "Reject Request"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  appointment={appointment}
+                  patient={patientsById[appointment.patientId]}
+                  isUpdating={isUpdating}
+                  onAccept={() =>
+                    handleUpdateAppointmentStatus(appointment._id, "confirmed")
+                  }
+                  onReject={() =>
+                    handleUpdateAppointmentStatus(appointment._id, "cancelled")
+                  }
+                />
               );
             })}
           </div>
