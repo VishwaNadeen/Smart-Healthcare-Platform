@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import SessionCard from "../../components/telemedicine/SessionCard";
+import PatientSessionCard from "../../components/telemedicine/PatientSessionCard";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
 import {
   getSessionsByPatientId,
@@ -91,7 +91,7 @@ export default function PatientSessions() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {approvedSessions.map((session) => (
-              <SessionCard key={session._id} session={session} role="patient" />
+              <PatientSessionCard key={session._id} session={session} />
             ))}
           </div>
         )}

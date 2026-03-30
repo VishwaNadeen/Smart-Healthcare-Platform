@@ -32,6 +32,44 @@ const getDoctorIdentityValues = (req) => {
   ];
 };
 
+const ROOM_NAME_PREFIX = "rn";
+const ROOM_NAME_SEQUENCE_WIDTH = 4;
+
+const escapeForRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const getRoomNamePrefixForDate = (scheduledDate) =>
+  `${ROOM_NAME_PREFIX}-${String(scheduledDate).trim()}`;
+
+const getNextRoomSequenceForDate = async (scheduledDate) => {
+  const roomNamePrefix = getRoomNamePrefixForDate(scheduledDate);
+  const roomNamePattern = new RegExp(`^${escapeForRegex(roomNamePrefix)}-\\d+$`);
+
+  const latestSession = await TelemedicineSession.findOne({
+    roomName: { $regex: roomNamePattern },
+  })
+    .sort({ roomName: -1 })
+    .select("roomName")
+    .lean();
+
+  const latestSequence = Number(
+    String(latestSession?.roomName || "")
+      .split("-")
+      .pop()
+  );
+
+  return Number.isInteger(latestSequence) ? latestSequence + 1 : 1;
+};
+
+const buildRoomName = (scheduledDate, sequenceNumber) => {
+  const roomNamePrefix = getRoomNamePrefixForDate(scheduledDate);
+  const paddedSequence = String(sequenceNumber).padStart(
+    ROOM_NAME_SEQUENCE_WIDTH,
+    "0"
+  );
+
+  return `${roomNamePrefix}-${paddedSequence}`;
+};
+
 const createSessionRecord = async ({
   appointmentId,
   patientId,
@@ -39,19 +77,35 @@ const createSessionRecord = async ({
   scheduledDate,
   scheduledTime,
 }) => {
-  const roomName = `healthcare-${appointmentId}`;
-  const meetingLink = `https://meet.jit.si/${roomName}`;
+  const normalizedScheduledDate = String(scheduledDate);
+  let nextSequence = await getNextRoomSequenceForDate(normalizedScheduledDate);
+  let lastError = null;
 
-  return TelemedicineSession.create({
-    appointmentId: String(appointmentId),
-    patientId: String(patientId),
-    doctorId: String(doctorId),
-    roomName,
-    meetingLink,
-    scheduledDate: String(scheduledDate),
-    scheduledTime: String(scheduledTime),
-    status: "scheduled",
-  });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const roomName = buildRoomName(normalizedScheduledDate, nextSequence + attempt);
+    const meetingLink = `https://meet.jit.si/${roomName}`;
+
+    try {
+      return await TelemedicineSession.create({
+        appointmentId: String(appointmentId),
+        patientId: String(patientId),
+        doctorId: String(doctorId),
+        roomName,
+        meetingLink,
+        scheduledDate: normalizedScheduledDate,
+        scheduledTime: String(scheduledTime),
+        status: "scheduled",
+      });
+    } catch (error) {
+      if (error?.code !== 11000 || !String(error.message || "").includes("roomName")) {
+        throw error;
+      }
+
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("Failed to create a unique room name");
 };
 
 const authorizeSessionAccess = (req, session) => {
