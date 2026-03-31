@@ -6,6 +6,7 @@ import MainLayout from "../layouts/mainLayout";
 import { telemedicineRoutes } from "./telemedicineRoutes";
 import { patientRoutes } from "./patientRoutes";
 import { appointmentRoutes } from "./appointmentRoutes";
+import { doctorRoutes } from "./doctorRoutes";
 import VerifyEmailPage from "../pages/auth/VerifyEmail";
 
 export default function AppRoutes() {
@@ -31,6 +32,7 @@ export default function AppRoutes() {
 
       {telemedicineRoutes}
       {patientRoutes}
+      {doctorRoutes}
       {appointmentRoutes}
     </Routes>
   );
