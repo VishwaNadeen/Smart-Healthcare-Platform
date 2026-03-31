@@ -101,6 +101,11 @@ const doctorSchema = new mongoose.Schema(
     },
 
     profileImage: String,
+    profileImagePublicId: {
+      type: String,
+      default: "",
+      select: false,
+    },
     about: String,
 
     status: {

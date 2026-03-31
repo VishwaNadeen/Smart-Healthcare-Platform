@@ -1,17 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../../components/common/ToastProvider";
 import { useLocationToast } from "../../hooks/useLocationToast";
 import { DOCTOR_API_URL, SPECIALTY_API_URL } from "../../config/api";
-
-type AvailabilitySlotForm = {
-  day: string;
-  startTime: string;
-  endTime: string;
-  mode: "in_person" | "video" | "both";
-  maxAppointments: string;
-};
 
 type DoctorFormData = {
   fullName: string;
@@ -22,18 +14,11 @@ type DoctorFormData = {
   experience: string;
   qualification: string;
   licenseNumber: string;
+  consultationFee: string;
+  about: string;
   hospitalName: string;
   hospitalAddress: string;
   city: string;
-  consultationFee: string;
-  profileImage: string;
-  about: string;
-  availableDays: string[];
-  availableTimeSlots: string[];
-  isAvailableForVideo: boolean;
-  supportsDigitalPrescriptions: boolean;
-  acceptsNewAppointments: boolean;
-  availabilitySchedule: AvailabilitySlotForm[];
 };
 
 type FormErrors = Partial<Record<keyof DoctorFormData, string>>;
@@ -41,72 +26,49 @@ type FormErrors = Partial<Record<keyof DoctorFormData, string>>;
 type StepConfig = {
   id: number;
   title: string;
+  eyebrow: string;
   description: string;
   fields: Array<keyof DoctorFormData>;
 };
 
-type TimeSlotForm = {
-  startTime: string;
-  endTime: string;
-};
-
-const DAY_OPTIONS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-
 const STEPS: StepConfig[] = [
   {
     id: 1,
-    title: "Doctor Info",
-    description: "Basic account and contact details.",
+    title: "Account Setup",
+    eyebrow: "Doctor Info",
+    description:
+      "Set up the doctor account with essential identity and contact details.",
     fields: ["fullName", "email", "password", "phone"],
   },
   {
     id: 2,
-    title: "Professional Info",
-    description: "Specialty, experience, fees, and credentials.",
+    title: "Professional Details",
+    eyebrow: "Credentials",
+    description:
+      "Add specialty, licensing, consultation fee, and a short professional summary.",
     fields: [
       "specialization",
       "experience",
       "qualification",
       "licenseNumber",
       "consultationFee",
-      "about",
-      "profileImage",
     ],
   },
   {
     id: 3,
-    title: "Location",
-    description: "Hospital and city information.",
+    title: "Practice Location",
+    eyebrow: "Hospital Info",
+    description:
+      "Add the doctor's practice location now. Availability can be completed later from the doctor profile.",
     fields: ["hospitalName", "hospitalAddress", "city"],
-  },
-  {
-    id: 4,
-    title: "Availability",
-    description: "Appointment schedule and service options.",
-    fields: [
-      "availableDays",
-      "availableTimeSlots",
-      "availabilitySchedule",
-      "isAvailableForVideo",
-      "supportsDigitalPrescriptions",
-      "acceptsNewAppointments",
-    ],
   },
 ];
 
 function getFieldClass(hasError: boolean) {
-  return `w-full rounded-xl border px-4 py-3 focus:outline-none focus:ring-2 ${
+  return `w-full rounded-2xl border bg-white px-4 py-3.5 text-slate-800 outline-none transition placeholder:text-slate-400 focus:ring-4 ${
     hasError
-      ? "border-red-400 focus:ring-red-200"
-      : "border-slate-300 focus:ring-blue-500"
+      ? "border-red-300 focus:border-red-400 focus:ring-red-100"
+      : "border-slate-200 focus:border-blue-500 focus:ring-blue-100"
   }`;
 }
 
@@ -116,39 +78,31 @@ function validateDoctorForm(data: DoctorFormData): FormErrors {
   if (!data.fullName.trim()) {
     errors.fullName = "Full name is required.";
   }
-
   if (!data.email.trim()) {
     errors.email = "Email is required.";
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) {
     errors.email = "Enter a valid email address.";
   }
-
   if (!data.password) {
     errors.password = "Password is required.";
   } else if (data.password.length < 6) {
     errors.password = "Password must be at least 6 characters.";
   }
-
   if (!data.phone.trim()) {
     errors.phone = "Phone number is required.";
   }
-
   if (!data.specialization.trim()) {
     errors.specialization = "Please select a specialty.";
   }
-
   if (!data.experience.trim() || Number(data.experience) < 0) {
     errors.experience = "Enter valid experience.";
   }
-
   if (!data.qualification.trim()) {
     errors.qualification = "Qualification is required.";
   }
-
   if (!data.licenseNumber.trim()) {
     errors.licenseNumber = "License number is required.";
   }
-
   if (!data.consultationFee.trim() || Number(data.consultationFee) < 0) {
     errors.consultationFee = "Enter valid consultation fee.";
   }
@@ -192,9 +146,8 @@ export default function DoctorRegisterPage() {
   const [allowSubmit, setAllowSubmit] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
-  const [timeSlotForms, setTimeSlotForms] = useState<TimeSlotForm[]>([
-    { startTime: "", endTime: "" },
-  ]);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState("");
   const [formData, setFormData] = useState<DoctorFormData>({
     fullName: "",
     email: "",
@@ -204,26 +157,11 @@ export default function DoctorRegisterPage() {
     experience: "",
     qualification: "",
     licenseNumber: "",
+    consultationFee: "",
+    about: "",
     hospitalName: "",
     hospitalAddress: "",
     city: "",
-    consultationFee: "",
-    profileImage: "",
-    about: "",
-    availableDays: [],
-    availableTimeSlots: [],
-    isAvailableForVideo: true,
-    supportsDigitalPrescriptions: true,
-    acceptsNewAppointments: true,
-    availabilitySchedule: [
-      {
-        day: "",
-        startTime: "",
-        endTime: "",
-        mode: "both",
-        maxAppointments: "6",
-      },
-    ],
   });
 
   useEffect(() => {
@@ -231,7 +169,9 @@ export default function DoctorRegisterPage() {
       try {
         const response = await fetch(SPECIALTY_API_URL);
         if (!response.ok) {
-          throw new Error(await readErrorMessage(response, "Failed to load specialties."));
+          throw new Error(
+            await readErrorMessage(response, "Failed to load specialties.")
+          );
         }
 
         const data = (await response.json()) as Array<{ name?: string }>;
@@ -253,21 +193,31 @@ export default function DoctorRegisterPage() {
     loadSpecialties();
   }, []);
 
+  useEffect(() => {
+    if (!profileImageFile) {
+      setProfileImagePreview("");
+      return;
+    }
+
+    const nextPreview = URL.createObjectURL(profileImageFile);
+    setProfileImagePreview(nextPreview);
+
+    return () => URL.revokeObjectURL(nextPreview);
+  }, [profileImageFile]);
+
   const currentStepConfig = STEPS[currentStep];
+  const completionCount = useMemo(
+    () =>
+      Object.values(formData).filter((value) =>
+        typeof value === "string" ? value.trim().length > 0 : Boolean(value)
+      ).length + (profileImageFile ? 1 : 0),
+    [formData, profileImageFile]
+  );
 
   const handleChange = (
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value, type } = event.target;
-    const target = event.target;
-
-    if (type === "checkbox" && target instanceof HTMLInputElement) {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: target.checked,
-      }));
-      return;
-    }
+    const { name, value } = event.target;
 
     setFormData((prev) => ({
       ...prev,
@@ -280,85 +230,8 @@ export default function DoctorRegisterPage() {
     }));
   };
 
-  const updateAvailableTimeSlots = (slots: TimeSlotForm[]) => {
-    setTimeSlotForms(slots);
-    setFormData((prev) => ({
-      ...prev,
-      availableTimeSlots: slots
-        .filter((slot) => slot.startTime && slot.endTime)
-        .map((slot) => `${slot.startTime}-${slot.endTime}`),
-    }));
-  };
-
-  const toggleAvailableDay = (day: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      availableDays: prev.availableDays.includes(day)
-        ? prev.availableDays.filter((item) => item !== day)
-        : [...prev.availableDays, day],
-    }));
-  };
-
-  const handleTimeSlotChange = (
-    index: number,
-    field: keyof TimeSlotForm,
-    value: string
-  ) => {
-    const nextSlots = timeSlotForms.map((slot, slotIndex) =>
-      slotIndex === index ? { ...slot, [field]: value } : slot
-    );
-    updateAvailableTimeSlots(nextSlots);
-  };
-
-  const addTimeSlot = () => {
-    updateAvailableTimeSlots([...timeSlotForms, { startTime: "", endTime: "" }]);
-  };
-
-  const removeTimeSlot = (index: number) => {
-    const nextSlots =
-      timeSlotForms.length === 1
-        ? timeSlotForms
-        : timeSlotForms.filter((_, slotIndex) => slotIndex !== index);
-    updateAvailableTimeSlots(nextSlots);
-  };
-
-  const handleScheduleChange = (
-    index: number,
-    field: keyof AvailabilitySlotForm,
-    value: string
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      availabilitySchedule: prev.availabilitySchedule.map((slot, slotIndex) =>
-        slotIndex === index ? { ...slot, [field]: value } : slot
-      ),
-    }));
-  };
-
-  const addScheduleRow = () => {
-    setFormData((prev) => ({
-      ...prev,
-      availabilitySchedule: [
-        ...prev.availabilitySchedule,
-        {
-          day: "",
-          startTime: "",
-          endTime: "",
-          mode: "both",
-          maxAppointments: "6",
-        },
-      ],
-    }));
-  };
-
-  const removeScheduleRow = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      availabilitySchedule:
-        prev.availabilitySchedule.length === 1
-          ? prev.availabilitySchedule
-          : prev.availabilitySchedule.filter((_, slotIndex) => slotIndex !== index),
-    }));
+  const handleProfileImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setProfileImageFile(event.target.files?.[0] || null);
   };
 
   const goNextStep = () => {
@@ -367,7 +240,6 @@ export default function DoctorRegisterPage() {
       if (formErrors[field]) {
         acc[field] = formErrors[field];
       }
-
       return acc;
     }, {});
 
@@ -377,14 +249,14 @@ export default function DoctorRegisterPage() {
       return;
     }
 
-    setErrorMessage("");
     setAllowSubmit(false);
+    setErrorMessage("");
     setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));
   };
 
   const goPreviousStep = () => {
-    setErrorMessage("");
     setAllowSubmit(false);
+    setErrorMessage("");
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
@@ -406,25 +278,19 @@ export default function DoctorRegisterPage() {
     setLoading(true);
     setErrorMessage("");
 
-    const payload = {
-      ...formData,
-      experience: Number(formData.experience),
-      consultationFee: Number(formData.consultationFee),
-      availabilitySchedule: formData.availabilitySchedule
-        .filter((slot) => slot.day && slot.startTime && slot.endTime)
-        .map((slot) => ({
-          ...slot,
-          maxAppointments: Number(slot.maxAppointments) || 1,
-        })),
-    };
+    const payload = new FormData();
+    Object.entries(formData).forEach(([key, value]) => {
+      payload.append(key, value);
+    });
+
+    if (profileImageFile) {
+      payload.append("profileImage", profileImageFile);
+    }
 
     try {
       const response = await fetch(DOCTOR_API_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+        body: payload,
       });
 
       if (!response.ok) {
@@ -432,7 +298,7 @@ export default function DoctorRegisterPage() {
       }
 
       showToast(
-        "Doctor registration submitted successfully. Please wait for admin approval.",
+        "Doctor registration submitted successfully. Complete availability from your profile after approval.",
         "success"
       );
 
@@ -440,7 +306,7 @@ export default function DoctorRegisterPage() {
         replace: true,
         state: {
           successMessage:
-            "Doctor registration submitted successfully. Please wait for admin approval before login.",
+            "Doctor registration submitted successfully. Wait for admin approval, then complete your availability from the doctor profile.",
         },
       });
     } catch (error: unknown) {
@@ -455,57 +321,106 @@ export default function DoctorRegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-10">
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-xl md:grid-cols-2">
-        <div className="bg-blue-600 p-8 text-white md:p-10">
-          <h1 className="text-3xl font-bold md:text-4xl">Doctor Registration</h1>
-          <p className="mt-4 leading-7 text-blue-100">
-            Create your doctor account, submit your profile details, and wait for
-            admin approval before using the appointment workflow.
-          </p>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#dbeafe,_#f8fafc_42%,_#eef2ff)] px-4 py-10">
+      <div className="mx-auto grid w-full max-w-6xl overflow-hidden rounded-[32px] border border-white/70 bg-white/90 shadow-[0_30px_80px_rgba(15,23,42,0.12)] backdrop-blur md:grid-cols-[0.95fr_1.05fr]">
+        <aside className="bg-[linear-gradient(160deg,_#1d4ed8,_#2563eb_50%,_#0f172a_140%)] p-8 text-white md:p-10">
+          <div className="max-w-md">
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-blue-100">
+              Doctor Service
+            </p>
+            <h1 className="mt-5 text-4xl font-bold leading-tight">
+              Clean registration first. Practice setup later.
+            </h1>
+            <p className="mt-5 text-base leading-7 text-blue-100/95">
+              This form only collects the essentials needed to create the doctor account.
+              Availability and scheduling can be configured from the doctor profile after
+              registration and approval.
+            </p>
 
-          <div className="mt-8 space-y-4">
-            {STEPS.map((step, index) => (
-              <div
-                key={step.id}
-                className={`rounded-xl p-4 ${
-                  index === currentStep ? "bg-white/20" : "bg-white/10"
-                }`}
-              >
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-100">
-                  Step {step.id}
-                </p>
-                <h3 className="mt-2 text-lg font-semibold">{step.title}</h3>
-                <p className="mt-1 text-sm text-blue-100">{step.description}</p>
+            <div className="mt-8 rounded-3xl border border-white/15 bg-white/10 p-5 backdrop-blur">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-100">
+                Progress
+              </p>
+              <div className="mt-4 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-4xl font-bold">{currentStep + 1}</p>
+                  <p className="mt-1 text-sm text-blue-100">of {STEPS.length} steps</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-semibold">{completionCount}</p>
+                  <p className="mt-1 text-sm text-blue-100">filled inputs</p>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        <div className="p-8 md:p-10">
-          <div className="flex items-start justify-between gap-4">
+            <div className="mt-8 space-y-4">
+              {STEPS.map((step, index) => {
+                const active = index === currentStep;
+                const completed = index < currentStep;
+
+                return (
+                  <div
+                    key={step.id}
+                    className={`rounded-3xl border px-5 py-5 transition ${
+                      active
+                        ? "border-white/30 bg-white/16 shadow-lg"
+                        : completed
+                        ? "border-white/10 bg-white/10"
+                        : "border-white/10 bg-white/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-100">
+                          {step.eyebrow}
+                        </p>
+                        <h3 className="mt-2 text-xl font-semibold">{step.title}</h3>
+                      </div>
+                      <span
+                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${
+                          active || completed
+                            ? "bg-white text-blue-700"
+                            : "bg-white/10 text-white"
+                        }`}
+                      >
+                        {step.id}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-blue-100">{step.description}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+
+        <section className="p-8 md:p-10">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-slate-800">
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                {currentStepConfig.eyebrow}
+              </p>
+              <h2 className="mt-2 text-3xl font-bold text-slate-900">
                 {currentStepConfig.title}
               </h2>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
                 {currentStepConfig.description}
               </p>
             </div>
-            <span className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600">
               {currentStep + 1} / {STEPS.length}
             </span>
           </div>
 
-          <p className="mt-4 text-sm text-slate-500">
+          <p className="mt-5 text-sm text-slate-500">
             Already have an account?{" "}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-700">
+            <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
               Sign in here
             </Link>
           </p>
 
           {errorMessage && (
-            <div className="mt-6 rounded-lg bg-red-100 px-4 py-3 text-red-700">
+            <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {errorMessage}
             </div>
           )}
@@ -517,536 +432,306 @@ export default function DoctorRegisterPage() {
                 event.preventDefault();
               }
             }}
-            className="mt-6 space-y-5"
+            className="mt-8"
           >
-            {currentStep === 0 && (
-              <>
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    name="fullName"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    className={getFieldClass(Boolean(errors.fullName))}
-                    placeholder="Dr. Shashen Kumara"
-                  />
-                  {errors.fullName && (
-                    <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
+              {currentStep === 0 && (
+                <div className="space-y-5">
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className={getFieldClass(Boolean(errors.email))}
-                      placeholder="doctor@gmail.com"
-                    />
-                    {errors.email && (
-                      <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className={getFieldClass(Boolean(errors.password))}
-                      placeholder="Enter password"
-                    />
-                    {errors.password && (
-                      <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Phone
-                  </label>
-                  <input
-                    type="text"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className={getFieldClass(Boolean(errors.phone))}
-                    placeholder="+94771234567"
-                  />
-                  {errors.phone && (
-                    <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
-                  )}
-                </div>
-              </>
-            )}
-
-            {currentStep === 1 && (
-              <>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Specialty
-                    </label>
-                    <select
-                      name="specialization"
-                      value={formData.specialization}
-                      onChange={handleChange}
-                      className={getFieldClass(Boolean(errors.specialization))}
-                      disabled={loadingSpecialties}
-                    >
-                      <option value="">
-                        {loadingSpecialties ? "Loading specialties..." : "Select specialty"}
-                      </option>
-                      {specialties.map((specialty) => (
-                        <option key={specialty} value={specialty}>
-                          {specialty}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.specialization && (
-                      <p className="mt-1 text-sm text-red-600">{errors.specialization}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Experience
-                    </label>
-                    <input
-                      type="number"
-                      name="experience"
-                      value={formData.experience}
-                      onChange={handleChange}
-                      className={getFieldClass(Boolean(errors.experience))}
-                      placeholder="8"
-                    />
-                    {errors.experience && (
-                      <p className="mt-1 text-sm text-red-600">{errors.experience}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Qualification
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Full Name
                     </label>
                     <input
                       type="text"
-                      name="qualification"
-                      value={formData.qualification}
+                      name="fullName"
+                      value={formData.fullName}
                       onChange={handleChange}
-                      className={getFieldClass(Boolean(errors.qualification))}
-                      placeholder="MBBS, MD Pediatrics"
+                      className={getFieldClass(Boolean(errors.fullName))}
+                      placeholder="Dr. Shashen Kumara"
                     />
-                    {errors.qualification && (
-                      <p className="mt-1 text-sm text-red-600">{errors.qualification}</p>
+                    {errors.fullName && (
+                      <p className="mt-2 text-sm text-red-600">{errors.fullName}</p>
                     )}
                   </div>
 
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      License Number
-                    </label>
-                    <input
-                      type="text"
-                      name="licenseNumber"
-                      value={formData.licenseNumber}
-                      onChange={handleChange}
-                      className={getFieldClass(Boolean(errors.licenseNumber))}
-                      placeholder="SLMC-00715"
-                    />
-                    {errors.licenseNumber && (
-                      <p className="mt-1 text-sm text-red-600">{errors.licenseNumber}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Consultation Fee
-                    </label>
-                    <input
-                      type="number"
-                      name="consultationFee"
-                      value={formData.consultationFee}
-                      onChange={handleChange}
-                      className={getFieldClass(Boolean(errors.consultationFee))}
-                      placeholder="4500"
-                    />
-                    {errors.consultationFee && (
-                      <p className="mt-1 text-sm text-red-600">{errors.consultationFee}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Profile Image URL
-                    </label>
-                    <input
-                      type="text"
-                      name="profileImage"
-                      value={formData.profileImage}
-                      onChange={handleChange}
-                      className={getFieldClass(false)}
-                      placeholder="https://example.com/image.jpg"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    About
-                  </label>
-                  <textarea
-                    name="about"
-                    value={formData.about}
-                    onChange={handleChange}
-                    rows={3}
-                    className={getFieldClass(false)}
-                    placeholder="Experienced specialist profile summary"
-                  />
-                </div>
-              </>
-            )}
-
-            {currentStep === 2 && (
-              <>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Hospital Name
-                    </label>
-                    <input
-                      type="text"
-                      name="hospitalName"
-                      value={formData.hospitalName}
-                      onChange={handleChange}
-                      className={getFieldClass(false)}
-                      placeholder="City Medical Centre"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleChange}
-                      className={getFieldClass(false)}
-                      placeholder="Colombo"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Hospital Address
-                  </label>
-                  <textarea
-                    name="hospitalAddress"
-                    value={formData.hospitalAddress}
-                    onChange={handleChange}
-                    rows={3}
-                    className={getFieldClass(false)}
-                    placeholder="No 10, Main Street, Colombo"
-                  />
-                </div>
-              </>
-            )}
-
-            {currentStep === 3 && (
-              <>
-                <div className="space-y-6">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">
-                      Available Days
-                    </label>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {DAY_OPTIONS.map((day) => {
-                        const selected = formData.availableDays.includes(day);
-                        return (
-                          <button
-                            key={day}
-                            type="button"
-                            onClick={() => toggleAvailableDay(day)}
-                            className={`rounded-xl border px-3 py-3 text-sm font-medium transition ${
-                              selected
-                                ? "border-blue-600 bg-blue-600 text-white"
-                                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
-                          >
-                            {day}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-1 flex items-center justify-between">
-                      <label className="block text-sm font-medium text-slate-700">
-                        Available Time Slots
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Email
                       </label>
-                      <button
-                        type="button"
-                        onClick={addTimeSlot}
-                        className="text-sm font-medium text-blue-600 hover:text-blue-700"
-                      >
-                        Add time slot
-                      </button>
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        className={getFieldClass(Boolean(errors.email))}
+                        placeholder="doctor@gmail.com"
+                      />
+                      {errors.email && (
+                        <p className="mt-2 text-sm text-red-600">{errors.email}</p>
+                      )}
                     </div>
-                    <div className="space-y-3">
-                      {timeSlotForms.map((slot, index) => (
-                        <div
-                          key={`time-slot-${index}`}
-                          className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
-                        >
-                          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-slate-700">
-                              Time Slot {index + 1}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => removeTimeSlot(index)}
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div>
-                              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                Start Time
-                              </label>
-                              <input
-                                type="time"
-                                value={slot.startTime}
-                                onChange={(event) =>
-                                  handleTimeSlotChange(index, "startTime", event.target.value)
-                                }
-                                className={`${getFieldClass(false)} min-w-0`}
-                              />
-                            </div>
-                            <div>
-                              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                                End Time
-                              </label>
-                              <input
-                                type="time"
-                                value={slot.endTime}
-                                onChange={(event) =>
-                                  handleTimeSlotChange(index, "endTime", event.target.value)
-                                }
-                                className={`${getFieldClass(false)} min-w-0`}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Password
+                      </label>
+                      <input
+                        type="password"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        className={getFieldClass(Boolean(errors.password))}
+                        placeholder="Enter password"
+                      />
+                      {errors.password && (
+                        <p className="mt-2 text-sm text-red-600">{errors.password}</p>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-700">
-                    Selected Summary
-                  </p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Days:{" "}
-                    {formData.availableDays.length > 0
-                      ? formData.availableDays.join(", ")
-                      : "No days selected"}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Time slots:{" "}
-                    {formData.availableTimeSlots.length > 0
-                      ? formData.availableTimeSlots.join(", ")
-                      : "No time slots selected"}
-                  </p>
-                </div>
-
-                <div>
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Availability Schedule
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Phone
                     </label>
-                    <button
-                      type="button"
-                      onClick={addScheduleRow}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-700"
-                    >
-                      Add slot
-                    </button>
+                    <input
+                      type="text"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className={getFieldClass(Boolean(errors.phone))}
+                      placeholder="+94771234567"
+                    />
+                    {errors.phone && (
+                      <p className="mt-2 text-sm text-red-600">{errors.phone}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {currentStep === 1 && (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Specialty
+                      </label>
+                      <select
+                        name="specialization"
+                        value={formData.specialization}
+                        onChange={handleChange}
+                        className={getFieldClass(Boolean(errors.specialization))}
+                        disabled={loadingSpecialties}
+                      >
+                        <option value="">
+                          {loadingSpecialties ? "Loading specialties..." : "Select specialty"}
+                        </option>
+                        {specialties.map((specialty) => (
+                          <option key={specialty} value={specialty}>
+                            {specialty}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.specialization && (
+                        <p className="mt-2 text-sm text-red-600">{errors.specialization}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Experience
+                      </label>
+                      <input
+                        type="number"
+                        name="experience"
+                        value={formData.experience}
+                        onChange={handleChange}
+                        className={getFieldClass(Boolean(errors.experience))}
+                        placeholder="8"
+                      />
+                      {errors.experience && (
+                        <p className="mt-2 text-sm text-red-600">{errors.experience}</p>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {formData.availabilitySchedule.map((slot, index) => (
-                      <div
-                        key={`${slot.day}-${index}`}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                      >
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-slate-700">
-                            Schedule Slot {index + 1}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => removeScheduleRow(index)}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
-                          >
-                            Remove
-                          </button>
-                        </div>
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Qualification
+                      </label>
+                      <input
+                        type="text"
+                        name="qualification"
+                        value={formData.qualification}
+                        onChange={handleChange}
+                        className={getFieldClass(Boolean(errors.qualification))}
+                        placeholder="MBBS, MD Pediatrics"
+                      />
+                      {errors.qualification && (
+                        <p className="mt-2 text-sm text-red-600">{errors.qualification}</p>
+                      )}
+                    </div>
 
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                          <div>
-                            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                              Day
-                            </label>
-                            <select
-                              value={slot.day}
-                              onChange={(event) =>
-                                handleScheduleChange(index, "day", event.target.value)
-                              }
-                              className={getFieldClass(false)}
-                            >
-                              <option value="">Select day</option>
-                              {DAY_OPTIONS.map((day) => (
-                                <option key={day} value={day}>
-                                  {day}
-                                </option>
-                              ))}
-                            </select>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        License Number
+                      </label>
+                      <input
+                        type="text"
+                        name="licenseNumber"
+                        value={formData.licenseNumber}
+                        onChange={handleChange}
+                        className={getFieldClass(Boolean(errors.licenseNumber))}
+                        placeholder="SLMC-00715"
+                      />
+                      {errors.licenseNumber && (
+                        <p className="mt-2 text-sm text-red-600">{errors.licenseNumber}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-[0.42fr_0.58fr]">
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Consultation Fee
+                      </label>
+                      <input
+                        type="number"
+                        name="consultationFee"
+                        value={formData.consultationFee}
+                        onChange={handleChange}
+                        className={getFieldClass(Boolean(errors.consultationFee))}
+                        placeholder="4500"
+                      />
+                      {errors.consultationFee && (
+                        <p className="mt-2 text-sm text-red-600">{errors.consultationFee}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Profile Photo
+                      </label>
+                      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-sm text-slate-400">
+                            {profileImagePreview ? (
+                              <img
+                                src={profileImagePreview}
+                                alt="Doctor preview"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <span className="px-2 text-center">Doctor photo</span>
+                            )}
                           </div>
 
-                          <div>
-                            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                              Start Time
-                            </label>
+                          <div className="flex-1">
                             <input
-                              type="time"
-                              value={slot.startTime}
-                              onChange={(event) =>
-                                handleScheduleChange(index, "startTime", event.target.value)
-                              }
-                              className={`${getFieldClass(false)} min-w-0`}
+                              type="file"
+                              accept="image/*"
+                              onChange={handleProfileImageChange}
+                              className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:font-semibold file:text-white hover:file:bg-blue-700"
                             />
-                          </div>
-
-                          <div>
-                            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                              End Time
-                            </label>
-                            <input
-                              type="time"
-                              value={slot.endTime}
-                              onChange={(event) =>
-                                handleScheduleChange(index, "endTime", event.target.value)
-                              }
-                              className={`${getFieldClass(false)} min-w-0`}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                              Mode
-                            </label>
-                            <select
-                              value={slot.mode}
-                              onChange={(event) =>
-                                handleScheduleChange(index, "mode", event.target.value)
-                              }
-                              className={getFieldClass(false)}
-                            >
-                              <option value="both">Both</option>
-                              <option value="in_person">In Person</option>
-                              <option value="video">Video</option>
-                            </select>
-                          </div>
-
-                          <div className="xl:col-span-2">
-                            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-                              Max Appointments
-                            </label>
-                            <input
-                              type="number"
-                              value={slot.maxAppointments}
-                              onChange={(event) =>
-                                handleScheduleChange(
-                                  index,
-                                  "maxAppointments",
-                                  event.target.value
-                                )
-                              }
-                              className={getFieldClass(false)}
-                              placeholder="6"
-                            />
+                            <p className="mt-2 text-xs leading-5 text-slate-500">
+                              Upload a profile image. The file will be stored through
+                              doctor-service using Cloudinary.
+                            </p>
                           </div>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      About
+                    </label>
+                    <textarea
+                      name="about"
+                      value={formData.about}
+                      onChange={handleChange}
+                      rows={4}
+                      className={getFieldClass(false)}
+                      placeholder="Write a short professional introduction for the doctor profile."
+                    />
                   </div>
                 </div>
+              )}
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  <label className="flex min-h-20 items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      name="isAvailableForVideo"
-                      checked={formData.isAvailableForVideo}
+              {currentStep === 2 && (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Hospital Name
+                      </label>
+                      <input
+                        type="text"
+                        name="hospitalName"
+                        value={formData.hospitalName}
+                        onChange={handleChange}
+                        className={getFieldClass(false)}
+                        placeholder="City Medical Centre"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        City
+                      </label>
+                      <input
+                        type="text"
+                        name="city"
+                        value={formData.city}
+                        onChange={handleChange}
+                        className={getFieldClass(false)}
+                        placeholder="Colombo"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Hospital Address
+                    </label>
+                    <textarea
+                      name="hospitalAddress"
+                      value={formData.hospitalAddress}
                       onChange={handleChange}
-                      className="mt-1 shrink-0"
+                      rows={4}
+                      className={getFieldClass(false)}
+                      placeholder="No 10, Main Street, Colombo"
                     />
-                    <span className="leading-6">Available for video</span>
-                  </label>
-                  <label className="flex min-h-20 items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      name="supportsDigitalPrescriptions"
-                      checked={formData.supportsDigitalPrescriptions}
-                      onChange={handleChange}
-                      className="mt-1 shrink-0"
-                    />
-                    <span className="leading-6">Digital prescriptions</span>
-                  </label>
-                  <label className="flex min-h-20 items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      name="acceptsNewAppointments"
-                      checked={formData.acceptsNewAppointments}
-                      onChange={handleChange}
-                      className="mt-1 shrink-0"
-                    />
-                    <span className="leading-6">Accept new appointments</span>
-                  </label>
+                  </div>
+
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      What happens next
+                    </p>
+                    <div className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        1. Admin reviews the doctor details and credentials.
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        2. The doctor logs in after approval.
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        3. Availability and schedule are completed from the profile page.
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </>
-            )}
+              )}
+            </div>
 
-            <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-6">
+            <div className="mt-6 flex items-center justify-between gap-4 border-t border-slate-200 pt-6">
               <button
                 type="button"
                 onClick={goPreviousStep}
                 disabled={currentStep === 0}
-                className="rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Back
               </button>
@@ -1055,7 +740,7 @@ export default function DoctorRegisterPage() {
                 <button
                   type="button"
                   onClick={goNextStep}
-                  className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700"
+                  className="rounded-2xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700"
                 >
                   Next -&gt;
                 </button>
@@ -1064,14 +749,14 @@ export default function DoctorRegisterPage() {
                   type="submit"
                   onClick={() => setAllowSubmit(true)}
                   disabled={loading}
-                  className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-70"
+                  className="rounded-2xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-70"
                 >
                   {loading ? "Submitting..." : "Register Doctor"}
                 </button>
               )}
             </div>
           </form>
-        </div>
+        </section>
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 const util = require("util");
+const streamifier = require("streamifier");
 const Doctor = require("../models/doctorModel");
 const Specialty = require("../models/specialtyModel");
+const cloudinary = require("../config/cloudinary");
 const { registerDoctorAuth, deleteDoctorAuthByEmail } = require("../services/authService");
 
 const extractErrorMessage = (error) => {
@@ -177,12 +179,43 @@ const toDoctorResponse = (doctorDocument) => {
 
   const doctor = doctorDocument.toObject ? doctorDocument.toObject() : { ...doctorDocument };
   delete doctor.authUserId;
+  delete doctor.profileImagePublicId;
   return doctor;
 };
+
+const deleteCloudinaryImage = async (publicId) => {
+  if (!publicId) {
+    return;
+  }
+
+  await cloudinary.uploader.destroy(publicId, {
+    resource_type: "image",
+  });
+};
+
+const uploadProfileImageFromBuffer = (buffer, folder) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result);
+        }
+      }
+    );
+
+    streamifier.createReadStream(buffer).pipe(stream);
+  });
 
 const createDoctor = async (req, res) => {
   let shouldRollbackAuthUser = false;
   let rollbackEmail = null;
+  let uploadedProfileImagePublicId = null;
 
   try {
     const password = req.body?.password;
@@ -216,6 +249,17 @@ const createDoctor = async (req, res) => {
     shouldRollbackAuthUser = true;
     rollbackEmail = email;
 
+    let profileImageUpload = null;
+    if (req.file?.buffer) {
+      profileImageUpload = await uploadProfileImageFromBuffer(
+        req.file.buffer,
+        "smart-healthcare/doctor-profiles"
+      );
+      uploadedProfileImagePublicId = profileImageUpload.public_id;
+      doctorPayload.profileImage = profileImageUpload.secure_url;
+      doctorPayload.profileImagePublicId = profileImageUpload.public_id;
+    }
+
     const doctor = await Doctor.create({
       ...doctorPayload,
       authUserId,
@@ -230,6 +274,14 @@ const createDoctor = async (req, res) => {
     shouldRollbackAuthUser = false;
     return res.status(201).json(toDoctorResponse(doctor));
   } catch (error) {
+    if (uploadedProfileImagePublicId) {
+      try {
+        await deleteCloudinaryImage(uploadedProfileImagePublicId);
+      } catch (cloudinaryError) {
+        console.error("createDoctor image rollback failed:", cloudinaryError.message);
+      }
+    }
+
     if (shouldRollbackAuthUser && rollbackEmail) {
       try {
         await deleteDoctorAuthByEmail(rollbackEmail);
@@ -384,11 +436,81 @@ const updateDoctorVerification = async (req, res) => {
   }
 };
 
+const uploadMyDoctorProfileImage = async (req, res) => {
+  try {
+    const doctor = await ensureDoctorIdentity(req, res);
+    if (!doctor) {
+      return;
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        message: "Please select an image",
+      });
+    }
+
+    const result = await uploadProfileImageFromBuffer(
+      req.file.buffer,
+      "smart-healthcare/doctor-profiles"
+    );
+
+    if (doctor.profileImagePublicId) {
+      await deleteCloudinaryImage(doctor.profileImagePublicId);
+    }
+
+    doctor.profileImage = result.secure_url;
+    doctor.profileImagePublicId = result.public_id;
+    await doctor.save();
+
+    return res.status(200).json({
+      message: "Profile image uploaded successfully",
+      profileImage: result.secure_url,
+      doctor: toDoctorResponse(doctor),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to upload doctor profile image",
+      error: error.message,
+    });
+  }
+};
+
+const removeMyDoctorProfileImage = async (req, res) => {
+  try {
+    const doctor = await ensureDoctorIdentity(req, res);
+    if (!doctor) {
+      return;
+    }
+
+    if (doctor.profileImagePublicId) {
+      await deleteCloudinaryImage(doctor.profileImagePublicId);
+    }
+
+    doctor.profileImage = "";
+    doctor.profileImagePublicId = "";
+    await doctor.save();
+
+    return res.status(200).json({
+      message: "Profile image removed successfully",
+      doctor: toDoctorResponse(doctor),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to remove doctor profile image",
+      error: error.message,
+    });
+  }
+};
+
 const deleteMyDoctorProfile = async (req, res) => {
   try {
     const doctor = await ensureDoctorIdentity(req, res);
     if (!doctor) {
       return;
+    }
+
+    if (doctor.profileImagePublicId) {
+      await deleteCloudinaryImage(doctor.profileImagePublicId);
     }
 
     await Doctor.findByIdAndDelete(doctor._id);
@@ -506,6 +628,8 @@ module.exports = {
   updateDoctor,
   getDoctorsForVerification,
   updateDoctorVerification,
+  uploadMyDoctorProfileImage,
+  removeMyDoctorProfileImage,
   deleteMyDoctorProfile,
   getMyDoctorProfile,
   updateMyDoctorProfile,

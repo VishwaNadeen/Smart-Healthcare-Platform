@@ -45,6 +45,7 @@ export default function Navbar() {
     () => localStorage.getItem(PROFILE_IMAGE_KEY) || ""
   );
   const auth = getStoredTelemedicineAuth();
+  const profilePath = auth.role === "patient" ? "/patient/profile" : "/doctor/profile";
 
   const storedPatientName =
     localStorage.getItem(PROFILE_NAME_KEY) ||
@@ -166,7 +167,7 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <>
               <Link
-                to={auth.role === "patient" ? "/patient/profile" : "/"}
+                to={profilePath}
                 className="group flex items-center gap-3 rounded-full px-2 py-1 transition hover:bg-blue-50"
                 title="My Profile"
               >
@@ -276,7 +277,7 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <div className="mt-2 grid gap-3">
               <Link
-                to={auth.role === "patient" ? "/patient/profile" : "/"}
+                to={profilePath}
                 onClick={() => setIsOpen(false)}
                 className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 transition hover:bg-blue-50"
               >
