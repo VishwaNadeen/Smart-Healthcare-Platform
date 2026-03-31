@@ -1,0 +1,47 @@
+{
+<<<<<<< HEAD:backend/services/payment-service/package.json
+  "name": "payment-service",
+  "version": "1.0.0",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js"
+=======
+  "name": "appointment-service",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+>>>>>>> main:services/appointment-service/package.json
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+<<<<<<< HEAD:backend/services/payment-service/package.json
+  "description": "",
+=======
+>>>>>>> main:services/appointment-service/package.json
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+<<<<<<< HEAD:backend/services/payment-service/package.json
+    "express-validator": "^7.3.1",
+    "helmet": "^8.1.0",
+    "md5": "^2.3.0",
+    "mongoose": "^9.3.2",
+    "morgan": "^1.10.1",
+    "pdfkit": "^0.18.0",
+    "uuid": "^9.0.1"
+=======
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.3.2"
+>>>>>>> main:services/appointment-service/package.json
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
