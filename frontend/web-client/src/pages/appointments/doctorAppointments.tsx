@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  getDoctorAppointments,
+  updateAppointmentStatus,
+  type AppointmentRecord,
+} from "../../services/appointmentApi";
+import {
   getSessionsByDoctorId,
   type TelemedicineSession,
 } from "../../services/telemedicineApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
+import { useToast } from "../../components/common/ToastProvider";
 
 function getSessionDateTime(session: TelemedicineSession) {
   return new Date(`${session.scheduledDate}T${session.scheduledTime}`);
@@ -97,15 +103,136 @@ function SessionCard({
   );
 }
 
+function DoctorAppointmentCard({
+  appointment,
+  onStatusChange,
+  loadingId,
+}: {
+  appointment: AppointmentRecord;
+  onStatusChange: (
+    appointmentId: string,
+    status: "confirmed" | "completed" | "cancelled",
+    note: string
+  ) => Promise<void>;
+  loadingId: string | null;
+}) {
+  const isBusy = loadingId === appointment._id;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm font-medium text-blue-600">{appointment.specialization}</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-800">
+            Appointment #{appointment._id}
+          </h3>
+          <p className="mt-2 text-sm text-slate-500">
+            {formatDate(appointment.appointmentDate)} •{" "}
+            {formatTime(appointment.appointmentTime)}
+          </p>
+          {appointment.reason && (
+            <p className="mt-2 text-sm leading-6 text-slate-600">{appointment.reason}</p>
+          )}
+        </div>
+
+        <span
+          className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+            appointment.status === "completed"
+              ? "bg-green-100 text-green-700"
+              : appointment.status === "confirmed"
+              ? "bg-blue-100 text-blue-700"
+              : appointment.status === "cancelled"
+              ? "bg-red-100 text-red-700"
+              : "bg-amber-100 text-amber-700"
+          }`}
+        >
+          {appointment.status}
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-3">
+        {appointment.status === "pending" && (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                void onStatusChange(
+                  appointment._id,
+                  "confirmed",
+                  "Appointment accepted by doctor"
+                )
+              }
+              disabled={isBusy}
+              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void onStatusChange(
+                  appointment._id,
+                  "cancelled",
+                  "Appointment declined by doctor"
+                )
+              }
+              disabled={isBusy}
+              className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+            >
+              Reject
+            </button>
+          </>
+        )}
+
+        {appointment.status === "confirmed" && (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                void onStatusChange(
+                  appointment._id,
+                  "completed",
+                  "Consultation finished"
+                )
+              }
+              disabled={isBusy}
+              className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
+            >
+              Mark Completed
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                void onStatusChange(
+                  appointment._id,
+                  "cancelled",
+                  "Doctor unavailable"
+                )
+              }
+              disabled={isBusy}
+              className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DoctorAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
+  const { showToast } = useToast();
   const [sessions, setSessions] = useState<TelemedicineSession[]>([]);
+  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    async function loadDoctorSessions() {
-      if (!auth.userId) {
+    async function loadDoctorData() {
+      if (!auth.userId || !auth.token) {
         setErrorMessage("No doctor login found.");
         setIsLoading(false);
         return;
@@ -113,8 +240,12 @@ export default function DoctorAppointmentsPage() {
 
       try {
         setErrorMessage("");
-        const data = await getSessionsByDoctorId(auth.userId);
-        setSessions(data);
+        const [sessionsData, appointmentsData] = await Promise.all([
+          getSessionsByDoctorId(auth.userId),
+          getDoctorAppointments(auth.token, auth.userId),
+        ]);
+        setSessions(sessionsData);
+        setAppointments(appointmentsData);
       } catch (error: unknown) {
         setErrorMessage(
           error instanceof Error
@@ -126,8 +257,8 @@ export default function DoctorAppointmentsPage() {
       }
     }
 
-    loadDoctorSessions();
-  }, [auth.userId]);
+    void loadDoctorData();
+  }, [auth.token, auth.userId]);
 
   const sortedSessions = useMemo(() => {
     return [...sessions].sort(
@@ -135,25 +266,83 @@ export default function DoctorAppointmentsPage() {
     );
   }, [sessions]);
 
+  const sortedAppointments = useMemo(
+    () =>
+      [...appointments].sort((a, b) => {
+        const first = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
+        const second = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
+        return first - second;
+      }),
+    [appointments]
+  );
+
   const today = new Date();
 
-  const todaySessions = useMemo(() => {
-    return sortedSessions.filter((session) =>
-      isSameDay(getSessionDateTime(session), today)
-    );
-  }, [sortedSessions]);
+  const todaySessions = useMemo(
+    () =>
+      sortedSessions.filter((session) =>
+        isSameDay(getSessionDateTime(session), today)
+      ),
+    [sortedSessions]
+  );
 
-  const activeSessions = useMemo(() => {
-    return sortedSessions.filter((session) => session.status === "active");
-  }, [sortedSessions]);
+  const activeSessions = useMemo(
+    () => sortedSessions.filter((session) => session.status === "active"),
+    [sortedSessions]
+  );
 
-  const completedSessions = useMemo(() => {
-    return sortedSessions.filter((session) => session.status === "completed");
-  }, [sortedSessions]);
+  const completedSessions = useMemo(
+    () => sortedSessions.filter((session) => session.status === "completed"),
+    [sortedSessions]
+  );
 
-  const scheduledSessions = useMemo(() => {
-    return sortedSessions.filter((session) => session.status === "scheduled");
-  }, [sortedSessions]);
+  const pendingAppointments = useMemo(
+    () => sortedAppointments.filter((appointment) => appointment.status === "pending"),
+    [sortedAppointments]
+  );
+
+  const confirmedAppointments = useMemo(
+    () =>
+      sortedAppointments.filter((appointment) => appointment.status === "confirmed"),
+    [sortedAppointments]
+  );
+
+  const completedAppointments = useMemo(
+    () =>
+      sortedAppointments.filter((appointment) => appointment.status === "completed"),
+    [sortedAppointments]
+  );
+
+  const handleAppointmentStatusChange = async (
+    appointmentId: string,
+    status: "confirmed" | "completed" | "cancelled",
+    note: string
+  ) => {
+    if (!auth.token) return;
+
+    try {
+      setActionLoadingId(appointmentId);
+      const updated = await updateAppointmentStatus(
+        auth.token,
+        appointmentId,
+        status,
+        note
+      );
+      setAppointments((prev) =>
+        prev.map((appointment) =>
+          appointment._id === appointmentId ? updated : appointment
+        )
+      );
+      showToast("Appointment status updated successfully.", "success");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update appointment.";
+      setErrorMessage(message);
+      showToast(message, "error");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
@@ -163,67 +352,58 @@ export default function DoctorAppointmentsPage() {
             Doctor Appointments
           </p>
           <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
-            Manage your daily schedule
+            Manage bookings and daily sessions
           </h1>
           <p className="mt-3 max-w-2xl text-sm text-blue-50 sm:text-base">
-            Review today’s sessions, jump to requests and history sections, and
-            access your telemedicine workflow from one dashboard page.
+            Review patient booking requests from appointment-service and keep the
+            telemedicine session workflow close by.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <a
-              href="#today-sessions"
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
-            >
-              Today Sessions
-            </a>
-            <a
               href="#appointment-requests"
-              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
             >
               Appointment Requests
             </a>
             <a
-              href="#completed-history"
+              href="#confirmed-appointments"
               className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
             >
-              Completed History
+              Confirmed Appointments
             </a>
-            <Link
-              to="/doctor-sessions"
+            <a
+              href="#today-sessions"
               className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
             >
-              Open Doctor Sessions
-            </Link>
+              Consultation Sessions
+            </a>
           </div>
         </div>
 
         <div className="mt-8 grid gap-4 md:grid-cols-4">
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Pending Requests</p>
+            <p className="mt-2 text-3xl font-bold text-slate-800">
+              {pendingAppointments.length}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <p className="text-sm text-slate-500">Confirmed</p>
+            <p className="mt-2 text-3xl font-bold text-slate-800">
+              {confirmedAppointments.length}
+            </p>
+          </div>
           <div className="rounded-2xl bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">Today Sessions</p>
             <p className="mt-2 text-3xl font-bold text-slate-800">
               {todaySessions.length}
             </p>
           </div>
-
           <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Active</p>
+            <p className="text-sm text-slate-500">Completed Appointments</p>
             <p className="mt-2 text-3xl font-bold text-slate-800">
-              {activeSessions.length}
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Scheduled</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {scheduledSessions.length}
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Completed</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {completedSessions.length}
+              {completedAppointments.length}
             </p>
           </div>
         </div>
@@ -240,6 +420,52 @@ export default function DoctorAppointmentsPage() {
           </div>
         ) : (
           <>
+            <div id="appointment-requests" className="mt-10">
+              <h2 className="mb-4 text-2xl font-bold text-slate-800">
+                Appointment Requests
+              </h2>
+
+              <div className="grid gap-4">
+                {pendingAppointments.length === 0 ? (
+                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
+                    No pending appointment requests.
+                  </div>
+                ) : (
+                  pendingAppointments.map((appointment) => (
+                    <DoctorAppointmentCard
+                      key={appointment._id}
+                      appointment={appointment}
+                      onStatusChange={handleAppointmentStatusChange}
+                      loadingId={actionLoadingId}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div id="confirmed-appointments" className="mt-10">
+              <h2 className="mb-4 text-2xl font-bold text-slate-800">
+                Confirmed Appointments
+              </h2>
+
+              <div className="grid gap-4">
+                {confirmedAppointments.length === 0 ? (
+                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
+                    No confirmed appointments.
+                  </div>
+                ) : (
+                  confirmedAppointments.map((appointment) => (
+                    <DoctorAppointmentCard
+                      key={appointment._id}
+                      appointment={appointment}
+                      onStatusChange={handleAppointmentStatusChange}
+                      loadingId={actionLoadingId}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+
             <div id="today-sessions" className="mt-10">
               <h2 className="mb-4 text-2xl font-bold text-slate-800">
                 Today Sessions
@@ -268,36 +494,6 @@ export default function DoctorAppointmentsPage() {
                     />
                   ))
                 )}
-              </div>
-            </div>
-
-            <div id="appointment-requests" className="mt-10">
-              <h2 className="mb-4 text-2xl font-bold text-slate-800">
-                Appointment Requests
-              </h2>
-
-              <div className="rounded-2xl bg-white p-6 shadow-sm">
-                <p className="text-sm text-slate-600">
-                  This section is ready for your doctor-side appointment request
-                  feature. Until that page is built, use the doctor sessions page
-                  and telemedicine dashboard as the quick access points.
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <Link
-                    to="/doctor-sessions"
-                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-                  >
-                    Go to Doctor Sessions
-                  </Link>
-
-                  <Link
-                    to="/telemedicine-dashboard"
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Open Dashboard
-                  </Link>
-                </div>
               </div>
             </div>
 
