@@ -10,6 +10,7 @@ const {
   verifyLoginOtp,
   requestPasswordResetOtp,
   resetPasswordWithOtp,
+  verifyCurrentUserPassword,
   getUserStats,
 } = require("../services/authService");
 
@@ -271,13 +272,13 @@ const verifyLoginOtpController = async (req, res) => {
 
 const forgotPassword = async (req, res) => {
   try {
-    const { identifier } = req.body;
+    const email = typeof req.body?.email === "string" ? req.body.email : req.body?.identifier;
 
-    if (!identifier) {
-      return res.status(400).json({ message: "Identifier is required" });
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
     }
 
-    const result = await requestPasswordResetOtp({ identifier });
+    const result = await requestPasswordResetOtp({ identifier: email });
 
     res.status(200).json({
       message: "OTP sent for password reset",
@@ -303,6 +304,35 @@ const resetPassword = async (req, res) => {
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+};
+
+const verifyPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        message: "Password is required",
+      });
+    }
+
+    await verifyCurrentUserPassword({
+      userId: req.user.userId,
+      password,
+    });
+
+    res.status(200).json({
+      message: "Password verified successfully",
+      verified: true,
+    });
+  } catch (error) {
+    const message = error.message || "Failed to verify password";
+
+    res.status(message === "Incorrect password" ? 401 : 400).json({
+      message,
+      error: message,
+    });
   }
 };
 
@@ -343,4 +373,5 @@ module.exports = {
   verifyLoginOtpController,
   forgotPassword,
   resetPassword,
+  verifyPassword,
 };

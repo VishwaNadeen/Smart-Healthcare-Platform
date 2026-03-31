@@ -191,7 +191,8 @@ export async function uploadCurrentPatientProfileImage(
 }
 
 export async function deleteCurrentPatient(
-  token: string
+  token: string,
+  password: string
 ): Promise<PatientDeleteResponse> {
   let response: Response;
 
@@ -199,8 +200,10 @@ export async function deleteCurrentPatient(
     response = await fetch(`${PATIENT_API_URL}/me`, {
       method: "DELETE",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      body: JSON.stringify({ password }),
     });
   } catch {
     throw new Error(

@@ -37,6 +37,20 @@ const getAuthProfile = async (token) => {
   return response.data;
 };
 
+const verifyAuthPassword = async (token, password) => {
+  const response = await axios.post(
+    `${getAuthServiceUrl()}/api/auth/verify-password`,
+    { password },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return response.data;
+};
+
 const deleteAuthAccount = async (token) => {
   const response = await axios.delete(`${getAuthServiceUrl()}/api/auth/me`, {
     headers: {
@@ -62,6 +76,7 @@ const deleteAuthAccountByEmail = async (email) => {
 module.exports = {
   registerPatientAuth,
   getAuthProfile,
+  verifyAuthPassword,
   deleteAuthAccount,
   deleteAuthAccountByEmail,
 };

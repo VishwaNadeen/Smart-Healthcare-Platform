@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ identifier: email }),
+        body: JSON.stringify({ email }),
       });
 
       const data = await response.json();
@@ -93,7 +93,7 @@ export default function ForgotPasswordPage() {
           <h1 className="text-3xl font-bold text-slate-800">Forgot Password</h1>
           <p className="mt-2 text-slate-500">
             {step === "request"
-              ? "Request an OTP using your email"
+              ? "Enter your auth account email to receive an OTP"
               : "Enter your OTP and set a new password"}
           </p>
         </div>
