@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "./ToastProvider";
 import { logoutUser } from "../../services/authApi";
 import { getCurrentDoctorProfile } from "../../services/doctorApi";
@@ -75,19 +75,30 @@ function clearStoredProfiles() {
   localStorage.removeItem(DOCTOR_PROFILE_IMAGE_KEY);
 }
 
-function getProfilePath(role: TelemedicineRole | null) {
-  if (role === "patient") {
-    return "/profile/patient";
+function isConsultationPath(pathname: string) {
+  return (
+    pathname === "/consultation" ||
+    pathname.startsWith("/consultation/") ||
+    pathname.startsWith("/doctor-sessions") ||
+    pathname.startsWith("/patient-sessions") ||
+    pathname.startsWith("/waiting-room/") ||
+    pathname.startsWith("/session-summary/") ||
+    pathname.startsWith("/session-history") ||
+    pathname.startsWith("/telemedicine-dashboard") ||
+    pathname.startsWith("/telemedicine-statistics")
+  );
+}
+
+function isNavItemActive(pathname: string, linkPath: string, isActive: boolean) {
+  if (linkPath === "/consultation") {
+    return isConsultationPath(pathname);
   }
 
-  if (role === "doctor") {
-    return "/profile/doctor";
-  }
-
-  return "/";
+  return isActive;
 }
 
 export default function Navbar() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
@@ -117,10 +128,7 @@ export default function Navbar() {
       if (!auth.isAuthenticated || !auth.token || !profileKeys) {
         setProfileName(auth.username || "");
         setProfileImage("");
-        if (auth.role !== "patient") {
-          localStorage.removeItem(PROFILE_IMAGE_KEY);
-          localStorage.removeItem(PROFILE_NAME_KEY);
-        }
+        clearStoredProfiles();
         return;
       }
 
@@ -273,13 +281,17 @@ export default function Navbar() {
             <NavLink
               key={link.name}
               to={link.path}
-              className={({ isActive }) =>
+              className={({ isActive }) => {
+                const active = isNavItemActive(location.pathname, link.path, isActive);
+
+                return (
                 `group relative rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                  isActive
+                  active
                     ? "bg-blue-100 text-blue-700"
                     : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
                 }`
-              }
+                );
+              }}
             >
               {link.name}
               <span className="absolute left-1/2 top-full h-0.5 w-0 -translate-x-1/2 rounded-full bg-blue-600 transition-all duration-300 group-hover:w-2/3" />
@@ -380,13 +392,17 @@ export default function Navbar() {
               key={link.name}
               to={link.path}
               onClick={() => setIsOpen(false)}
-              className={({ isActive }) =>
+              className={({ isActive }) => {
+                const active = isNavItemActive(location.pathname, link.path, isActive);
+
+                return (
                 `rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 ${
-                  isActive
+                  active
                     ? "bg-blue-100 text-blue-700"
                     : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
                 }`
-              }
+                );
+              }}
             >
               {link.name}
             </NavLink>

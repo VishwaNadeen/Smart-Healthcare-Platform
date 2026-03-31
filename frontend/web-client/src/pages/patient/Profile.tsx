@@ -143,6 +143,10 @@ const PatientProfile = () => {
     address: "",
     country: "",
   });
+  const [phoneInputValue, setPhoneInputValue] = useState(
+    `${formData.countryCode}${formData.phone}`
+  );
+  const [errors, setErrors] = useState<FormErrors>({});
 
   const [profileImage, setProfileImage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -150,8 +154,6 @@ const PatientProfile = () => {
   const [deleting, setDeleting] = useState(false);
   const [showDeletePrompt, setShowDeletePrompt] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
-  const [, setSuccessMessage] = useState("");
-  const [, setErrorMessage] = useState("");
   const auth = getStoredTelemedicineAuth();
   const token = auth.token || "";
 
