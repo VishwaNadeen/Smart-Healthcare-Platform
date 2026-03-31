@@ -1,0 +1,47 @@
+{
+<<<<<<< HEAD:backend/services/payment-service/package.json
+  "name": "payment-service",
+  "version": "1.0.0",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-validator": "^7.3.1",
+    "helmet": "^8.1.0",
+    "md5": "^2.3.0",
+    "mongoose": "^9.3.2",
+    "morgan": "^1.10.1",
+    "pdfkit": "^0.18.0",
+    "uuid": "^9.0.1"
+=======
+  "name": "doctor-service",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^9.3.2",
+    "multer": "^2.1.1"
+>>>>>>> main:services/doctor-service/package.json
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
