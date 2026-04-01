@@ -6,7 +6,6 @@ import { getCurrentDoctorProfile } from "../../services/doctorApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
 import {
   clearTelemedicineAuth,
-  getPostLoginPath,
   getStoredTelemedicineAuth,
   type TelemedicineRole,
 } from "../../utils/telemedicineAuth";
@@ -73,6 +72,18 @@ function clearStoredProfiles() {
   localStorage.removeItem(PATIENT_PROFILE_IMAGE_KEY);
   localStorage.removeItem(DOCTOR_PROFILE_NAME_KEY);
   localStorage.removeItem(DOCTOR_PROFILE_IMAGE_KEY);
+}
+
+function getProfilePath(role: TelemedicineRole | null) {
+  if (role === "doctor") {
+    return "/profile/doctor";
+  }
+
+  if (role === "patient") {
+    return "/profile/patient";
+  }
+
+  return "/profile";
 }
 
 function isConsultationPath(pathname: string) {
@@ -303,7 +314,7 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <>
               <Link
-                to={getPostLoginPath(auth.role)}
+                to={getProfilePath(auth.role)}
                 className="group flex items-center gap-3 rounded-full px-2 py-1 transition hover:bg-blue-50"
                 title="My Profile"
               >
@@ -417,7 +428,7 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <div className="mt-2 grid gap-3">
               <Link
-                to={getPostLoginPath(auth.role)}
+                to={getProfilePath(auth.role)}
                 onClick={() => setIsOpen(false)}
                 className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 transition hover:bg-blue-50"
               >
