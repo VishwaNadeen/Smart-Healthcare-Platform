@@ -12,6 +12,7 @@ type PatientFormData = {
   lastName: string;
   email: string;
   password: string;
+  confirmPassword: string;
   countryCode: string;
   phone: string;
   birthday: string;
@@ -78,12 +79,19 @@ function validateField(
 
     case "password":
       if (!value) return "Password is required.";
-      if (value.length < 8) return "Password must be at least 8 characters.";
+      if (value.length < 6) return "Password must be at least 6 characters.";
       if (value.length > 100) {
         return "Password must be 100 characters or fewer.";
       }
       if (!PASSWORD_PATTERN.test(value)) {
         return "Password must include uppercase, lowercase, number, and special character.";
+      }
+      return "";
+
+    case "confirmPassword":
+      if (!value) return "Confirm password is required.";
+      if (value !== data.password) {
+        return "Passwords do not match.";
       }
       return "";
 
@@ -147,6 +155,11 @@ function validatePatientForm(data: PatientFormData): FormErrors {
     lastName: validateField("lastName", data.lastName, data),
     email: validateField("email", data.email, data),
     password: validateField("password", data.password, data),
+    confirmPassword: validateField(
+      "confirmPassword",
+      data.confirmPassword,
+      data
+    ),
     countryCode: validateField("countryCode", data.countryCode, data),
     phone: validateField("phone", data.phone, data),
     birthday: validateField("birthday", data.birthday, data),
@@ -180,6 +193,7 @@ export default function PatientRegister() {
     lastName: "",
     email: "",
     password: "",
+    confirmPassword: "",
     countryCode: "+94",
     phone: "",
     birthday: "",
@@ -208,6 +222,16 @@ export default function PatientRegister() {
     setErrors((prev) => ({
       ...prev,
       [fieldName]: validateField(fieldName, value, nextFormData),
+      ...(fieldName === "password" || fieldName === "confirmPassword"
+        ? {
+            password: validateField("password", nextFormData.password, nextFormData),
+            confirmPassword: validateField(
+              "confirmPassword",
+              nextFormData.confirmPassword,
+              nextFormData
+            ),
+          }
+        : {}),
     }));
   };
 
@@ -263,9 +287,10 @@ export default function PatientRegister() {
     setErrors({});
 
     try {
+      const { confirmPassword: _confirmPassword, ...restFormData } = formData;
       const normalizedPhone = formData.phone.replace(formData.countryCode, "");
       const registrationPayload = {
-        ...formData,
+        ...restFormData,
         phone: normalizedPhone,
       };
 
@@ -427,15 +452,38 @@ export default function PatientRegister() {
                 required
                 placeholder="Enter password"
                 autoComplete="new-password"
-                minLength={8}
+                minLength={6}
                 className={getFieldClass(Boolean(errors.password))}
               />
               <p className="mt-1 text-xs text-slate-500">
-                Use at least 8 characters with uppercase, lowercase, number, and
+                Use at least 6 characters with uppercase, lowercase, number, and
                 special character.
               </p>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                required
+                placeholder="Confirm password"
+                autoComplete="new-password"
+                minLength={6}
+                className={getFieldClass(Boolean(errors.confirmPassword))}
+              />
+              {errors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.confirmPassword}
+                </p>
               )}
             </div>
 

@@ -299,13 +299,13 @@ const loginUser = async ({ email, password }) => {
   const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
-    throw new Error("Invalid email or password");
+    throw new Error("Incorrect email or password");
   }
 
   const isMatch = await bcrypt.compare(password, user.password);
 
   if (!isMatch) {
-    throw new Error("Invalid email or password");
+    throw new Error("Incorrect email or password");
   }
 
   if (!user.isEmailVerified) {

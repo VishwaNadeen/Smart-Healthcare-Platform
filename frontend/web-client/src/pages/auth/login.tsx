@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "../../components/common/ToastProvider";
 import { useLocationToast } from "../../hooks/useLocationToast";
@@ -43,10 +43,6 @@ function validateLoginForm(data: LoginFormState) {
     return "Password is required.";
   }
 
-  if (trimmedPassword.length < 6 || trimmedPassword.length > 100) {
-    return "Password must be between 6 and 100 characters.";
-  }
-
   return "";
 }
 
@@ -72,13 +68,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (!error) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setError("");
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [error]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const validationMessage = validateLoginForm(form);
 
     if (validationMessage) {
       setError(validationMessage);
-      showToast(validationMessage, "error");
       return;
     }
 
@@ -145,8 +152,11 @@ export default function LoginPage() {
         return;
       }
 
-      setError(message);
-      showToast(message, "error");
+      setError(
+        message.toLowerCase().includes("incorrect email or password")
+          ? "Incorrect password."
+          : message
+      );
     } finally {
       setLoading(false);
     }
@@ -156,6 +166,10 @@ export default function LoginPage() {
     key: K,
     value: LoginFormState[K]
   ) {
+    if (error) {
+      setError("");
+    }
+
     setForm((current) => ({
       ...current,
       [key]: value,
