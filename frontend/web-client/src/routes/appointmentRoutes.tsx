@@ -2,6 +2,8 @@ import { Route, Navigate, useLocation } from "react-router-dom";
 import MainLayout from "../layouts/mainLayout";
 import PatientAppointmentsPage from "../pages/appointments/patientAppointments";
 import DoctorAppointmentsPage from "../pages/appointments/doctorAppointments";
+import DoctorAppointmentRequestsPage from "../pages/appointments/appointmentRequests";
+import CreateAppointmentPage from "../pages/appointments/createAppointment";
 import RequireTelemedicineRole from "../components/telemedicine/RequireTelemedicineRole";
 import {
   getRoleHomePath,
@@ -17,14 +19,32 @@ function AppointmentRoleRedirect() {
   }
 
   if (auth.role === "doctor") {
-    return <Navigate to="/appointments/doctor" replace state={{ from: location }} />;
+    return (
+      <Navigate
+        to="/appointments/doctor"
+        replace
+        state={{ from: location }}
+      />
+    );
   }
 
   if (auth.role === "patient") {
-    return <Navigate to="/appointments/patient" replace state={{ from: location }} />;
+    return (
+      <Navigate
+        to="/appointments/patient"
+        replace
+        state={{ from: location }}
+      />
+    );
   }
 
-  return <Navigate to={getRoleHomePath(auth.role)} replace state={{ from: location }} />;
+  return (
+    <Navigate
+      to={getRoleHomePath(auth.role)}
+      replace
+      state={{ from: location }}
+    />
+  );
 }
 
 export const appointmentRoutes = (
@@ -55,6 +75,28 @@ export const appointmentRoutes = (
         <MainLayout>
           <RequireTelemedicineRole allowedRoles={["doctor"]}>
             <DoctorAppointmentsPage />
+          </RequireTelemedicineRole>
+        </MainLayout>
+      }
+    />
+
+    <Route
+      path="/appointments/requests"
+      element={
+        <MainLayout>
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorAppointmentRequestsPage />
+          </RequireTelemedicineRole>
+        </MainLayout>
+      }
+    />
+
+    <Route
+      path="/appointments/create"
+      element={
+        <MainLayout>
+          <RequireTelemedicineRole allowedRoles={["patient"]}>
+            <CreateAppointmentPage />
           </RequireTelemedicineRole>
         </MainLayout>
       }

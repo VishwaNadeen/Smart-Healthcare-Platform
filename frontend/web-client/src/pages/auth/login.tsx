@@ -6,13 +6,49 @@ import { loginUser } from "../../services/authApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
 import {
   clearTelemedicineAuth,
+  getPostLoginPath,
   saveTelemedicineAuth,
 } from "../../utils/telemedicineAuth";
+
+const PATIENT_PROFILE_NAME_KEY = "patientProfileName";
+const PATIENT_PROFILE_IMAGE_KEY = "patientProfileImage";
+const DOCTOR_PROFILE_NAME_KEY = "doctorProfileName";
+const DOCTOR_PROFILE_IMAGE_KEY = "doctorProfileImage";
+
+function clearStoredProfiles() {
+  localStorage.removeItem(PATIENT_PROFILE_NAME_KEY);
+  localStorage.removeItem(PATIENT_PROFILE_IMAGE_KEY);
+  localStorage.removeItem(DOCTOR_PROFILE_NAME_KEY);
+  localStorage.removeItem(DOCTOR_PROFILE_IMAGE_KEY);
+}
 
 type LoginFormState = {
   email: string;
   password: string;
 };
+
+function validateLoginForm(data: LoginFormState) {
+  const trimmedEmail = data.email.trim();
+  const trimmedPassword = data.password.trim();
+
+  if (!trimmedEmail) {
+    return "Email is required.";
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    return "Enter a valid email address.";
+  }
+
+  if (!trimmedPassword) {
+    return "Password is required.";
+  }
+
+  if (trimmedPassword.length < 6 || trimmedPassword.length > 100) {
+    return "Password must be between 6 and 100 characters.";
+  }
+
+  return "";
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -38,11 +74,21 @@ export default function LoginPage() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const validationMessage = validateLoginForm(form);
+
+    if (validationMessage) {
+      setError(validationMessage);
+      showToast(validationMessage, "error");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
       const result = await loginUser(form);
+
+      clearStoredProfiles();
 
       saveTelemedicineAuth({
         token: result.token,
@@ -50,6 +96,7 @@ export default function LoginPage() {
         username: result.username,
         email: result.email,
         role: result.role,
+        doctorProfileId: result.doctorProfileId,
       });
 
       if (result.role === "patient") {
@@ -76,9 +123,28 @@ export default function LoginPage() {
       }
 
       showToast("Login successful.", "success");
-      navigate("/", { replace: true });
+      navigate(getPostLoginPath(result.role, locationState?.from?.pathname), {
+        replace: true,
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
+
+      if (
+        message.toLowerCase().includes("verify your email") &&
+        form.email.trim()
+      ) {
+        showToast("Please verify your email before logging in.", "info");
+        navigate("/verify-email", {
+          replace: true,
+          state: {
+            registeredEmail: form.email.trim(),
+            successMessage:
+              "Your account is registered, but email verification is still pending.",
+          },
+        });
+        return;
+      }
+
       setError(message);
       showToast(message, "error");
     } finally {

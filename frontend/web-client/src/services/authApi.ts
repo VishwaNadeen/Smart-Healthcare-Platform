@@ -7,6 +7,7 @@ export type LoginResponse = {
   email: string;
   role: "doctor" | "patient" | "admin";
   token: string;
+  doctorProfileId?: string | null;
 };
 
 export type RequestEmailVerificationResponse = {
@@ -30,6 +31,10 @@ export type BasicAuthResponse = {
   message: string;
 };
 
+export type RequestPasswordResetOtpResponse = {
+  message: string;
+};
+
 export type UserStatsResponse = {
   message: string;
   totalUsers: number;
@@ -42,8 +47,18 @@ async function handleResponse<T>(response: Response): Promise<T> {
   const data = (await response.json().catch(() => null)) as T | null;
 
   if (!response.ok) {
-    const errorMessage =
+    const validationMessage =
       typeof data === "object" &&
+      data !== null &&
+      "errors" in data &&
+      Array.isArray(data.errors) &&
+      typeof data.errors[0] === "string"
+        ? data.errors[0]
+        : null;
+
+    const errorMessage =
+      validationMessage ||
+      (typeof data === "object" &&
       data !== null &&
       "error" in data &&
       typeof data.error === "string"
@@ -53,7 +68,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
             "message" in data &&
             typeof data.message === "string"
           ? data.message
-        : `Request failed with status ${response.status}`;
+        : `Request failed with status ${response.status}`);
 
     throw new Error(errorMessage);
   }
@@ -155,4 +170,26 @@ export async function verifyEmail(payload: {
   }
 
   return handleResponse<VerifyEmailResponse>(response);
+}
+
+export async function requestPasswordResetOtp(payload: {
+  email: string;
+}): Promise<RequestPasswordResetOtpResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${AUTH_API_URL}/forgot-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the auth service. Please check that it is running."
+    );
+  }
+
+  return handleResponse<RequestPasswordResetOtpResponse>(response);
 }

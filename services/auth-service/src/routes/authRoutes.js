@@ -8,6 +8,7 @@ const {
   deleteMe,
   deleteByEmailInternal,
   updateDoctorApprovalStatusInternal,
+  getUserByIdInternal,
   me,
   stats,
   requestEmailVerification,
@@ -18,19 +19,53 @@ const {
   resetPassword,
   verifyPassword,
 } = require("../controllers/authController");
+
 const authMiddleware = require("../middlewares/authMiddleware");
 const roleMiddleware = require("../middlewares/roleMiddleware");
+const validate = require("../middlewares/validate");
 
-router.post("/register", register);
-router.post("/login", login);
-router.post("/verify-email/request", requestEmailVerification);
-router.post("/verify-email/confirm", verifyEmail);
-router.post("/login-otp/request", requestLoginOtpController);
-router.post("/login-otp/verify", verifyLoginOtpController);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
-router.post("/verify-password", authMiddleware, verifyPassword);
+const {
+  registerSchema,
+  loginSchema,
+  requestEmailVerificationSchema,
+  verifyEmailSchema,
+  requestLoginOtpSchema,
+  verifyLoginOtpSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  verifyPasswordSchema,
+  deleteByEmailInternalSchema,
+} = require("../validations/authValidation");
+
+router.post("/register", validate(registerSchema), register);
+router.post("/login", validate(loginSchema), login);
+router.post(
+  "/verify-email/request",
+  validate(requestEmailVerificationSchema),
+  requestEmailVerification
+);
+router.post("/verify-email/confirm", validate(verifyEmailSchema), verifyEmail);
+router.post(
+  "/login-otp/request",
+  validate(requestLoginOtpSchema),
+  requestLoginOtpController
+);
+router.post(
+  "/login-otp/verify",
+  validate(verifyLoginOtpSchema),
+  verifyLoginOtpController
+);
+router.post("/forgot-password", validate(forgotPasswordSchema), forgotPassword);
+router.post("/reset-password", validate(resetPasswordSchema), resetPassword);
+router.post(
+  "/verify-password",
+  authMiddleware,
+  validate(verifyPasswordSchema),
+  verifyPassword
+);
+
 router.get("/stats", stats);
+
 router.post("/logout", authMiddleware, logout);
 router.get("/me", authMiddleware, me);
 router.delete("/me", authMiddleware, deleteMe);
@@ -42,7 +77,12 @@ router.patch(
 );
 
 // internal route for cross-service rollback/cleanup
-router.delete("/internal/users/by-email", deleteByEmailInternal);
+router.delete(
+  "/internal/users/by-email",
+  validate(deleteByEmailInternalSchema),
+  deleteByEmailInternal
+);
+router.get("/internal/users/:id", getUserByIdInternal);
 
 router.get(
   "/doctor/dashboard",

@@ -1,4 +1,8 @@
 const express = require("express");
+const router = express.Router();
+const authMiddleware = require("../middleware/authMiddleware");
+const upload = require("../middleware/uploadMiddleware");
+
 const {
   createDoctor,
   getAllDoctors,
@@ -8,37 +12,62 @@ const {
   updateDoctorVerification,
   uploadMyDoctorProfileImage,
   removeMyDoctorProfileImage,
-  deleteMyDoctorProfile,
   getMyDoctorProfile,
   updateMyDoctorProfile,
+  deleteMyDoctorProfile,
   getMyAvailability,
   updateMyAvailability,
 } = require("../controllers/doctorController");
-const upload = require("../middleware/uploadMiddleware");
-const {
-  requireDoctorAuth,
-  requireAdminAuth,
-} = require("../middleware/authMiddleware");
 
-const router = express.Router();
-
+/*
+  Public doctor signup route
+*/
 router.post("/", upload.single("profileImage"), createDoctor);
-router.get("/", getAllDoctors);
-router.get("/admin/verifications", requireAdminAuth, getDoctorsForVerification);
-router.get("/me", requireDoctorAuth, getMyDoctorProfile);
-router.put("/me", requireDoctorAuth, updateMyDoctorProfile);
+
+/*
+  Admin routes
+*/
+router.get(
+  "/admin/verifications",
+  authMiddleware.requireAdminAuth,
+  getDoctorsForVerification
+);
+router.put("/:id", authMiddleware.requireAdminAuth, updateDoctor);
+router.patch(
+  "/:id/verification",
+  authMiddleware.requireAdminAuth,
+  updateDoctorVerification
+);
+
+/*
+  Protected current-user routes
+  IMPORTANT: keep /me routes above /:id
+*/
+router.get("/me", authMiddleware.requireDoctorAuth, getMyDoctorProfile);
+router.put("/me", authMiddleware.requireDoctorAuth, updateMyDoctorProfile);
 router.post(
   "/me/profile-image",
-  requireDoctorAuth,
+  authMiddleware.requireDoctorAuth,
   upload.single("profileImage"),
   uploadMyDoctorProfileImage
 );
-router.delete("/me/profile-image", requireDoctorAuth, removeMyDoctorProfileImage);
-router.delete("/me", requireDoctorAuth, deleteMyDoctorProfile);
-router.get("/me/availability", requireDoctorAuth, getMyAvailability);
-router.put("/me/availability", requireDoctorAuth, updateMyAvailability);
+router.delete(
+  "/me/profile-image",
+  authMiddleware.requireDoctorAuth,
+  removeMyDoctorProfileImage
+);
+router.delete("/me", authMiddleware.requireDoctorAuth, deleteMyDoctorProfile);
+router.get("/me/availability", authMiddleware.requireDoctorAuth, getMyAvailability);
+router.put(
+  "/me/availability",
+  authMiddleware.requireDoctorAuth,
+  updateMyAvailability
+);
+
+/*
+  Public/general routes
+*/
+router.get("/", getAllDoctors);
 router.get("/:id", getDoctorById);
-router.put("/:id", requireAdminAuth, updateDoctor);
-router.patch("/:id/verification", requireAdminAuth, updateDoctorVerification);
 
 module.exports = router;

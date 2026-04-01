@@ -1,9 +1,11 @@
 import { useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
+import { defaultCountries } from "react-international-phone";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../../components/common/ToastProvider";
 import { useLocationToast } from "../../hooks/useLocationToast";
-import { registerPatient } from "../../services/patientApi";
+import PhoneNumberInput from "../../components/common/PhoneNumberInput";
+import { PatientApiError, registerPatient } from "../../services/patientApi";
 
 type PatientFormData = {
   firstName: string;
@@ -20,73 +22,144 @@ type PatientFormData = {
 
 type FormErrors = Partial<Record<keyof PatientFormData, string>>;
 
-function validatePatientForm(data: PatientFormData): FormErrors {
-  const errors: FormErrors = {};
+const NAME_PATTERN = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
+const COUNTRY_PATTERN = /^[A-Za-z]+(?:[ .'-][A-Za-z]+)*$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_PATTERN =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
+const COUNTRY_CODE_PATTERN = /^\+[1-9]\d{0,3}$/;
+const PHONE_PATTERN = /^\+[1-9]\d{7,15}$/;
+const COUNTRY_OPTIONS = Array.from(
+  new Set(defaultCountries.map((country) => country[0] as string))
+).sort((firstCountry, secondCountry) =>
+  firstCountry.localeCompare(secondCountry)
+);
 
-  if (!data.firstName.trim()) {
-    errors.firstName = "First name is required.";
-  } else if (!/^[A-Za-z\s'-]{2,50}$/.test(data.firstName.trim())) {
-    errors.firstName = "Enter a valid first name.";
-  }
+function validateField(
+  field: keyof PatientFormData,
+  value: string,
+  data: PatientFormData
+): string {
+  const trimmedValue = value.trim();
 
-  if (!data.lastName.trim()) {
-    errors.lastName = "Last name is required.";
-  } else if (!/^[A-Za-z\s'-]{2,50}$/.test(data.lastName.trim())) {
-    errors.lastName = "Enter a valid last name.";
-  }
+  switch (field) {
+    case "firstName":
+      if (!trimmedValue) return "First name is required.";
+      if (trimmedValue.length < 2) {
+        return "First name must be at least 2 characters.";
+      }
+      if (trimmedValue.length > 50) {
+        return "First name must be 50 characters or fewer.";
+      }
+      if (!NAME_PATTERN.test(trimmedValue)) {
+        return "First name can contain only letters, spaces, apostrophes, and hyphens.";
+      }
+      return "";
 
-  if (!data.email.trim()) {
-    errors.email = "Email is required.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) {
-    errors.email = "Enter a valid email address.";
-  }
+    case "lastName":
+      if (!trimmedValue) return "Last name is required.";
+      if (trimmedValue.length < 2) {
+        return "Last name must be at least 2 characters.";
+      }
+      if (trimmedValue.length > 50) {
+        return "Last name must be 50 characters or fewer.";
+      }
+      if (!NAME_PATTERN.test(trimmedValue)) {
+        return "Last name can contain only letters, spaces, apostrophes, and hyphens.";
+      }
+      return "";
 
-  if (!data.password) {
-    errors.password = "Password is required.";
-  } else if (data.password.length < 6) {
-    errors.password = "Password must be at least 6 characters.";
-  }
+    case "email":
+      if (!trimmedValue) return "Email is required.";
+      if (!EMAIL_PATTERN.test(trimmedValue)) {
+        return "Enter a valid email address.";
+      }
+      return "";
 
-  if (!data.countryCode.trim()) {
-    errors.countryCode = "Country code is required.";
-  } else if (!/^\+\d{1,4}$/.test(data.countryCode.trim())) {
-    errors.countryCode = "Use format like +94.";
-  }
+    case "password":
+      if (!value) return "Password is required.";
+      if (value.length < 8) return "Password must be at least 8 characters.";
+      if (value.length > 100) {
+        return "Password must be 100 characters or fewer.";
+      }
+      if (!PASSWORD_PATTERN.test(value)) {
+        return "Password must include uppercase, lowercase, number, and special character.";
+      }
+      return "";
 
-  if (!data.phone.trim()) {
-    errors.phone = "Phone number is required.";
-  } else if (!/^\d{7,15}$/.test(data.phone.trim())) {
-    errors.phone = "Enter a valid phone number.";
-  }
+    case "phone":
+      if (!trimmedValue) return "Phone number is required.";
+      if (!PHONE_PATTERN.test(trimmedValue)) {
+        return "Enter a valid phone number with country code.";
+      }
+      return "";
 
-  if (!data.birthday) {
-    errors.birthday = "Birthday is required.";
-  } else {
-    const birthday = new Date(data.birthday);
-    const today = new Date();
+    case "countryCode":
+      if (!trimmedValue) return "Country code is required.";
+      if (!COUNTRY_CODE_PATTERN.test(trimmedValue)) {
+        return "Enter a valid country code.";
+      }
+      return "";
 
-    if (Number.isNaN(birthday.getTime())) {
-      errors.birthday = "Enter a valid birthday.";
-    } else if (birthday > today) {
-      errors.birthday = "Birthday cannot be in the future.";
+    case "birthday": {
+      if (!value) return "Birthday is required.";
+
+      const birthday = new Date(value);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (Number.isNaN(birthday.getTime())) return "Enter a valid birthday.";
+      if (birthday > today) return "Birthday cannot be in the future.";
+      return "";
     }
-  }
 
-  if (!data.gender) {
-    errors.gender = "Please select a gender.";
-  }
+    case "gender":
+      if (!data.gender) return "Please select a gender.";
+      return "";
 
-  if (!data.country.trim()) {
-    errors.country = "Country is required.";
-  } else if (data.country.trim().length < 2) {
-    errors.country = "Enter a valid country.";
-  }
+    case "address":
+      if (trimmedValue.length > 255) {
+        return "Address must be 255 characters or fewer.";
+      }
+      return "";
 
-  if (data.address.trim().length > 250) {
-    errors.address = "Address is too long.";
-  }
+    case "country":
+      if (!trimmedValue) return "Country is required.";
+      if (trimmedValue.length < 2) {
+        return "Country must be at least 2 characters.";
+      }
+      if (trimmedValue.length > 100) {
+        return "Country must be 100 characters or fewer.";
+      }
+      if (!COUNTRY_PATTERN.test(trimmedValue)) {
+        return "Country can contain only letters, spaces, periods, apostrophes, and hyphens.";
+      }
+      return "";
 
-  return errors;
+    default:
+      return "";
+  }
+}
+
+function validatePatientForm(data: PatientFormData): FormErrors {
+  return {
+    firstName: validateField("firstName", data.firstName, data),
+    lastName: validateField("lastName", data.lastName, data),
+    email: validateField("email", data.email, data),
+    password: validateField("password", data.password, data),
+    countryCode: validateField("countryCode", data.countryCode, data),
+    phone: validateField("phone", data.phone, data),
+    birthday: validateField("birthday", data.birthday, data),
+    gender: validateField("gender", data.gender, data),
+    address: validateField("address", data.address, data),
+    country: validateField("country", data.country, data),
+  };
+}
+
+function getFilledErrors(errors: FormErrors): FormErrors {
+  return Object.fromEntries(
+    Object.entries(errors).filter(([, value]) => Boolean(value))
+  ) as FormErrors;
 }
 
 function getFieldClass(hasError: boolean) {
@@ -101,6 +174,7 @@ export default function PatientRegister() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   useLocationToast();
+
   const [formData, setFormData] = useState<PatientFormData>({
     firstName: "",
     lastName: "",
@@ -111,7 +185,7 @@ export default function PatientRegister() {
     birthday: "",
     gender: "",
     address: "",
-    country: "",
+    country: "Sri Lanka",
   });
 
   const [loading, setLoading] = useState(false);
@@ -122,20 +196,60 @@ export default function PatientRegister() {
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
+    const fieldName = name as keyof PatientFormData;
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    const nextFormData = {
+      ...formData,
+      [fieldName]: value,
+    };
+
+    setFormData(nextFormData);
+    setErrorMessage("");
     setErrors((prev) => ({
       ...prev,
-      [name]: "",
+      [fieldName]: validateField(fieldName, value, nextFormData),
+    }));
+  };
+
+  const handleBlur = (
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    const fieldName = name as keyof PatientFormData;
+
+    setErrors((prev) => ({
+      ...prev,
+      [fieldName]: validateField(fieldName, value, formData),
+    }));
+  };
+
+  const handlePhoneChange = (phone: string, countryCode: string) => {
+    const nextFormData = {
+      ...formData,
+      countryCode,
+      phone,
+    };
+
+    setFormData(nextFormData);
+    setErrorMessage("");
+    setErrors((prev) => ({
+      ...prev,
+      countryCode: validateField("countryCode", countryCode, nextFormData),
+      phone: validateField("phone", phone, nextFormData),
+    }));
+  };
+
+  const handlePhoneBlur = () => {
+    setErrors((prev) => ({
+      ...prev,
+      phone: validateField("phone", formData.phone, formData),
     }));
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const nextErrors = validatePatientForm(formData);
+
+    const nextErrors = getFilledErrors(validatePatientForm(formData));
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -146,13 +260,18 @@ export default function PatientRegister() {
 
     setLoading(true);
     setErrorMessage("");
+    setErrors({});
 
     try {
-      const data = await registerPatient(formData);
-      showToast(
-        data.message || "Patient registered successfully.",
-        "success"
-      );
+      const normalizedPhone = formData.phone.replace(formData.countryCode, "");
+      const registrationPayload = {
+        ...formData,
+        phone: normalizedPhone,
+      };
+
+      const data = await registerPatient(registrationPayload);
+
+      showToast(data.message || "Patient registered successfully.", "success");
 
       navigate("/verify-email", {
         replace: true,
@@ -165,6 +284,11 @@ export default function PatientRegister() {
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Failed to register patient";
+
+      if (error instanceof PatientApiError) {
+        setErrors(error.fieldErrors);
+      }
+
       setErrorMessage(message);
       showToast(message, "error");
     } finally {
@@ -173,12 +297,13 @@ export default function PatientRegister() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-xl grid grid-cols-1 md:grid-cols-2">
-        <div className="bg-blue-600 p-8 md:p-10 text-white flex flex-col justify-center">
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
+      <div className="grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-xl md:grid-cols-2">
+        <div className="flex flex-col justify-center bg-blue-600 p-8 text-white md:p-10">
           <h1 className="mb-4 text-3xl font-bold md:text-4xl">
             Patient Registration
           </h1>
+
           <p className="leading-7 text-blue-100">
             Create your patient account to manage appointments and healthcare
             services easily.
@@ -208,7 +333,10 @@ export default function PatientRegister() {
 
           <p className="mb-6 text-sm text-slate-500">
             Already have an account?{" "}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-700">
+            <Link
+              to="/login"
+              className="font-medium text-blue-600 hover:text-blue-700"
+            >
               Sign in here
             </Link>
           </p>
@@ -230,12 +358,17 @@ export default function PatientRegister() {
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
+                  onBlur={handleBlur}
                   required
                   placeholder="John"
+                  autoComplete="given-name"
+                  maxLength={50}
                   className={getFieldClass(Boolean(errors.firstName))}
                 />
                 {errors.firstName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.firstName}
+                  </p>
                 )}
               </div>
 
@@ -248,8 +381,11 @@ export default function PatientRegister() {
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
+                  onBlur={handleBlur}
                   required
                   placeholder="Doe"
+                  autoComplete="family-name"
+                  maxLength={50}
                   className={getFieldClass(Boolean(errors.lastName))}
                 />
                 {errors.lastName && (
@@ -267,8 +403,10 @@ export default function PatientRegister() {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 required
                 placeholder="john@gmail.com"
+                autoComplete="email"
                 className={getFieldClass(Boolean(errors.email))}
               />
               {errors.email && (
@@ -285,51 +423,33 @@ export default function PatientRegister() {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 required
                 placeholder="Enter password"
+                autoComplete="new-password"
+                minLength={8}
                 className={getFieldClass(Boolean(errors.password))}
               />
+              <p className="mt-1 text-xs text-slate-500">
+                Use at least 8 characters with uppercase, lowercase, number, and
+                special character.
+              </p>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Country Code
-                </label>
-                <input
-                  type="text"
-                  name="countryCode"
-                  value={formData.countryCode}
-                  onChange={handleChange}
-                  required
-                  placeholder="+94"
-                  className={getFieldClass(Boolean(errors.countryCode))}
-                />
-                {errors.countryCode && (
-                  <p className="mt-1 text-sm text-red-600">{errors.countryCode}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Phone
-                </label>
-                <input
-                  type="text"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  required
-                  placeholder="771234567"
-                  className={getFieldClass(Boolean(errors.phone))}
-                />
-                {errors.phone && (
-                  <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
-                )}
-              </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Phone Number
+              </label>
+              <PhoneNumberInput
+                value={formData.phone}
+                onChange={handlePhoneChange}
+                onBlur={handlePhoneBlur}
+                error={errors.phone}
+                defaultCountry="lk"
+              />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -342,6 +462,7 @@ export default function PatientRegister() {
                   name="birthday"
                   value={formData.birthday}
                   onChange={handleChange}
+                  onBlur={handleBlur}
                   required
                   className={getFieldClass(Boolean(errors.birthday))}
                 />
@@ -358,6 +479,7 @@ export default function PatientRegister() {
                   name="gender"
                   value={formData.gender}
                   onChange={handleChange}
+                  onBlur={handleBlur}
                   required
                   className={getFieldClass(Boolean(errors.gender))}
                 >
@@ -380,8 +502,10 @@ export default function PatientRegister() {
                 name="address"
                 value={formData.address}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 rows={3}
                 placeholder="Enter address"
+                maxLength={255}
                 className={getFieldClass(Boolean(errors.address))}
               />
               {errors.address && (
@@ -393,15 +517,22 @@ export default function PatientRegister() {
               <label className="mb-1 block text-sm font-medium text-slate-700">
                 Country
               </label>
-              <input
-                type="text"
+              <select
                 name="country"
                 value={formData.country}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 required
-                placeholder="Sri Lanka"
+                autoComplete="country-name"
                 className={getFieldClass(Boolean(errors.country))}
-              />
+              >
+                <option value="">Select country</option>
+                {COUNTRY_OPTIONS.map((country) => (
+                  <option key={country} value={country}>
+                    {country}
+                  </option>
+                ))}
+              </select>
               {errors.country && (
                 <p className="mt-1 text-sm text-red-600">{errors.country}</p>
               )}

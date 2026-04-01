@@ -13,6 +13,7 @@ const {
   resetPasswordWithOtp,
   verifyCurrentUserPassword,
   getUserStats,
+  getUserById,
 } = require("../services/authService");
 
 const serializeUser = (user) => ({
@@ -28,7 +29,7 @@ const hasValidInternalSecret = (req) => {
   const expectedSecret = process.env.INTERNAL_SERVICE_SECRET;
 
   if (!expectedSecret) {
-    return true;
+    return false;
   }
 
   return req.headers["x-internal-service-secret"] === expectedSecret;
@@ -67,7 +68,10 @@ const register = async (req, res) => {
       try {
         await deleteUserAccount(createdUser._id);
       } catch (rollbackError) {
-        console.error("Failed to roll back auth user after register error:", rollbackError.message);
+        console.error(
+          "Failed to roll back auth user after register error:",
+          rollbackError.message
+        );
       }
     }
 
@@ -259,7 +263,32 @@ const updateDoctorApprovalStatusInternal = async (req, res) => {
       message === "User not found" ||
       message === "Approval status can only be updated for doctor accounts";
 
-    return res.status(isValidationError ? 400 : isNotFoundOrRoleError ? 404 : 500).json({
+    return res
+      .status(isValidationError ? 400 : isNotFoundOrRoleError ? 404 : 500)
+      .json({
+        message,
+        error: message,
+      });
+  }
+};
+
+const getUserByIdInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({
+        message: "Forbidden",
+      });
+    }
+
+    const user = await getUserById(req.params.id);
+
+    return res.status(200).json({
+      user,
+    });
+  } catch (error) {
+    const message = error.message || "Failed to fetch user";
+
+    return res.status(message === "User not found" ? 404 : 500).json({
       message,
       error: message,
     });
@@ -414,6 +443,7 @@ module.exports = {
   deleteMe,
   deleteByEmailInternal,
   updateDoctorApprovalStatusInternal,
+  getUserByIdInternal,
   me,
   stats,
   requestEmailVerification,

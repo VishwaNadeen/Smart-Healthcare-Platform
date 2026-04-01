@@ -5,6 +5,7 @@ type TelemedicineAccessNoticeProps = {
   description: string;
   actionLabel?: string;
   actionTo?: string;
+  actionState?: unknown;
 };
 
 export default function TelemedicineAccessNotice({
@@ -12,6 +13,7 @@ export default function TelemedicineAccessNotice({
   description,
   actionLabel,
   actionTo = "/login",
+  actionState,
 }: TelemedicineAccessNoticeProps) {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
@@ -23,6 +25,7 @@ export default function TelemedicineAccessNotice({
           <div className="mt-6">
             <Link
               to={actionTo}
+              state={actionState}
               className="inline-flex rounded-xl bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
             >
               {actionLabel}

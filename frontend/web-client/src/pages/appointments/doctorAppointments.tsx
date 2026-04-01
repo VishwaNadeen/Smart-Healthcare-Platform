@@ -1,25 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { PATIENT_API_URL } from "../../config/api";
 import {
   getDoctorAppointments,
-  updateAppointmentStatus,
-  type AppointmentRecord,
+  updateDoctorAppointmentStatus,
+  type Appointment,
+  type AppointmentStatus,
 } from "../../services/appointmentApi";
-import {
-  getSessionsByDoctorId,
-  type TelemedicineSession,
-} from "../../services/telemedicineApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
-import { useToast } from "../../components/common/ToastProvider";
 
-function getSessionDateTime(session: TelemedicineSession) {
-  return new Date(`${session.scheduledDate}T${session.scheduledTime}`);
-}
+type PatientProfile = {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+};
 
 function formatDate(dateString: string) {
   const date = new Date(dateString);
 
-  return date.toLocaleDateString(undefined, {
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
+
+  return date.toLocaleDateString("en-LK", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -37,202 +41,42 @@ function formatTime(timeString: string) {
   });
 }
 
-function isSameDay(dateA: Date, dateB: Date) {
-  return (
-    dateA.getFullYear() === dateB.getFullYear() &&
-    dateA.getMonth() === dateB.getMonth() &&
-    dateA.getDate() === dateB.getDate()
-  );
-}
+async function parseResponse<T>(response: Response): Promise<T> {
+  const data = (await response.json().catch(() => null)) as
+    | (T & { message?: string; error?: string })
+    | null;
 
-function SessionCard({
-  session,
-  actionLabel,
-  actionTo,
-}: {
-  session: TelemedicineSession;
-  actionLabel: string;
-  actionTo: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-medium text-blue-600">
-            Appointment ID: {session.appointmentId}
-          </p>
-          <h3 className="mt-1 text-lg font-semibold text-slate-800">
-            Doctor Consultation Slot
-          </h3>
-          <p className="mt-1 text-sm text-slate-500">
-            {formatDate(session.scheduledDate)} • {formatTime(session.scheduledTime)}
-          </p>
-        </div>
+  if (!response.ok) {
+    const errorMessage =
+      data?.error ||
+      data?.message ||
+      `Request failed with status ${response.status}`;
 
-        <span
-          className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-            session.status === "completed"
-              ? "bg-green-100 text-green-700"
-              : session.status === "active"
-              ? "bg-blue-100 text-blue-700"
-              : session.status === "cancelled"
-              ? "bg-red-100 text-red-700"
-              : "bg-amber-100 text-amber-700"
-          }`}
-        >
-          {session.status}
-        </span>
-      </div>
+    throw new Error(errorMessage);
+  }
 
-      <div className="mt-4 flex flex-wrap gap-3">
-        <Link
-          to={`/session/${session.appointmentId}`}
-          className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          View Details
-        </Link>
+  if (data === null) {
+    throw new Error("Empty response received from service");
+  }
 
-        <Link
-          to={actionTo}
-          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-        >
-          {actionLabel}
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function DoctorAppointmentCard({
-  appointment,
-  onStatusChange,
-  loadingId,
-}: {
-  appointment: AppointmentRecord;
-  onStatusChange: (
-    appointmentId: string,
-    status: "confirmed" | "completed" | "cancelled",
-    note: string
-  ) => Promise<void>;
-  loadingId: string | null;
-}) {
-  const isBusy = loadingId === appointment._id;
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <p className="text-sm font-medium text-blue-600">{appointment.specialization}</p>
-          <h3 className="mt-1 text-lg font-semibold text-slate-800">
-            Appointment #{appointment._id}
-          </h3>
-          <p className="mt-2 text-sm text-slate-500">
-            {formatDate(appointment.appointmentDate)} •{" "}
-            {formatTime(appointment.appointmentTime)}
-          </p>
-          {appointment.reason && (
-            <p className="mt-2 text-sm leading-6 text-slate-600">{appointment.reason}</p>
-          )}
-        </div>
-
-        <span
-          className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-            appointment.status === "completed"
-              ? "bg-green-100 text-green-700"
-              : appointment.status === "confirmed"
-              ? "bg-blue-100 text-blue-700"
-              : appointment.status === "cancelled"
-              ? "bg-red-100 text-red-700"
-              : "bg-amber-100 text-amber-700"
-          }`}
-        >
-          {appointment.status}
-        </span>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-3">
-        {appointment.status === "pending" && (
-          <>
-            <button
-              type="button"
-              onClick={() =>
-                void onStatusChange(
-                  appointment._id,
-                  "confirmed",
-                  "Appointment accepted by doctor"
-                )
-              }
-              disabled={isBusy}
-              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
-            >
-              Accept
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                void onStatusChange(
-                  appointment._id,
-                  "cancelled",
-                  "Appointment declined by doctor"
-                )
-              }
-              disabled={isBusy}
-              className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
-            >
-              Reject
-            </button>
-          </>
-        )}
-
-        {appointment.status === "confirmed" && (
-          <>
-            <button
-              type="button"
-              onClick={() =>
-                void onStatusChange(
-                  appointment._id,
-                  "completed",
-                  "Consultation finished"
-                )
-              }
-              disabled={isBusy}
-              className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
-            >
-              Mark Completed
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                void onStatusChange(
-                  appointment._id,
-                  "cancelled",
-                  "Doctor unavailable"
-                )
-              }
-              disabled={isBusy}
-              className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
-            >
-              Cancel
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
+  return data as T;
 }
 
 export default function DoctorAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
-  const { showToast } = useToast();
-  const [sessions, setSessions] = useState<TelemedicineSession[]>([]);
-  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
+
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [patientsById, setPatientsById] = useState<Record<string, PatientProfile>>(
+    {}
+  );
   const [isLoading, setIsLoading] = useState(true);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadDoctorData() {
-      if (!auth.userId || !auth.token) {
+    async function loadDoctorAppointments() {
+      if (!auth.token || !auth.userId) {
         setErrorMessage("No doctor login found.");
         setIsLoading(false);
         return;
@@ -240,12 +84,48 @@ export default function DoctorAppointmentsPage() {
 
       try {
         setErrorMessage("");
-        const [sessionsData, appointmentsData] = await Promise.all([
-          getSessionsByDoctorId(auth.userId),
-          getDoctorAppointments(auth.token, auth.userId),
-        ]);
-        setSessions(sessionsData);
-        setAppointments(appointmentsData);
+        const nextAppointments = await getDoctorAppointments(auth.token, auth.userId);
+        setAppointments(Array.isArray(nextAppointments) ? nextAppointments : []);
+
+        const patientIds = [
+          ...new Set(
+            (Array.isArray(nextAppointments) ? nextAppointments : []).map(
+              (appointment) => appointment.patientId
+            )
+          ),
+        ];
+
+        if (patientIds.length === 0) {
+          setPatientsById({});
+          return;
+        }
+
+        const patientEntries = await Promise.all(
+          patientIds.map(async (patientId) => {
+            try {
+              const patientResponse = await fetch(`${PATIENT_API_URL}/${patientId}`);
+              const patient = await parseResponse<PatientProfile>(patientResponse);
+              return [patientId, patient] as const;
+            } catch {
+              return [patientId, null] as const;
+            }
+          })
+        );
+
+        setPatientsById(
+          patientEntries.reduce<Record<string, PatientProfile>>(
+            (accumulator, entry) => {
+              const [patientId, patient] = entry;
+
+              if (patient) {
+                accumulator[patientId] = patient;
+              }
+
+              return accumulator;
+            },
+            {}
+          )
+        );
       } catch (error: unknown) {
         setErrorMessage(
           error instanceof Error
@@ -257,269 +137,229 @@ export default function DoctorAppointmentsPage() {
       }
     }
 
-    void loadDoctorData();
+    loadDoctorAppointments();
   }, [auth.token, auth.userId]);
 
-  const sortedSessions = useMemo(() => {
-    return [...sessions].sort(
-      (a, b) => getSessionDateTime(a).getTime() - getSessionDateTime(b).getTime()
-    );
-  }, [sessions]);
+  const pendingAppointments = useMemo(() => {
+    return appointments
+      .filter((appointment) => appointment.status === "pending")
+      .sort((a, b) => {
+        const aDate = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
+        const bDate = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
+        return aDate - bDate;
+      });
+  }, [appointments]);
 
-  const sortedAppointments = useMemo(
-    () =>
-      [...appointments].sort((a, b) => {
-        const first = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
-        const second = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
-        return first - second;
-      }),
-    [appointments]
-  );
-
-  const today = new Date();
-
-  const todaySessions = useMemo(
-    () =>
-      sortedSessions.filter((session) =>
-        isSameDay(getSessionDateTime(session), today)
-      ),
-    [sortedSessions]
-  );
-
-  const activeSessions = useMemo(
-    () => sortedSessions.filter((session) => session.status === "active"),
-    [sortedSessions]
-  );
-
-  const completedSessions = useMemo(
-    () => sortedSessions.filter((session) => session.status === "completed"),
-    [sortedSessions]
-  );
-
-  const pendingAppointments = useMemo(
-    () => sortedAppointments.filter((appointment) => appointment.status === "pending"),
-    [sortedAppointments]
-  );
-
-  const confirmedAppointments = useMemo(
-    () =>
-      sortedAppointments.filter((appointment) => appointment.status === "confirmed"),
-    [sortedAppointments]
-  );
-
-  const completedAppointments = useMemo(
-    () =>
-      sortedAppointments.filter((appointment) => appointment.status === "completed"),
-    [sortedAppointments]
-  );
-
-  const handleAppointmentStatusChange = async (
+  async function handleUpdateAppointmentStatus(
     appointmentId: string,
-    status: "confirmed" | "completed" | "cancelled",
-    note: string
-  ) => {
-    if (!auth.token) return;
+    status: Extract<AppointmentStatus, "confirmed" | "cancelled">
+  ) {
+    if (!auth.token) {
+      setErrorMessage("You must be logged in to manage appointment requests.");
+      return;
+    }
 
     try {
-      setActionLoadingId(appointmentId);
-      const updated = await updateAppointmentStatus(
+      setUpdatingId(appointmentId);
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      const data = await updateDoctorAppointmentStatus(
         auth.token,
         appointmentId,
-        status,
-        note
+        status
       );
-      setAppointments((prev) =>
-        prev.map((appointment) =>
-          appointment._id === appointmentId ? updated : appointment
+
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment._id === appointmentId
+            ? {
+                ...appointment,
+                status: data.appointment?.status ?? status,
+              }
+            : appointment
         )
       );
-      showToast("Appointment status updated successfully.", "success");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to update appointment.";
-      setErrorMessage(message);
-      showToast(message, "error");
+
+      setSuccessMessage(
+        data.message ||
+          (status === "confirmed"
+            ? "Appointment request accepted successfully."
+            : "Appointment request rejected successfully.")
+      );
+    } catch (error: unknown) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to update appointment request."
+      );
     } finally {
-      setActionLoadingId(null);
+      setUpdatingId(null);
     }
-  };
+  }
+
+  function getPatientDisplayName(patientId: string) {
+    const patient = patientsById[patientId];
+    const fullName = `${patient?.firstName || ""} ${patient?.lastName || ""}`.trim();
+
+    return fullName || `Patient ${patientId.slice(-6)}`;
+  }
 
   return (
-    <section className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+    <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-blue-800 to-cyan-600 p-6 text-white shadow-lg sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-100">
-            Doctor Appointments
-          </p>
-          <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
-            Manage bookings and daily sessions
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm text-blue-50 sm:text-base">
-            Review patient booking requests from appointment-service and keep the
-            telemedicine session workflow close by.
-          </p>
+        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                Appointment Requests
+              </h1>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href="#appointment-requests"
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
-            >
-              Appointment Requests
-            </a>
-            <a
-              href="#confirmed-appointments"
-              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Confirmed Appointments
-            </a>
-            <a
-              href="#today-sessions"
-              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Consultation Sessions
-            </a>
-          </div>
-        </div>
-
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Pending Requests</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {pendingAppointments.length}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Confirmed</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {confirmedAppointments.length}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Today Sessions</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {todaySessions.length}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">Completed Appointments</p>
-            <p className="mt-2 text-3xl font-bold text-slate-800">
-              {completedAppointments.length}
-            </p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
+                View only patient appointment requests here. Approved sessions will
+                appear under the consultation tab.
+              </p>
+            </div>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errorMessage}
           </div>
         )}
 
+        {successMessage && (
+          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {successMessage}
+          </div>
+        )}
+
         {isLoading ? (
-          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm">
-            Loading doctor appointments...
+          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
+            Loading appointment requests...
+          </div>
+        ) : pendingAppointments.length === 0 ? (
+          <div className="mt-6 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-slate-100">
+            <div className="mx-auto max-w-md">
+              <h3 className="text-xl font-bold text-slate-900">
+                No pending requests
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                You do not have any pending appointment requests right now.
+              </p>
+            </div>
           </div>
         ) : (
-          <>
-            <div id="appointment-requests" className="mt-10">
-              <h2 className="mb-4 text-2xl font-bold text-slate-800">
-                Appointment Requests
-              </h2>
+          <div className="mt-6 space-y-4">
+            {pendingAppointments.map((appointment) => {
+              const isUpdating = updatingId === appointment._id;
 
-              <div className="grid gap-4">
-                {pendingAppointments.length === 0 ? (
-                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
-                    No pending appointment requests.
+              return (
+                <div
+                  key={appointment._id}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h2 className="text-lg font-bold text-slate-900">
+                          {getPatientDisplayName(appointment.patientId)}
+                        </h2>
+
+                        <span className="rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                          Pending
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-sm font-medium text-cyan-700">
+                        {patientsById[appointment.patientId]?.email ||
+                          appointment.patientId}
+                      </p>
+
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        {appointment.reason?.trim() ||
+                          "No reason provided for this appointment."}
+                      </p>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Patient ID
+                          </p>
+                          <p className="mt-1 break-all text-sm font-semibold text-slate-800">
+                            {appointment.patientId}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Date
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-800">
+                            {formatDate(appointment.appointmentDate)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Time
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-800">
+                            {formatTime(appointment.appointmentTime)}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Contact
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-800">
+                            {patientsById[appointment.patientId]?.phone ||
+                              "Not available"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2 xl:col-span-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Appointment ID
+                          </p>
+                          <p className="mt-1 break-all text-sm font-semibold text-slate-800">
+                            {appointment._id}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex w-full flex-col gap-3 lg:w-56">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleUpdateAppointmentStatus(appointment._id, "confirmed")
+                        }
+                        disabled={isUpdating}
+                        className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isUpdating ? "Updating..." : "Accept Request"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleUpdateAppointmentStatus(appointment._id, "cancelled")
+                        }
+                        disabled={isUpdating}
+                        className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isUpdating ? "Updating..." : "Reject Request"}
+                      </button>
+                    </div>
                   </div>
-                ) : (
-                  pendingAppointments.map((appointment) => (
-                    <DoctorAppointmentCard
-                      key={appointment._id}
-                      appointment={appointment}
-                      onStatusChange={handleAppointmentStatusChange}
-                      loadingId={actionLoadingId}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div id="confirmed-appointments" className="mt-10">
-              <h2 className="mb-4 text-2xl font-bold text-slate-800">
-                Confirmed Appointments
-              </h2>
-
-              <div className="grid gap-4">
-                {confirmedAppointments.length === 0 ? (
-                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
-                    No confirmed appointments.
-                  </div>
-                ) : (
-                  confirmedAppointments.map((appointment) => (
-                    <DoctorAppointmentCard
-                      key={appointment._id}
-                      appointment={appointment}
-                      onStatusChange={handleAppointmentStatusChange}
-                      loadingId={actionLoadingId}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div id="today-sessions" className="mt-10">
-              <h2 className="mb-4 text-2xl font-bold text-slate-800">
-                Today Sessions
-              </h2>
-
-              <div className="grid gap-4">
-                {todaySessions.length === 0 ? (
-                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
-                    No sessions scheduled for today.
-                  </div>
-                ) : (
-                  todaySessions.map((session) => (
-                    <SessionCard
-                      key={session._id}
-                      session={session}
-                      actionLabel={
-                        session.status === "active"
-                          ? "Join Consultation"
-                          : "Open Waiting Room"
-                      }
-                      actionTo={
-                        session.status === "active"
-                          ? `/consultation/${session.appointmentId}`
-                          : `/waiting-room/${session.appointmentId}`
-                      }
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div id="completed-history" className="mt-10">
-              <h2 className="mb-4 text-2xl font-bold text-slate-800">
-                Completed Sessions History
-              </h2>
-
-              <div className="grid gap-4">
-                {completedSessions.length === 0 ? (
-                  <div className="rounded-2xl bg-white p-6 text-sm text-slate-500 shadow-sm">
-                    No completed sessions found.
-                  </div>
-                ) : (
-                  completedSessions.map((session) => (
-                    <SessionCard
-                      key={session._id}
-                      session={session}
-                      actionLabel="Open Summary"
-                      actionTo={`/session-summary/${session.appointmentId}`}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </section>

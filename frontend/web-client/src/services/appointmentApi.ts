@@ -1,5 +1,19 @@
 import { APPOINTMENT_API_URL } from "../config/api";
 
+export type AppointmentStatus =
+  | "pending"
+  | "confirmed"
+  | "completed"
+  | "cancelled";
+
+export type PaymentStatus = "pending" | "paid" | "failed";
+
+export type AppointmentStatusHistoryItem = {
+  status: AppointmentStatus;
+  updatedAt: string;
+  note?: string;
+};
+
 export type AppointmentDoctor = {
   _id: string;
   fullName: string;
@@ -10,7 +24,7 @@ export type AppointmentDoctor = {
   isAvailableForVideo?: boolean;
 };
 
-export type AppointmentRecord = {
+export type Appointment = {
   _id: string;
   patientId: string;
   doctorId: string;
@@ -19,33 +33,46 @@ export type AppointmentRecord = {
   appointmentDate: string;
   appointmentTime: string;
   reason?: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
-  paymentStatus?: string;
+  status: AppointmentStatus;
+  paymentStatus?: PaymentStatus;
+  statusHistory?: AppointmentStatusHistoryItem[];
   createdAt?: string;
   updatedAt?: string;
 };
+
+export type AppointmentRecord = Appointment;
 
 type SpecialtiesResponse = {
   source: string;
   data: string[];
 };
 
-async function handleResponse<T>(response: Response): Promise<T> {
-  const data = (await response.json().catch(() => null)) as T | null;
+export type CreateAppointmentPayload = {
+  patientId?: string;
+  doctorId: string;
+  doctorName: string;
+  specialization: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  reason?: string;
+  paymentStatus?: PaymentStatus;
+};
+
+type AppointmentMutationResponse = {
+  message: string;
+  appointment?: Appointment;
+};
+
+async function handleAppointmentResponse<T>(response: Response): Promise<T> {
+  const data = (await response.json().catch(() => null)) as
+    | (T & { message?: string; error?: string })
+    | null;
 
   if (!response.ok) {
     const errorMessage =
-      typeof data === "object" &&
-      data !== null &&
-      "error" in data &&
-      typeof data.error === "string"
-        ? data.error
-        : typeof data === "object" &&
-          data !== null &&
-          "message" in data &&
-          typeof data.message === "string"
-        ? data.message
-        : `Request failed with status ${response.status}`;
+      data?.error ||
+      data?.message ||
+      `Request failed with status ${response.status}`;
 
     throw new Error(errorMessage);
   }
@@ -54,7 +81,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
     throw new Error("Empty response received from appointment service");
   }
 
-  return data;
+  return data as T;
 }
 
 async function safeFetch(input: RequestInfo | URL, init?: RequestInit) {
@@ -67,55 +94,30 @@ async function safeFetch(input: RequestInfo | URL, init?: RequestInit) {
   }
 }
 
-export async function getAppointmentSpecialties(): Promise<string[]> {
-  const response = await safeFetch(`${APPOINTMENT_API_URL}/specialties`);
-  const data = await handleResponse<SpecialtiesResponse>(response);
-  return data.data;
+function withFallbackAppointment(
+  response: AppointmentMutationResponse,
+  fallback: Appointment
+): Appointment & { message: string; appointment: Appointment } {
+  const appointment = response.appointment ?? fallback;
+
+  return {
+    ...appointment,
+    message: response.message,
+    appointment,
+  };
 }
 
-export async function searchDoctorsBySpecialty(
-  specialization: string,
-  city?: string
-): Promise<AppointmentDoctor[]> {
-  const params = new URLSearchParams({ specialization });
-  if (city?.trim()) {
-    params.set("city", city.trim());
-  }
-
-  const response = await safeFetch(
-    `${APPOINTMENT_API_URL}/doctors/search?${params.toString()}`
-  );
-  return handleResponse<AppointmentDoctor[]>(response);
-}
-
-export async function createAppointment(
-  token: string,
-  payload: {
-    patientId: string;
-    doctorId: string;
-    doctorName: string;
-    specialization: string;
-    appointmentDate: string;
-    appointmentTime: string;
-    reason: string;
-    paymentStatus?: string;
-  }
-): Promise<AppointmentRecord> {
+export async function getPatientAppointments(
+  token: string
+): Promise<Appointment[]> {
   const response = await safeFetch(APPOINTMENT_API_URL, {
-    method: "POST",
+    method: "GET",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(payload),
   });
 
-  const data = await handleResponse<{
-    message: string;
-    appointment: AppointmentRecord;
-  }>(response);
-
-  return data.appointment;
+  return handleAppointmentResponse<Appointment[]>(response);
 }
 
 export async function getMyAppointments(
@@ -123,6 +125,7 @@ export async function getMyAppointments(
   status?: string
 ): Promise<AppointmentRecord[]> {
   const params = new URLSearchParams();
+
   if (status) {
     params.set("status", status);
   }
@@ -132,34 +135,61 @@ export async function getMyAppointments(
     : APPOINTMENT_API_URL;
 
   const response = await safeFetch(url, {
+    method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
     },
   });
 
-  return handleResponse<AppointmentRecord[]>(response);
+  return handleAppointmentResponse<AppointmentRecord[]>(response);
 }
 
-export async function cancelAppointment(
-  token: string,
-  appointmentId: string
-): Promise<AppointmentRecord> {
+export async function getAppointmentSpecialties(): Promise<string[]> {
+  const response = await safeFetch(`${APPOINTMENT_API_URL}/specialties`);
+  const data = await handleAppointmentResponse<SpecialtiesResponse>(response);
+  return data.data;
+}
+
+export async function searchDoctorsBySpecialty(
+  specialization: string,
+  city?: string
+): Promise<AppointmentDoctor[]> {
+  const params = new URLSearchParams({ specialization });
+
+  if (city?.trim()) {
+    params.set("city", city.trim());
+  }
+
   const response = await safeFetch(
-    `${APPOINTMENT_API_URL}/${appointmentId}/cancel`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
+    `${APPOINTMENT_API_URL}/doctors/search?${params.toString()}`
   );
 
-  const data = await handleResponse<{
+  return handleAppointmentResponse<AppointmentDoctor[]>(response);
+}
+
+export async function createAppointment(
+  token: string,
+  payload: CreateAppointmentPayload
+): Promise<Appointment & { message: string; appointment: Appointment }> {
+  const response = await safeFetch(APPOINTMENT_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await handleAppointmentResponse<{
     message: string;
-    appointment: AppointmentRecord;
+    appointment: Appointment;
   }>(response);
 
-  return data.appointment;
+  return {
+    ...data.appointment,
+    message: data.message,
+    appointment: data.appointment,
+  };
 }
 
 export async function deleteAppointment(
@@ -173,47 +203,108 @@ export async function deleteAppointment(
     },
   });
 
-  await handleResponse<{ message: string }>(response);
+  await handleAppointmentResponse<{ message: string }>(response);
 }
 
 export async function getDoctorAppointments(
   token: string,
-  doctorAuthUserId: string
-): Promise<AppointmentRecord[]> {
-  const response = await safeFetch(
-    `${APPOINTMENT_API_URL}/doctor/${doctorAuthUserId}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
+  doctorId: string
+): Promise<Appointment[]> {
+  const response = await safeFetch(`${APPOINTMENT_API_URL}/doctor/${doctorId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
-  return handleResponse<AppointmentRecord[]>(response);
+  return handleAppointmentResponse<Appointment[]>(response);
+}
+
+export async function updateDoctorAppointmentStatus(
+  token: string,
+  appointmentId: string,
+  status: Extract<AppointmentStatus, "confirmed" | "completed" | "cancelled">,
+  note?: string
+): Promise<AppointmentMutationResponse> {
+  const response = await safeFetch(`${APPOINTMENT_API_URL}/${appointmentId}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      status,
+      ...(note ? { note } : {}),
+    }),
+  });
+
+  return handleAppointmentResponse<AppointmentMutationResponse>(response);
 }
 
 export async function updateAppointmentStatus(
   token: string,
   appointmentId: string,
-  status: "confirmed" | "completed" | "cancelled",
+  status: Extract<AppointmentStatus, "confirmed" | "completed" | "cancelled">,
   note: string
 ): Promise<AppointmentRecord> {
-  const response = await safeFetch(
-    `${APPOINTMENT_API_URL}/${appointmentId}/status`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ status, note }),
-    }
+  const currentAppointments = await getMyAppointments(token).catch(() => []);
+  const existingAppointment =
+    currentAppointments.find((appointment) => appointment._id === appointmentId) ??
+    ({
+      _id: appointmentId,
+      patientId: "",
+      doctorId: "",
+      doctorName: "",
+      specialization: "",
+      appointmentDate: "",
+      appointmentTime: "",
+      status,
+      paymentStatus: "pending",
+    } as Appointment);
+
+  const data = await updateDoctorAppointmentStatus(
+    token,
+    appointmentId,
+    status,
+    note
   );
 
-  const data = await handleResponse<{
-    message: string;
-    appointment: AppointmentRecord;
-  }>(response);
+  return withFallbackAppointment(data, {
+    ...existingAppointment,
+    status,
+  });
+}
 
-  return data.appointment;
+export async function cancelAppointment(
+  token: string,
+  appointmentId: string
+): Promise<Appointment & { message: string; appointment: Appointment }> {
+  const currentAppointments = await getMyAppointments(token).catch(() => []);
+  const existingAppointment =
+    currentAppointments.find((appointment) => appointment._id === appointmentId) ??
+    ({
+      _id: appointmentId,
+      patientId: "",
+      doctorId: "",
+      doctorName: "",
+      specialization: "",
+      appointmentDate: "",
+      appointmentTime: "",
+      status: "cancelled",
+      paymentStatus: "pending",
+    } as Appointment);
+
+  const response = await safeFetch(`${APPOINTMENT_API_URL}/${appointmentId}/cancel`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await handleAppointmentResponse<AppointmentMutationResponse>(response);
+
+  return withFallbackAppointment(data, {
+    ...existingAppointment,
+    status: "cancelled",
+  });
 }
