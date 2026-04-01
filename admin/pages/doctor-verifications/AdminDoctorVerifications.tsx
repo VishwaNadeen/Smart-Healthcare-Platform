@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   getDoctorVerifications,
+  updateDoctorApprovalStatus,
   updateDoctorVerification,
   type DoctorVerification,
   type DoctorVerificationStatus,
@@ -76,10 +77,28 @@ export default function AdminDoctorVerifications() {
     setError("");
 
     try {
+      const currentDoctor = doctors.find((doctor) => doctor._id === doctorId);
+
+      if (!currentDoctor?.authUserId) {
+        throw new Error("Missing auth user id for this doctor");
+      }
+
       const response = await updateDoctorVerification(doctorId, {
         verificationStatus,
         verificationNote: notes[doctorId]?.trim() || undefined,
       });
+
+      try {
+        await updateDoctorApprovalStatus(currentDoctor.authUserId, {
+          doctorApprovalStatus: verificationStatus,
+        });
+      } catch (authError) {
+        await updateDoctorVerification(doctorId, {
+          verificationStatus: currentDoctor.verificationStatus,
+          verificationNote: currentDoctor.verificationNote || undefined,
+        });
+        throw authError;
+      }
 
       setDoctors((current) =>
         current.map((doctor) =>

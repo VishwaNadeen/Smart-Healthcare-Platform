@@ -4,6 +4,7 @@ const {
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
+  updateDoctorApprovalStatus,
   requestEmailVerificationOtp,
   verifyEmailOtp,
   requestLoginOtp,
@@ -221,6 +222,50 @@ const deleteByEmailInternal = async (req, res) => {
   }
 };
 
+const updateDoctorApprovalStatusInternal = async (req, res) => {
+  try {
+    const isAdminRequest = req.user?.role === "admin";
+
+    if (!isAdminRequest && !hasValidInternalSecret(req)) {
+      return res.status(403).json({
+        message: "Forbidden",
+      });
+    }
+
+    const authUserId = String(req.params.authUserId || "").trim();
+    const doctorApprovalStatus = req.body?.doctorApprovalStatus;
+
+    if (!authUserId) {
+      return res.status(400).json({
+        message: "authUserId is required",
+      });
+    }
+
+    const result = await updateDoctorApprovalStatus({
+      authUserId,
+      doctorApprovalStatus,
+    });
+
+    return res.status(200).json({
+      message: "Doctor approval status updated successfully",
+      user: result,
+    });
+  } catch (error) {
+    const message = error.message || "Failed to update doctor approval status";
+    const isValidationError =
+      message === "authUserId is required" ||
+      message === "doctorApprovalStatus must be pending, approved or rejected";
+    const isNotFoundOrRoleError =
+      message === "User not found" ||
+      message === "Approval status can only be updated for doctor accounts";
+
+    return res.status(isValidationError ? 400 : isNotFoundOrRoleError ? 404 : 500).json({
+      message,
+      error: message,
+    });
+  }
+};
+
 const requestLoginOtpController = async (req, res) => {
   try {
     const { identifier, role } = req.body;
@@ -368,6 +413,7 @@ module.exports = {
   logout,
   deleteMe,
   deleteByEmailInternal,
+  updateDoctorApprovalStatusInternal,
   me,
   stats,
   requestEmailVerification,

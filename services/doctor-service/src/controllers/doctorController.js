@@ -3,7 +3,10 @@ const streamifier = require("streamifier");
 const Doctor = require("../models/doctorModel");
 const Specialty = require("../models/specialtyModel");
 const cloudinary = require("../config/cloudinary");
-const { registerDoctorAuth, deleteDoctorAuthByEmail } = require("../services/authService");
+const {
+  registerDoctorAuth,
+  deleteDoctorAuthByEmail,
+} = require("../services/authService");
 
 const extractErrorMessage = (error) => {
   if (typeof error === "string") {
@@ -172,13 +175,15 @@ const ensureDoctorIdentity = async (req, res) => {
   return doctor;
 };
 
-const toDoctorResponse = (doctorDocument) => {
+const toDoctorResponse = (doctorDocument, options = {}) => {
   if (!doctorDocument) {
     return doctorDocument;
   }
 
   const doctor = doctorDocument.toObject ? doctorDocument.toObject() : { ...doctorDocument };
-  delete doctor.authUserId;
+  if (!options.includeAuthUserId) {
+    delete doctor.authUserId;
+  }
   delete doctor.profileImagePublicId;
   return doctor;
 };
@@ -211,16 +216,6 @@ const uploadProfileImageFromBuffer = (buffer, folder) =>
 
     streamifier.createReadStream(buffer).pipe(stream);
   });
-
-const hasValidInternalSecret = (req) => {
-  const expectedSecret = process.env.INTERNAL_SERVICE_SECRET;
-
-  if (!expectedSecret) {
-    return true;
-  }
-
-  return req.headers["x-internal-service-secret"] === expectedSecret;
-};
 
 const createDoctor = async (req, res) => {
   let shouldRollbackAuthUser = false;
@@ -405,10 +400,13 @@ const getDoctorsForVerification = async (req, res) => {
     }
 
     const doctors = await Doctor.find(query)
+      .select("+authUserId")
       .populate("specializationId", "name description isActive")
       .sort({ createdAt: -1 });
 
-    return res.status(200).json(doctors.map(toDoctorResponse));
+    return res.status(200).json(
+      doctors.map((doctor) => toDoctorResponse(doctor, { includeAuthUserId: true }))
+    );
   } catch (error) {
     return res.status(500).json({ message: "Failed to fetch doctor verifications", error: error.message });
   }
@@ -420,13 +418,15 @@ const updateDoctorVerification = async (req, res) => {
     const verificationNote =
       req.body?.verificationNote === undefined ? undefined : String(req.body.verificationNote || "").trim();
 
-    if (!["approved", "rejected"].includes(verificationStatus)) {
+    if (!["pending", "approved", "rejected"].includes(verificationStatus)) {
       return res.status(400).json({
-        message: "verificationStatus must be approved or rejected",
+        message: "verificationStatus must be pending, approved or rejected",
       });
     }
 
-    const doctor = await Doctor.findById(req.params.id).populate("specializationId", "name description isActive");
+    const doctor = await Doctor.findById(req.params.id)
+      .select("+authUserId")
+      .populate("specializationId", "name description isActive");
     if (!doctor) {
       return res.status(404).json({ message: "Doctor not found" });
     }
@@ -439,54 +439,10 @@ const updateDoctorVerification = async (req, res) => {
 
     return res.status(200).json({
       message: `Doctor ${verificationStatus} successfully`,
-      doctor: toDoctorResponse(doctor),
+      doctor: toDoctorResponse(doctor, { includeAuthUserId: true }),
     });
   } catch (error) {
     return res.status(500).json({ message: "Failed to update doctor verification", error: error.message });
-  }
-};
-
-const getDoctorApprovalForAuthUserInternal = async (req, res) => {
-  try {
-    if (!hasValidInternalSecret(req)) {
-      return res.status(403).json({
-        message: "Forbidden",
-      });
-    }
-
-    const authUserId = String(req.params.authUserId || "").trim();
-
-    if (!authUserId) {
-      return res.status(400).json({
-        message: "authUserId is required",
-      });
-    }
-
-    const doctor = await Doctor.findOne({ authUserId }).select("+authUserId");
-
-    if (!doctor) {
-      return res.status(404).json({
-        message: "Doctor profile not found for this auth account",
-      });
-    }
-
-    return res.status(200).json({
-      doctor: {
-        id: doctor._id,
-        authUserId: doctor.authUserId,
-        fullName: doctor.fullName,
-        email: doctor.email,
-        verificationStatus: doctor.verificationStatus,
-        verificationNote: doctor.verificationNote,
-        status: doctor.status,
-        verifiedAt: doctor.verifiedAt,
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to fetch doctor approval status",
-      error: error.message,
-    });
   }
 };
 
@@ -682,7 +638,6 @@ module.exports = {
   updateDoctor,
   getDoctorsForVerification,
   updateDoctorVerification,
-  getDoctorApprovalForAuthUserInternal,
   uploadMyDoctorProfileImage,
   removeMyDoctorProfileImage,
   deleteMyDoctorProfile,

@@ -28,6 +28,7 @@ export type DoctorVerificationStatus = "pending" | "approved" | "rejected";
 
 export type DoctorVerification = {
   _id: string;
+  authUserId: string;
   fullName: string;
   email: string;
   phone: string;
@@ -203,12 +204,27 @@ export async function getDoctorVerifications(
 export async function updateDoctorVerification(
   doctorId: string,
   payload: {
-    verificationStatus: Exclude<DoctorVerificationStatus, "pending">;
+    verificationStatus: DoctorVerificationStatus;
     verificationNote?: string;
   }
 ) {
   return fetchJsonWithMethod<{ message: string; doctor: DoctorVerification }>(
     `${DOCTOR_API_URL}/${doctorId}/verification`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function updateDoctorApprovalStatus(
+  authUserId: string,
+  payload: {
+    doctorApprovalStatus: Exclude<DoctorVerificationStatus, "pending">;
+  }
+) {
+  return fetchJsonWithMethod<{ message: string; user: { doctorApprovalStatus: DoctorVerificationStatus } }>(
+    `${AUTH_API_URL}/doctor-approval/${authUserId}`,
     {
       method: "PATCH",
       body: JSON.stringify(payload),
