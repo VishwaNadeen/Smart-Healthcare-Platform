@@ -1,5 +1,38 @@
 import { PATIENT_API_URL } from "../config/api";
 
+export type PatientFieldErrors = Partial<
+  Record<
+    | "firstName"
+    | "lastName"
+    | "email"
+    | "password"
+    | "countryCode"
+    | "phone"
+    | "birthday"
+    | "gender"
+    | "address"
+    | "country",
+    string
+  >
+>;
+
+type ErrorResponsePayload = {
+  error?: string;
+  message?: string;
+  errors?: string[];
+  fieldErrors?: PatientFieldErrors;
+};
+
+export class PatientApiError extends Error {
+  fieldErrors: PatientFieldErrors;
+
+  constructor(message: string, fieldErrors: PatientFieldErrors = {}) {
+    super(message);
+    this.name = "PatientApiError";
+    this.fieldErrors = fieldErrors;
+  }
+}
+
 export type PatientRegisterPayload = {
   firstName: string;
   lastName: string;
@@ -71,11 +104,33 @@ export type PatientRemoveImageResponse = {
 };
 
 async function handlePatientResponse<T>(response: Response): Promise<T> {
-  const data = (await response.json().catch(() => null)) as T | null;
+  const data = (await response.json().catch(() => null)) as
+    | ErrorResponsePayload
+    | T
+    | null;
 
   if (!response.ok) {
-    const errorMessage =
+    const fieldErrors =
       typeof data === "object" &&
+      data !== null &&
+      "fieldErrors" in data &&
+      typeof data.fieldErrors === "object" &&
+      data.fieldErrors !== null
+        ? data.fieldErrors
+        : {};
+
+    const validationMessage =
+      typeof data === "object" &&
+      data !== null &&
+      "errors" in data &&
+      Array.isArray(data.errors) &&
+      typeof data.errors[0] === "string"
+        ? data.errors[0]
+        : null;
+
+    const errorMessage =
+      validationMessage ||
+      (typeof data === "object" &&
       data !== null &&
       "error" in data &&
       typeof data.error === "string"
@@ -85,16 +140,16 @@ async function handlePatientResponse<T>(response: Response): Promise<T> {
           "message" in data &&
           typeof data.message === "string"
         ? data.message
-        : `Request failed with status ${response.status}`;
+        : `Request failed with status ${response.status}`);
 
-    throw new Error(errorMessage);
+    throw new PatientApiError(errorMessage, fieldErrors);
   }
 
   if (data === null) {
     throw new Error("Empty response received from patient service");
   }
 
-  return data;
+  return data as T;
 }
 
 export async function registerPatient(

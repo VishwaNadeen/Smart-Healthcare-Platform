@@ -12,6 +12,14 @@ type VerifyFormState = {
   otp: string;
 };
 
+function validateEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function validateOtp(value: string) {
+  return /^[0-9]{4,8}$/.test(value.trim());
+}
+
 export default function VerifyEmailPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,11 +55,45 @@ export default function VerifyEmailPage() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const trimmedEmail = form.email.trim();
+    const trimmedOtp = form.otp.trim();
+
+    if (!trimmedEmail) {
+      const message = "Email is required.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (!validateEmail(trimmedEmail)) {
+      const message = "Enter a valid email address.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (!trimmedOtp) {
+      const message = "Verification code is required.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (!validateOtp(trimmedOtp)) {
+      const message = "OTP must contain only digits and be 4 to 8 characters long.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      const result = await verifyEmail(form);
+      const result = await verifyEmail({
+        email: trimmedEmail,
+        otp: trimmedOtp,
+      });
       showToast(result.message, "success");
 
       navigate("/login", {
@@ -72,11 +114,27 @@ export default function VerifyEmailPage() {
   }
 
   async function handleResend() {
+    const trimmedEmail = form.email.trim();
+
+    if (!trimmedEmail) {
+      const message = "Email is required.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
+    if (!validateEmail(trimmedEmail)) {
+      const message = "Enter a valid email address.";
+      setError(message);
+      showToast(message, "error");
+      return;
+    }
+
     setResending(true);
     setError("");
 
     try {
-      const result = await requestEmailVerification({ email: form.email });
+      const result = await requestEmailVerification({ email: trimmedEmail });
       setMessage(result.message);
       showToast(result.message, "info");
     } catch (err: unknown) {

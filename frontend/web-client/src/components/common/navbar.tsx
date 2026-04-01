@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "./ToastProvider";
 import { logoutUser } from "../../services/authApi";
 import { getCurrentDoctorProfile } from "../../services/doctorApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
 import {
   clearTelemedicineAuth,
+  getPostLoginPath,
   getStoredTelemedicineAuth,
   type TelemedicineRole,
 } from "../../utils/telemedicineAuth";
@@ -74,22 +75,34 @@ function clearStoredProfiles() {
   localStorage.removeItem(DOCTOR_PROFILE_IMAGE_KEY);
 }
 
-function getProfilePath(role: TelemedicineRole | null) {
-  if (role === "patient") {
-    return "/profile/patient";
+function isConsultationPath(pathname: string) {
+  return (
+    pathname === "/consultation" ||
+    pathname.startsWith("/consultation/") ||
+    pathname.startsWith("/doctor-sessions") ||
+    pathname.startsWith("/patient-sessions") ||
+    pathname.startsWith("/waiting-room/") ||
+    pathname.startsWith("/session-summary/") ||
+    pathname.startsWith("/session-history") ||
+    pathname.startsWith("/telemedicine-dashboard") ||
+    pathname.startsWith("/telemedicine-statistics")
+  );
+}
+
+function isNavItemActive(pathname: string, linkPath: string, isActive: boolean) {
+  if (linkPath === "/consultation") {
+    return isConsultationPath(pathname);
   }
 
-  if (role === "doctor") {
-    return "/profile/doctor";
-  }
-
-  return "/";
+  return isActive;
 }
 
 export default function Navbar() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
+  const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
   const [actionError, setActionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const auth = getStoredTelemedicineAuth();
@@ -115,6 +128,7 @@ export default function Navbar() {
       if (!auth.isAuthenticated || !auth.token || !profileKeys) {
         setProfileName(auth.username || "");
         setProfileImage("");
+        clearStoredProfiles();
         return;
       }
 
@@ -204,6 +218,7 @@ export default function Navbar() {
       clearStoredProfiles();
       clearTelemedicineAuth();
       showToast("Logged out successfully.", "success");
+      setShowLogoutPrompt(false);
       setIsSubmitting(false);
       setIsOpen(false);
       navigate("/login", { replace: true });
@@ -212,6 +227,39 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-blue-200/40 bg-white/80 backdrop-blur-md shadow-sm">
+      {showLogoutPrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
+          <div className="w-full max-w-md rounded-3xl border border-blue-200 bg-white p-8 shadow-2xl">
+            <h2 className="text-center text-xl font-semibold text-slate-900">
+              Confirm Logout
+            </h2>
+            <p className="mt-3 text-center text-sm leading-6 text-slate-600">
+              Are you sure you want to log out of your account?
+            </p>
+
+            <div className="mt-6 flex flex-col items-stretch justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setShowLogoutPrompt(false)}
+                disabled={isSubmitting}
+                className="min-w-[140px] rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-70"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isSubmitting}
+                className="min-w-[140px] rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-70"
+              >
+                {isSubmitting ? "Logging out..." : "Yes, Logout"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         <Link
           to="/"
@@ -233,13 +281,17 @@ export default function Navbar() {
             <NavLink
               key={link.name}
               to={link.path}
-              className={({ isActive }) =>
+              className={({ isActive }) => {
+                const active = isNavItemActive(location.pathname, link.path, isActive);
+
+                return (
                 `group relative rounded-full px-4 py-2 text-sm font-medium transition-all duration-300 ${
-                  isActive
+                  active
                     ? "bg-blue-100 text-blue-700"
                     : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
                 }`
-              }
+                );
+              }}
             >
               {link.name}
               <span className="absolute left-1/2 top-full h-0.5 w-0 -translate-x-1/2 rounded-full bg-blue-600 transition-all duration-300 group-hover:w-2/3" />
@@ -251,7 +303,7 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <>
               <Link
-                to={getProfilePath(auth.role)}
+                to={getPostLoginPath(auth.role)}
                 className="group flex items-center gap-3 rounded-full px-2 py-1 transition hover:bg-blue-50"
                 title="My Profile"
               >
@@ -277,7 +329,7 @@ export default function Navbar() {
 
               <button
                 type="button"
-                onClick={handleLogout}
+                onClick={() => setShowLogoutPrompt(true)}
                 disabled={isSubmitting}
                 className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg disabled:opacity-70"
               >
@@ -287,7 +339,7 @@ export default function Navbar() {
           ) : (
             <>
               <Link
-                to="/signup"
+                to="/register"
                 className="rounded-full border border-blue-200 bg-white px-5 py-2 text-sm font-semibold text-blue-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
               >
                 Sign Up
@@ -340,13 +392,17 @@ export default function Navbar() {
               key={link.name}
               to={link.path}
               onClick={() => setIsOpen(false)}
-              className={({ isActive }) =>
+              className={({ isActive }) => {
+                const active = isNavItemActive(location.pathname, link.path, isActive);
+
+                return (
                 `rounded-xl px-4 py-3 text-sm font-medium transition-all duration-300 ${
-                  isActive
+                  active
                     ? "bg-blue-100 text-blue-700"
                     : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
                 }`
-              }
+                );
+              }}
             >
               {link.name}
             </NavLink>
@@ -361,7 +417,8 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <div className="mt-2 grid gap-3">
               <Link
-                to={getProfilePath(auth.role)}
+                to={getPostLoginPath(auth.role)}
+
                 onClick={() => setIsOpen(false)}
                 className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 transition hover:bg-blue-50"
               >
@@ -387,7 +444,7 @@ export default function Navbar() {
 
               <button
                 type="button"
-                onClick={handleLogout}
+                onClick={() => setShowLogoutPrompt(true)}
                 disabled={isSubmitting}
                 className="rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition-all duration-300 hover:bg-blue-700 disabled:opacity-70"
               >
@@ -397,7 +454,7 @@ export default function Navbar() {
           ) : (
             <div className="mt-2 grid grid-cols-2 gap-3">
               <Link
-                to="/signup"
+                to="/register"
                 onClick={() => setIsOpen(false)}
                 className="rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-semibold text-blue-700 transition-all duration-300 hover:bg-blue-50"
               >
