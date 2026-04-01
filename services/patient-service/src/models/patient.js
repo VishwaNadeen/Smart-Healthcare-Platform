@@ -15,6 +15,13 @@ const patientSchema = new mongoose.Schema(
       trim: true,
     },
 
+    title: {
+      type: String,
+      enum: ["Mr", "Miss", "Mrs", ""],
+      trim: true,
+      default: "",
+    },
+
     lastName: {
       type: String,
       required: true,
@@ -42,6 +49,14 @@ const patientSchema = new mongoose.Schema(
       trim: true,
     },
 
+    nic: {
+      type: String,
+      trim: true,
+      unique: true,
+      uppercase: true,
+      sparse: true,
+    },
+
     birthday: {
       type: Date,
       required: true,
@@ -50,7 +65,6 @@ const patientSchema = new mongoose.Schema(
     gender: {
       type: String,
       enum: ["male", "female", "other"],
-      required: true,
     },
 
     address: {
@@ -62,6 +76,13 @@ const patientSchema = new mongoose.Schema(
     country: {
       type: String,
       required: true,
+      trim: true,
+    },
+
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
       trim: true,
     },
 

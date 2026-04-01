@@ -105,7 +105,7 @@ function validateProfileForm(data: PatientUpdatePayload): FormErrors {
     countryCode: validateProfileField("countryCode", data.countryCode, data),
     phone: validateProfileField("phone", data.phone, data),
     birthday: validateProfileField("birthday", data.birthday, data),
-    gender: validateProfileField("gender", data.gender, data),
+    gender: validateProfileField("gender", data.gender || "", data),
     address: validateProfileField("address", data.address, data),
     country: validateProfileField("country", data.country, data),
   };
@@ -172,7 +172,7 @@ const PatientProfile = () => {
         birthday: data.birthday
           ? new Date(data.birthday).toISOString().split("T")[0]
           : "",
-        gender: data.gender || "",
+        gender: (data.gender || "") as "" | "male" | "female" | "other",
         address: data.address || "",
         country: data.country || "",
       };
@@ -579,7 +579,7 @@ const PatientProfile = () => {
                     value={`${formData.countryCode} ${formData.phone}`}
                   />
                   <ProfileItem label="Birthday" value={formData.birthday} />
-                  <ProfileItem label="Gender" value={formData.gender} />
+                  <ProfileItem label="Gender" value={formData.gender || ""} />
                   <ProfileItem label="Country" value={formData.country} />
                   <ProfileItem label="Address" value={formData.address} full />
                 </div>

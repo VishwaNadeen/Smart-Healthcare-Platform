@@ -129,6 +129,25 @@ const requireDoctorAuth = async (req, res, next) => {
   }
 };
 
+const requireAdminAuth = async (req, res, next) => {
+  try {
+    const user = await getAuthUser(req);
+
+    if (user.role !== "admin") {
+      return res.status(403).json({
+        message: "Only admins can access this endpoint",
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(error.status || 401).json({
+      message: error.message || "Unauthorized",
+    });
+  }
+};
+
 const enforceDoctorParamOwnership = (req, res, next) => {
   const requestedDoctorId = String(req.params.doctorId || "");
   const authDoctorId = String(req.user?.id || "");
@@ -170,6 +189,7 @@ const enforcePatientParamOwnership = (req, res, next) => {
 module.exports = {
   requirePatientAuth,
   requireDoctorAuth,
+  requireAdminAuth,
   enforcePatientParamOwnership,
   enforceDoctorParamOwnership,
   enforceDoctorAppointmentOwnership,
