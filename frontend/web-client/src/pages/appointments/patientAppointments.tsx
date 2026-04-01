@@ -118,7 +118,7 @@ export default function PatientAppointmentsPage() {
                 to="/appointments/history"
                 className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                Cancelled & Completed
+                Canceled Appointments
               </Link>
             </div>
           </div>
@@ -141,43 +141,26 @@ export default function PatientAppointmentsPage() {
             Loading appointments...
           </div>
         ) : pendingAppointments.length === 0 ? (
-          <div className="mt-6 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-slate-100">
-            <div className="mx-auto max-w-md">
+          <div className="mt-16 flex min-h-[40vh] items-center justify-center px-6 text-center">
+            <div className="max-w-md">
               <h3 className="text-xl font-bold text-slate-900">
                 No pending appointments found
               </h3>
               <p className="mt-2 text-sm leading-6 text-slate-500">
                 You do not have any pending appointment requests right now.
               </p>
-              <Link
-                to="/appointments/create"
-                className="mt-6 inline-flex rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-              >
-                Create Appointment
-              </Link>
             </div>
           </div>
         ) : (
-          <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
-            <div className="mb-5">
-              <h2 className="text-xl font-bold text-slate-900">
-                Pending Appointments
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Requests waiting for doctor approval.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {pendingAppointments.map((appointment) => (
-                <PatientAppointmentCard
-                  key={appointment._id}
-                  appointment={appointment}
-                  onCancel={handleCancelAppointment}
-                  isCancelling={cancellingId === appointment._id}
-                />
-              ))}
-            </div>
+          <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {pendingAppointments.map((appointment) => (
+              <PatientAppointmentCard
+                key={appointment._id}
+                appointment={appointment}
+                onCancel={handleCancelAppointment}
+                isCancelling={cancellingId === appointment._id}
+              />
+            ))}
           </div>
         )}
       </div>

@@ -3,10 +3,11 @@ import type { Appointment as AppointmentData } from "../../services/appointmentA
 
 type PatientProfile = {
   _id: string;
+  authUserId?: string;
   firstName: string;
   lastName: string;
-  email: string;
-  phone: string;
+  age?: number | null;
+  profileImage?: string;
 };
 
 type Props = {
@@ -56,14 +57,14 @@ function getPatientDisplayName(
 
 function getPaymentStatusStyles(paymentStatus?: AppointmentData["paymentStatus"]) {
   if (paymentStatus === "paid") {
-    return "text-emerald-700 bg-emerald-50 border-emerald-200";
+    return "text-emerald-700";
   }
 
   if (paymentStatus === "failed") {
-    return "text-rose-700 bg-rose-50 border-rose-200";
+    return "text-rose-700";
   }
 
-  return "text-amber-700 bg-amber-50 border-amber-200";
+  return "text-amber-700";
 }
 
 function getPaymentStatusLabel(paymentStatus?: AppointmentData["paymentStatus"]) {
@@ -84,14 +85,10 @@ export default function DoctorAppointmentRequestCard({
   const paymentStatusLabel = getPaymentStatusLabel(appointment.paymentStatus);
   const paymentStatusStyles = getPaymentStatusStyles(appointment.paymentStatus);
   const patientName = getPatientDisplayName(appointment, patient);
-
-  const initials = patientName
-    .split(" ")
-    .filter(Boolean)
-    .map((namePart: string) => namePart[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const patientAgeLabel =
+    typeof patient?.age === "number" && patient.age >= 0
+      ? `${patient.age} years`
+      : "";
 
   const isAccepting = loadingAction === "accept";
   const isRejecting = loadingAction === "reject";
@@ -120,25 +117,23 @@ export default function DoctorAppointmentRequestCard({
   }
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+    <article className="group relative mx-auto flex h-full w-full max-w-[30rem] flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400" />
 
       <div className="flex flex-1 flex-col p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 text-base font-bold text-blue-700 shadow-sm">
-            {initials || "PT"}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
-              Appointment Request
-            </p>
-            <h2 className="mt-1 truncate text-lg font-semibold text-slate-800">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+            Appointment Request
+          </p>
+          <div className="mt-1 flex items-center justify-between gap-3">
+            <h2 className="truncate text-lg font-semibold text-slate-800">
               {patientName}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Review and manage this patient request
-            </p>
+            {patientAgeLabel && (
+              <p className="shrink-0 text-sm font-medium text-slate-500">
+                Age {patientAgeLabel}
+              </p>
+            )}
           </div>
         </div>
 
@@ -169,7 +164,7 @@ export default function DoctorAppointmentRequestCard({
             </p>
             <div className="mt-2">
               <span
-                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${paymentStatusStyles}`}
+                className={`inline-flex items-center text-sm font-semibold ${paymentStatusStyles}`}
               >
                 {paymentStatusLabel}
               </span>

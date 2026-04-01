@@ -375,28 +375,15 @@ export default function SessionSummary() {
           ) : null}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-6">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900">
-              Doctor Notes
-            </h2>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                {session.notes?.trim() || "No notes available."}
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900">
-              Prescription
-            </h2>
             <div className="rounded-2xl bg-slate-50 p-3">
               <PrescriptionForm
                 role={role}
                 appointmentId={session.appointmentId}
                 doctorId={session.doctorId}
                 patientId={session.patientId}
+                consultationNotes={session.notes || ""}
                 readOnly
               />
             </div>

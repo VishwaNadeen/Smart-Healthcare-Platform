@@ -6,7 +6,7 @@ import { getCurrentDoctorProfile } from "../../services/doctorApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
 import {
   clearTelemedicineAuth,
-  getPostLoginPath,
+  getProfilePath,
   getStoredTelemedicineAuth,
   type TelemedicineRole,
 } from "../../utils/telemedicineAuth";
@@ -19,9 +19,10 @@ const PROFILE_UPDATED_EVENT = "patient-profile-updated";
 
 const navLinks = [
   { name: "Home", path: "/" },
-  { name: "Doctors", path: "/doctors" },
   { name: "Appointments", path: "/appointments" },
   { name: "Consultation", path: "/consultation" },
+  { name: "About Us", path: "/about" },
+  { name: "Contact Us", path: "/contact" },
 ];
 
 function getInitials(name?: string, email?: string) {
@@ -303,7 +304,7 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <>
               <Link
-                to={getPostLoginPath(auth.role)}
+                to={getProfilePath(auth.role)}
                 className="group flex items-center gap-3 rounded-full px-2 py-1 transition hover:bg-blue-50"
                 title="My Profile"
               >
@@ -417,7 +418,7 @@ export default function Navbar() {
           {auth.isAuthenticated ? (
             <div className="mt-2 grid gap-3">
               <Link
-                to={getPostLoginPath(auth.role)}
+                to={getProfilePath(auth.role)}
 
                 onClick={() => setIsOpen(false)}
                 className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 transition hover:bg-blue-50"

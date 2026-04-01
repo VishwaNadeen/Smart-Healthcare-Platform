@@ -1,6 +1,27 @@
 
 const mongoose = require("mongoose");
 
+const participantPresenceSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    connectedAt: {
+      type: Date,
+      default: null,
+    },
+    lastSeenAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const telemedicineSessionSchema = new mongoose.Schema(
   {
     appointmentId: {
@@ -52,6 +73,16 @@ const telemedicineSessionSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+    },
+    presence: {
+      doctor: {
+        type: participantPresenceSchema,
+        default: () => ({}),
+      },
+      patient: {
+        type: participantPresenceSchema,
+        default: () => ({}),
+      },
     },
   },
   {

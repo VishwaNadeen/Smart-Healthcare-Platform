@@ -1,54 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
-import { PATIENT_API_URL } from "../../config/api";
 import DoctorAppointmentRequestCard from "../../components/appointments/AppointmentRequestCard";
+import { useToast } from "../../components/common/ToastProvider";
 import {
   getDoctorAppointments,
   updateDoctorAppointmentStatus,
   type Appointment,
   type AppointmentStatus,
 } from "../../services/appointmentApi";
+import {
+  getPatientSummaryByAuthUserId,
+  type PatientSummaryResponse,
+} from "../../services/patientApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
-
-type PatientProfile = {
-  _id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-};
-
-async function parseResponse<T>(response: Response): Promise<T> {
-  const data = (await response.json().catch(() => null)) as
-    | (T & { message?: string; error?: string })
-    | null;
-
-  if (!response.ok) {
-    const errorMessage =
-      data?.error ||
-      data?.message ||
-      `Request failed with status ${response.status}`;
-
-    throw new Error(errorMessage);
-  }
-
-  if (data === null) {
-    throw new Error("Empty response received from service");
-  }
-
-  return data as T;
-}
 
 export default function DoctorAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
+  const { showToast } = useToast();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [patientsById, setPatientsById] = useState<Record<string, PatientProfile>>(
+  const [patientsById, setPatientsById] = useState<Record<string, PatientSummaryResponse>>(
     {}
   );
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadDoctorAppointments() {
@@ -59,8 +33,10 @@ export default function DoctorAppointmentsPage() {
       }
 
       try {
+        const token = auth.token;
+
         setErrorMessage("");
-        const nextAppointments = await getDoctorAppointments(auth.token, auth.userId);
+        const nextAppointments = await getDoctorAppointments(token, auth.userId);
         setAppointments(Array.isArray(nextAppointments) ? nextAppointments : []);
 
         const patientIds = [
@@ -79,8 +55,7 @@ export default function DoctorAppointmentsPage() {
         const patientEntries = await Promise.all(
           patientIds.map(async (patientId) => {
             try {
-              const patientResponse = await fetch(`${PATIENT_API_URL}/${patientId}`);
-              const patient = await parseResponse<PatientProfile>(patientResponse);
+              const patient = await getPatientSummaryByAuthUserId(token, patientId);
               return [patientId, patient] as const;
             } catch {
               return [patientId, null] as const;
@@ -89,7 +64,7 @@ export default function DoctorAppointmentsPage() {
         );
 
         setPatientsById(
-          patientEntries.reduce<Record<string, PatientProfile>>((accumulator, entry) => {
+          patientEntries.reduce<Record<string, PatientSummaryResponse>>((accumulator, entry) => {
             const [patientId, patient] = entry;
 
             if (patient) {
@@ -133,9 +108,7 @@ export default function DoctorAppointmentsPage() {
     }
 
     try {
-      setUpdatingId(appointmentId);
       setErrorMessage("");
-      setSuccessMessage("");
 
       const data = await updateDoctorAppointmentStatus(auth.token, appointmentId, status);
 
@@ -150,11 +123,13 @@ export default function DoctorAppointmentsPage() {
         )
       );
 
-      setSuccessMessage(
+      showToast(
         data.message ||
           (status === "confirmed"
             ? "Appointment request accepted successfully."
-            : "Appointment request rejected successfully.")
+            : "Appointment request rejected successfully."),
+        "success",
+        3000
       );
     } catch (error: unknown) {
       setErrorMessage(
@@ -162,8 +137,6 @@ export default function DoctorAppointmentsPage() {
           ? error.message
           : "Failed to update appointment request."
       );
-    } finally {
-      setUpdatingId(null);
     }
   }
 
@@ -171,15 +144,14 @@ export default function DoctorAppointmentsPage() {
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
+          <div className="flex flex-col items-center gap-5 text-center">
+            <div className="flex flex-col items-center">
               <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 Appointment Requests
               </h1>
 
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-                View only patient appointment requests here. Approved sessions will
-                appear under the consultation tab.
+              <p className="mt-2 text-sm leading-6 text-slate-500 whitespace-nowrap sm:text-base">
+                View only patient appointment requests here. Approved sessions will appear under the consultation tab.
               </p>
             </div>
           </div>
@@ -191,19 +163,13 @@ export default function DoctorAppointmentsPage() {
           </div>
         )}
 
-        {successMessage && (
-          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {successMessage}
-          </div>
-        )}
-
         {isLoading ? (
           <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
             Loading appointment requests...
           </div>
         ) : pendingAppointments.length === 0 ? (
-          <div className="mt-6 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-slate-100">
-            <div className="mx-auto max-w-md">
+          <div className="mt-16 flex min-h-[40vh] items-center justify-center px-6 text-center">
+            <div className="max-w-md">
               <h3 className="text-xl font-bold text-slate-900">
                 No pending requests
               </h3>
@@ -216,14 +182,11 @@ export default function DoctorAppointmentsPage() {
         ) : (
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {pendingAppointments.map((appointment) => {
-              const isUpdating = updatingId === appointment._id;
-
               return (
                 <DoctorAppointmentRequestCard
                   key={appointment._id}
                   appointment={appointment}
                   patient={patientsById[appointment.patientId]}
-                  isUpdating={isUpdating}
                   onAccept={() =>
                     handleUpdateAppointmentStatus(appointment._id, "confirmed")
                   }
