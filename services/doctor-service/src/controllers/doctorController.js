@@ -212,6 +212,16 @@ const uploadProfileImageFromBuffer = (buffer, folder) =>
     streamifier.createReadStream(buffer).pipe(stream);
   });
 
+const hasValidInternalSecret = (req) => {
+  const expectedSecret = process.env.INTERNAL_SERVICE_SECRET;
+
+  if (!expectedSecret) {
+    return true;
+  }
+
+  return req.headers["x-internal-service-secret"] === expectedSecret;
+};
+
 const createDoctor = async (req, res) => {
   let shouldRollbackAuthUser = false;
   let rollbackEmail = null;
@@ -436,6 +446,50 @@ const updateDoctorVerification = async (req, res) => {
   }
 };
 
+const getDoctorApprovalForAuthUserInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({
+        message: "Forbidden",
+      });
+    }
+
+    const authUserId = String(req.params.authUserId || "").trim();
+
+    if (!authUserId) {
+      return res.status(400).json({
+        message: "authUserId is required",
+      });
+    }
+
+    const doctor = await Doctor.findOne({ authUserId }).select("+authUserId");
+
+    if (!doctor) {
+      return res.status(404).json({
+        message: "Doctor profile not found for this auth account",
+      });
+    }
+
+    return res.status(200).json({
+      doctor: {
+        id: doctor._id,
+        authUserId: doctor.authUserId,
+        fullName: doctor.fullName,
+        email: doctor.email,
+        verificationStatus: doctor.verificationStatus,
+        verificationNote: doctor.verificationNote,
+        status: doctor.status,
+        verifiedAt: doctor.verifiedAt,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch doctor approval status",
+      error: error.message,
+    });
+  }
+};
+
 const uploadMyDoctorProfileImage = async (req, res) => {
   try {
     const doctor = await ensureDoctorIdentity(req, res);
@@ -628,6 +682,7 @@ module.exports = {
   updateDoctor,
   getDoctorsForVerification,
   updateDoctorVerification,
+  getDoctorApprovalForAuthUserInternal,
   uploadMyDoctorProfileImage,
   removeMyDoctorProfileImage,
   deleteMyDoctorProfile,

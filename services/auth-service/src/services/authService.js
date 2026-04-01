@@ -9,6 +9,7 @@ const OTP_MAX_ATTEMPTS = Number(process.env.OTP_MAX_ATTEMPTS || 5);
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const DOCTOR_SERVICE_URL = process.env.DOCTOR_SERVICE_URL || "http://localhost:5003";
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -88,6 +89,68 @@ const normalizeUsername = (username) =>
 
 const normalizeIdentifier = (identifier) => String(identifier || "").trim();
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+
+const getInternalHeaders = () => {
+  const headers = {};
+
+  if (process.env.INTERNAL_SERVICE_SECRET) {
+    headers["x-internal-service-secret"] = process.env.INTERNAL_SERVICE_SECRET;
+  }
+
+  return headers;
+};
+
+const ensureDoctorCanLogin = async (user) => {
+  if (!user || user.role !== "doctor") {
+    return;
+  }
+
+  let response;
+
+  try {
+    response = await fetch(
+      `${DOCTOR_SERVICE_URL}/api/doctors/internal/auth-users/${encodeURIComponent(user._id)}/approval`,
+      {
+        headers: getInternalHeaders(),
+      }
+    );
+  } catch {
+    throw new Error("Unable to verify doctor approval status");
+  }
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const serviceMessage =
+      data && typeof data === "object" && "message" in data ? String(data.message) : "";
+
+    if (response.status === 404) {
+      throw new Error("Doctor profile not found for this account");
+    }
+
+    throw new Error(serviceMessage || "Unable to verify doctor approval status");
+  }
+
+  const doctor =
+    data && typeof data === "object" && "doctor" in data ? data.doctor : null;
+  const verificationStatus =
+    doctor &&
+    typeof doctor === "object" &&
+    "verificationStatus" in doctor &&
+    typeof doctor.verificationStatus === "string"
+      ? doctor.verificationStatus
+      : "";
+
+  if (verificationStatus === "approved") {
+    return;
+  }
+
+  if (verificationStatus === "rejected") {
+    throw new Error("Your doctor account was rejected by admin. Please contact support.");
+  }
+
+  throw new Error("Your doctor account is pending admin approval");
+};
 
 const buildUniqueUsername = async (username) => {
   const baseUsername = normalizeUsername(username);
@@ -264,6 +327,8 @@ const loginUser = async ({ email, password }) => {
     throw new Error("Please verify your email before logging in");
   }
 
+  await ensureDoctorCanLogin(user);
+
   const token = generateToken(user);
   user.tokens.push({ token });
   await user.save();
@@ -321,6 +386,12 @@ const requestLoginOtp = async ({ identifier, role }) => {
     throw new Error(`This account is not registered as ${role}`);
   }
 
+  if (!user.isEmailVerified) {
+    throw new Error("Please verify your email before logging in");
+  }
+
+  await ensureDoctorCanLogin(user);
+
   const otp = generateOtp();
   setOtp(user, "otpLogin", otp);
   await user.save();
@@ -350,6 +421,7 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
   }
 
   clearOtp(user, "otpLogin");
+  await ensureDoctorCanLogin(user);
 
   const token = generateToken(user);
   user.tokens.push({ token });
