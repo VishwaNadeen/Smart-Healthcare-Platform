@@ -8,6 +8,7 @@ const {
 } = require("../services/authService");
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const APPOINTMENT_DURATION_MINUTES = 15;
 
 const parseBoolean = (value) => {
   if (typeof value === "boolean") return value;
@@ -69,6 +70,68 @@ const sanitizeAvailabilitySchedule = (slots) => {
     }))
     .filter((slot) => slot.day && slot.startTime && slot.endTime);
 };
+
+const toMinutes = (time) => {
+  const [hours, minutes] = String(time || "")
+    .split(":")
+    .map((value) => Number(value));
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return NaN;
+  }
+
+  return hours * 60 + minutes;
+};
+
+const getAvailabilityOverlapMessage = (slots = []) => {
+  const groupedByDay = new Map();
+
+  for (const slot of slots) {
+    const start = toMinutes(slot.startTime);
+    const end = toMinutes(slot.endTime);
+
+    if (Number.isNaN(start) || Number.isNaN(end) || start >= end) {
+      return `Invalid time range for ${slot.day || "selected day"}. End time must be later than start time.`;
+    }
+
+    if (end - start < APPOINTMENT_DURATION_MINUTES) {
+      return `Invalid time range for ${slot.day || "selected day"}. Each slot must allow at least ${APPOINTMENT_DURATION_MINUTES} minutes.`;
+    }
+
+    const daySlots = groupedByDay.get(slot.day) || [];
+    daySlots.push(slot);
+    groupedByDay.set(slot.day, daySlots);
+  }
+
+  for (const [day, daySlots] of groupedByDay.entries()) {
+    const sortedSlots = [...daySlots].sort(
+      (left, right) => toMinutes(left.startTime) - toMinutes(right.startTime)
+    );
+
+    for (let index = 1; index < sortedSlots.length; index += 1) {
+      const previous = sortedSlots[index - 1];
+      const current = sortedSlots[index];
+
+      if (toMinutes(current.startTime) < toMinutes(previous.endTime)) {
+        return `${day} has overlapping time slots. Please adjust the times so they do not overlap.`;
+      }
+    }
+  }
+
+  return "";
+};
+
+const withCalculatedSlotCapacities = (slots = []) =>
+  slots.map((slot) => ({
+    ...slot,
+    maxAppointments: Math.max(
+      1,
+      Math.floor(
+        (toMinutes(slot.endTime) - toMinutes(slot.startTime)) /
+          APPOINTMENT_DURATION_MINUTES
+      )
+    ),
+  }));
 
 const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
   const sanitized = Object.fromEntries(
@@ -268,6 +331,20 @@ const createDoctor = async (req, res) => {
     const doctorPayload = sanitizeDoctorPayload(req.body);
     const password = String(req.body?.password || "").trim();
 
+    if (doctorPayload.availabilitySchedule !== undefined) {
+      const overlapMessage = getAvailabilityOverlapMessage(
+        doctorPayload.availabilitySchedule
+      );
+
+      if (overlapMessage) {
+        return res.status(400).json({ message: overlapMessage });
+      }
+
+      doctorPayload.availabilitySchedule = withCalculatedSlotCapacities(
+        doctorPayload.availabilitySchedule
+      );
+    }
+
     if (!doctorPayload.fullName || !doctorPayload.email || !password) {
       return res.status(400).json({
         message: "Full name, email and password are required",
@@ -466,6 +543,20 @@ const updateDoctor = async (req, res) => {
       req.body,
       adminDoctorAllowedFields
     );
+
+    if (updatePayload.availabilitySchedule !== undefined) {
+      const overlapMessage = getAvailabilityOverlapMessage(
+        updatePayload.availabilitySchedule
+      );
+
+      if (overlapMessage) {
+        return res.status(400).json({ message: overlapMessage });
+      }
+
+      updatePayload.availabilitySchedule = withCalculatedSlotCapacities(
+        updatePayload.availabilitySchedule
+      );
+    }
 
     if (updatePayload.specialization !== undefined) {
       const specialty = await resolveSpecialty(updatePayload.specialization);
@@ -692,6 +783,20 @@ const updateMyDoctorProfile = async (req, res) => {
 
     const updatePayload = sanitizeDoctorPayload(req.body);
 
+    if (updatePayload.availabilitySchedule !== undefined) {
+      const overlapMessage = getAvailabilityOverlapMessage(
+        updatePayload.availabilitySchedule
+      );
+
+      if (overlapMessage) {
+        return res.status(400).json({ message: overlapMessage });
+      }
+
+      updatePayload.availabilitySchedule = withCalculatedSlotCapacities(
+        updatePayload.availabilitySchedule
+      );
+    }
+
     if (
       updatePayload.email &&
       req.user?.email &&
@@ -763,6 +868,20 @@ const updateMyAvailability = async (req, res) => {
       acceptsNewAppointments: req.body.acceptsNewAppointments,
       supportsDigitalPrescriptions: req.body.supportsDigitalPrescriptions,
     });
+
+    if (updatePayload.availabilitySchedule !== undefined) {
+      const overlapMessage = getAvailabilityOverlapMessage(
+        updatePayload.availabilitySchedule
+      );
+
+      if (overlapMessage) {
+        return res.status(400).json({ message: overlapMessage });
+      }
+
+      updatePayload.availabilitySchedule = withCalculatedSlotCapacities(
+        updatePayload.availabilitySchedule
+      );
+    }
 
     Object.assign(doctor, updatePayload);
     await doctor.save();

@@ -25,21 +25,6 @@ const {
 router.post("/", upload.single("profileImage"), createDoctor);
 
 /*
-  Admin routes
-*/
-router.get(
-  "/admin/verifications",
-  authMiddleware.requireAdminAuth,
-  getDoctorsForVerification
-);
-router.put("/:id", authMiddleware.requireAdminAuth, updateDoctor);
-router.patch(
-  "/:id/verification",
-  authMiddleware.requireAdminAuth,
-  updateDoctorVerification
-);
-
-/*
   Protected current-user routes
   IMPORTANT: keep /me routes above /:id
 */
@@ -62,6 +47,21 @@ router.put(
   "/me/availability",
   authMiddleware.requireDoctorAuth,
   updateMyAvailability
+);
+
+/*
+  Admin routes
+*/
+router.get(
+  "/admin/verifications",
+  authMiddleware.requireAdminAuth,
+  getDoctorsForVerification
+);
+router.put("/:id", authMiddleware.requireAdminAuth, updateDoctor);
+router.patch(
+  "/:id/verification",
+  authMiddleware.requireAdminAuth,
+  updateDoctorVerification
 );
 
 /*

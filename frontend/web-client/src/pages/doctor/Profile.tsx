@@ -48,6 +48,7 @@ const DAY_OPTIONS = [
   "Saturday",
   "Sunday",
 ];
+const CONSULTATION_DURATION_MINUTES = 15;
 
 function emptyForm(): FormState {
   return {
@@ -79,6 +80,81 @@ function fieldClass(readOnly = false) {
       ? "border-slate-200 bg-slate-100 text-slate-500"
       : "border-slate-200 bg-white text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
   }`;
+}
+
+function toMinutes(time: string) {
+  const [hours, minutes] = String(time || "")
+    .split(":")
+    .map((part) => Number(part));
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return NaN;
+  }
+
+  return hours * 60 + minutes;
+}
+
+function buildAvailabilitySummary(schedule: DoctorAvailabilityScheduleItem[]) {
+  const completeSlots = schedule.filter(
+    (slot) => slot.day && slot.startTime && slot.endTime
+  );
+
+  return {
+    availableDays: [...new Set(completeSlots.map((slot) => slot.day))],
+    availableTimeSlots: [
+      ...new Set(
+        completeSlots.map((slot) => `${slot.startTime}-${slot.endTime}`)
+      ),
+    ],
+  };
+}
+
+function getScheduleOverlapMessage(schedule: DoctorAvailabilityScheduleItem[]) {
+  const groupedByDay = new Map<string, DoctorAvailabilityScheduleItem[]>();
+
+  for (const slot of schedule) {
+    const start = toMinutes(slot.startTime);
+    const end = toMinutes(slot.endTime);
+
+    if (Number.isNaN(start) || Number.isNaN(end) || start >= end) {
+      return `Invalid time range for ${slot.day || "selected day"}. End time must be later than start time.`;
+    }
+
+    const daySlots = groupedByDay.get(slot.day) || [];
+    daySlots.push(slot);
+    groupedByDay.set(slot.day, daySlots);
+  }
+
+  for (const [day, daySlots] of groupedByDay.entries()) {
+    const sortedSlots = [...daySlots].sort(
+      (left, right) => toMinutes(left.startTime) - toMinutes(right.startTime)
+    );
+
+    for (let index = 1; index < sortedSlots.length; index += 1) {
+      const previous = sortedSlots[index - 1];
+      const current = sortedSlots[index];
+
+      if (toMinutes(current.startTime) < toMinutes(previous.endTime)) {
+        return `${day} has overlapping time slots. Please adjust the times so they do not overlap.`;
+      }
+    }
+  }
+
+  return "";
+}
+
+function getCalculatedMaxAppointments(startTime: string, endTime: string) {
+  const start = toMinutes(startTime);
+  const end = toMinutes(endTime);
+
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    Math.floor((end - start) / CONSULTATION_DURATION_MINUTES)
+  );
 }
 
 function OverviewCard({
@@ -151,7 +227,24 @@ export default function DoctorProfilePage() {
     [formData.availabilitySchedule]
   );
 
+  const availabilitySummary = useMemo(
+    () => buildAvailabilitySummary(formData.availabilitySchedule),
+    [formData.availabilitySchedule]
+  );
+
   const applyProfile = (profile: DoctorProfile) => {
+    const derivedAvailabilitySummary = buildAvailabilitySummary(
+      profile.availabilitySchedule || []
+    );
+    const availableDays =
+      derivedAvailabilitySummary.availableDays.length > 0
+        ? derivedAvailabilitySummary.availableDays
+        : profile.availableDays || [];
+    const availableTimeSlots =
+      derivedAvailabilitySummary.availableTimeSlots.length > 0
+        ? derivedAvailabilitySummary.availableTimeSlots
+        : profile.availableTimeSlots || [];
+
     setDoctorProfile(profile);
     setFormData({
       fullName: profile.fullName || "",
@@ -169,8 +262,8 @@ export default function DoctorProfilePage() {
         profile.consultationFee !== undefined ? String(profile.consultationFee) : "",
       profileImage: profile.profileImage || "",
       about: profile.about || "",
-      availableDays: profile.availableDays || [],
-      availableTimeSlots: profile.availableTimeSlots || [],
+      availableDays,
+      availableTimeSlots,
       isAvailableForVideo: Boolean(profile.isAvailableForVideo),
       supportsDigitalPrescriptions: profile.supportsDigitalPrescriptions !== false,
       acceptsNewAppointments: profile.acceptsNewAppointments !== false,
@@ -232,72 +325,6 @@ export default function DoctorProfilePage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const toggleAvailableDay = (day: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      availableDays: prev.availableDays.includes(day)
-        ? prev.availableDays.filter((item) => item !== day)
-        : [...prev.availableDays, day],
-    }));
-  };
-
-  const handleTimeSlotChange = (
-    index: number,
-    field: "startTime" | "endTime",
-    value: string
-  ) => {
-    const currentSlots = formData.availableTimeSlots.map((slot) => {
-      const [startTime = "", endTime = ""] = slot.split("-");
-      return { startTime, endTime };
-    });
-
-    const safeSlots =
-      currentSlots.length > 0 ? currentSlots : [{ startTime: "", endTime: "" }];
-
-    const nextSlots = safeSlots.map((slot, slotIndex) =>
-      slotIndex === index ? { ...slot, [field]: value } : slot
-    );
-
-    setFormData((prev) => ({
-      ...prev,
-      availableTimeSlots: nextSlots
-        .filter((slot) => slot.startTime && slot.endTime)
-        .map((slot) => `${slot.startTime}-${slot.endTime}`),
-    }));
-  };
-
-  const addTimeSlot = () => {
-    const currentSlots = formData.availableTimeSlots.map((slot) => {
-      const [startTime = "", endTime = ""] = slot.split("-");
-      return { startTime, endTime };
-    });
-
-    const nextSlots = [...currentSlots, { startTime: "", endTime: "" }];
-
-    setFormData((prev) => ({
-      ...prev,
-      availableTimeSlots: nextSlots
-        .filter((slot) => slot.startTime && slot.endTime)
-        .map((slot) => `${slot.startTime}-${slot.endTime}`),
-    }));
-  };
-
-  const removeTimeSlot = (index: number) => {
-    const currentSlots = formData.availableTimeSlots.map((slot) => {
-      const [startTime = "", endTime = ""] = slot.split("-");
-      return { startTime, endTime };
-    });
-
-    const nextSlots = currentSlots.filter((_, slotIndex) => slotIndex !== index);
-
-    setFormData((prev) => ({
-      ...prev,
-      availableTimeSlots: nextSlots.map(
-        (slot) => `${slot.startTime}-${slot.endTime}`
-      ),
-    }));
-  };
-
   const handleScheduleChange = (
     index: number,
     field: keyof DoctorAvailabilityScheduleItem,
@@ -307,10 +334,20 @@ export default function DoctorProfilePage() {
       ...prev,
       availabilitySchedule: prev.availabilitySchedule.map((slot, slotIndex) =>
         slotIndex === index
-          ? {
-              ...slot,
-              [field]: field === "maxAppointments" ? Number(value) || 1 : value,
-            }
+          ? (() => {
+              const nextSlot = {
+                ...slot,
+                [field]: value,
+              };
+
+              return {
+                ...nextSlot,
+                maxAppointments: getCalculatedMaxAppointments(
+                  nextSlot.startTime,
+                  nextSlot.endTime
+                ),
+              };
+            })()
           : slot
       ),
     }));
@@ -341,13 +378,25 @@ export default function DoctorProfilePage() {
     try {
       setSuccessMessage("");
       setErrorMessage("");
+      const filteredSchedule = formData.availabilitySchedule.filter(
+        (slot) => slot.day && slot.startTime && slot.endTime
+      );
+      const overlapMessage = getScheduleOverlapMessage(filteredSchedule);
+
+      if (overlapMessage) {
+        setErrorMessage(overlapMessage);
+        showToast(overlapMessage, "error");
+        return;
+      }
+
+      const summary = buildAvailabilitySummary(filteredSchedule);
       const response = await updateCurrentDoctorProfile(token, {
         ...formData,
+        availableDays: summary.availableDays,
+        availableTimeSlots: summary.availableTimeSlots,
         experience: Number(formData.experience) || 0,
         consultationFee: Number(formData.consultationFee) || 0,
-        availabilitySchedule: formData.availabilitySchedule.filter(
-          (slot) => slot.day && slot.startTime && slot.endTime
-        ),
+        availabilitySchedule: filteredSchedule,
       });
       applyProfile(response);
       setSuccessMessage("Doctor profile updated successfully.");
@@ -425,14 +474,6 @@ export default function DoctorProfilePage() {
       setShowDeletePrompt(false);
     }
   };
-
-  const editableTimeSlots =
-    formData.availableTimeSlots.length > 0
-      ? formData.availableTimeSlots.map((slot) => {
-          const [startTime = "", endTime = ""] = slot.split("-");
-          return { startTime, endTime };
-        })
-      : [{ startTime: "", endTime: "" }];
 
   if (loading) {
     return (
@@ -567,16 +608,16 @@ export default function DoctorProfilePage() {
                 <div>
                   <p className="font-semibold text-slate-900">Available Days</p>
                   <p className="mt-1 leading-6">
-                    {formData.availableDays.length > 0
-                      ? formData.availableDays.join(", ")
+                    {availabilitySummary.availableDays.length > 0
+                      ? availabilitySummary.availableDays.join(", ")
                       : "No days configured yet."}
                   </p>
                 </div>
                 <div>
                   <p className="font-semibold text-slate-900">Time Slots</p>
                   <p className="mt-1 leading-6">
-                    {formData.availableTimeSlots.length > 0
-                      ? formData.availableTimeSlots.join(", ")
+                    {availabilitySummary.availableTimeSlots.length > 0
+                      ? availabilitySummary.availableTimeSlots.join(", ")
                       : "No time slots configured yet."}
                   </p>
                 </div>
@@ -721,8 +762,8 @@ export default function DoctorProfilePage() {
                         Available Days
                       </p>
                       <p className="mt-2 text-base text-slate-800">
-                        {formData.availableDays.length > 0
-                          ? formData.availableDays.join(", ")
+                        {availabilitySummary.availableDays.length > 0
+                          ? availabilitySummary.availableDays.join(", ")
                           : "No days configured yet."}
                       </p>
                     </div>
@@ -732,8 +773,8 @@ export default function DoctorProfilePage() {
                         Available Time Slots
                       </p>
                       <p className="mt-2 text-base text-slate-800">
-                        {formData.availableTimeSlots.length > 0
-                          ? formData.availableTimeSlots.join(", ")
+                        {availabilitySummary.availableTimeSlots.length > 0
+                          ? availabilitySummary.availableTimeSlots.join(", ")
                           : "No time slots configured yet."}
                       </p>
                     </div>
@@ -984,105 +1025,6 @@ export default function DoctorProfilePage() {
 
                   <div className="mt-6 space-y-6">
                     <div>
-                      <label className="mb-3 block text-sm font-semibold text-slate-700">
-                        Available Days
-                      </label>
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                        {DAY_OPTIONS.map((day) => {
-                          const selected = formData.availableDays.includes(day);
-                          return (
-                            <button
-                              key={day}
-                              type="button"
-                              onClick={() => toggleAvailableDay(day)}
-                              className={`rounded-2xl border px-3 py-3 text-sm font-medium transition ${
-                                selected
-                                  ? "border-blue-600 bg-blue-600 text-white"
-                                  : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                              }`}
-                            >
-                              {day}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <label className="block text-sm font-semibold text-slate-700">
-                          Available Time Slots
-                        </label>
-                        <button
-                          type="button"
-                          onClick={addTimeSlot}
-                          className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                        >
-                          Add time slot
-                        </button>
-                      </div>
-
-                      <div className="space-y-3">
-                        {editableTimeSlots.map((slot, index) => (
-                          <div
-                            key={`time-slot-${index}`}
-                            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                          >
-                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                              <p className="text-sm font-semibold text-slate-800">
-                                Time Slot {index + 1}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => removeTimeSlot(index)}
-                                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
-                              >
-                                Remove
-                              </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                              <div>
-                                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                  Start Time
-                                </label>
-                                <input
-                                  type="time"
-                                  value={slot.startTime}
-                                  onChange={(event) =>
-                                    handleTimeSlotChange(
-                                      index,
-                                      "startTime",
-                                      event.target.value
-                                    )
-                                  }
-                                  className={fieldClass()}
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                  End Time
-                                </label>
-                                <input
-                                  type="time"
-                                  value={slot.endTime}
-                                  onChange={(event) =>
-                                    handleTimeSlotChange(
-                                      index,
-                                      "endTime",
-                                      event.target.value
-                                    )
-                                  }
-                                  className={fieldClass()}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <label className="block text-sm font-semibold text-slate-700">
                           Availability Schedule
@@ -1198,15 +1140,14 @@ export default function DoctorProfilePage() {
                                 <input
                                   type="number"
                                   value={slot.maxAppointments}
-                                  onChange={(event) =>
-                                    handleScheduleChange(
-                                      index,
-                                      "maxAppointments",
-                                      event.target.value
-                                    )
-                                  }
-                                  className={fieldClass()}
+                                  readOnly
+                                  className={fieldClass(true)}
                                 />
+                                <p className="mt-2 text-xs leading-5 text-slate-500">
+                                  Auto-calculated from the selected time range using
+                                  {` ${CONSULTATION_DURATION_MINUTES} `}
+                                  minutes per patient.
+                                </p>
                               </div>
                             </div>
                           </div>
