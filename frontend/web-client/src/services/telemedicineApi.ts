@@ -1,4 +1,5 @@
 import { TELEMEDICINE_API_URL } from "../config/api";
+import { getStoredTelemedicineAuth } from "../utils/telemedicineAuth";
 
 export type TelemedicineStatus =
   | "scheduled"
@@ -35,7 +36,7 @@ export type TelemedicineStatsResponse = {
 };
 
 function getAuthHeaders() {
-  const token = localStorage.getItem("token");
+  const { token } = getStoredTelemedicineAuth();
 
   return {
     "Content-Type": "application/json",
@@ -267,7 +268,7 @@ export async function uploadTelemedicineFile(payload: {
   uploadedByRole: "doctor" | "patient";
   file: File;
 }): Promise<FileResponse> {
-  const token = localStorage.getItem("token");
+  const { token } = getStoredTelemedicineAuth();
 
   const formData = new FormData();
   formData.append("appointmentId", payload.appointmentId);
