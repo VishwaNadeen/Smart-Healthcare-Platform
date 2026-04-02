@@ -26,24 +26,23 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link to="/doctors" className="hover:text-blue-600 transition">
-                  Doctors
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/appointments"
-                  className="hover:text-blue-600 transition"
-                >
+                <Link to="/appointments" className="hover:text-blue-600 transition">
                   Appointments
                 </Link>
               </li>
               <li>
-                <Link
-                  to="/consultation"
-                  className="hover:text-blue-600 transition"
-                >
+                <Link to="/consultation" className="hover:text-blue-600 transition">
                   Consultation
+                </Link>
+              </li>
+              <li>
+                <Link to="/about" className="hover:text-blue-600 transition">
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link to="/contact" className="hover:text-blue-600 transition">
+                  Contact Us
                 </Link>
               </li>
             </ul>

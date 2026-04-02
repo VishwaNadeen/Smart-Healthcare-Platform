@@ -76,6 +76,8 @@ router.delete(
   deleteByEmailInternal
 );
 
+router.get("/internal/users/:id", getUserByIdInternal);
+
 router.get(
   "/doctor/dashboard",
   authMiddleware,

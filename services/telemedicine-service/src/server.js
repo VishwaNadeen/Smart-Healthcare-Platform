@@ -4,8 +4,6 @@ const cors = require("cors");
 const connectDB = require("./config/db");
 const telemedicineRoutes = require("./routes/telemedicine");
 const telemedicineChatRoutes = require("./routes/telemedicineChat");
-const path = require("path");
-const telemedicineFileRoutes = require("./routes/telemedicineFile");
 const telemedicinePrescriptionRoutes = require("./routes/telemedicinePrescription");
 
 dotenv.config();
@@ -24,8 +22,6 @@ app.get("/", (req, res) => {
 
 app.use("/api/telemedicine", telemedicineRoutes);
 app.use("/api/telemedicine/chat", telemedicineChatRoutes);
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-app.use("/api/telemedicine/files", telemedicineFileRoutes);
 app.use("/api/telemedicine/prescriptions", telemedicinePrescriptionRoutes);
 
 const PORT = process.env.PORT || 5007;

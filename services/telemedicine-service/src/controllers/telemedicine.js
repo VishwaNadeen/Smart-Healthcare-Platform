@@ -667,50 +667,6 @@ const updateSessionStatus = async (req, res) => {
   }
 };
 
-const updateSessionNotes = async (req, res) => {
-  try {
-    if (req.user.role !== "doctor") {
-      return res.status(403).json({
-        message: "Only doctors can update session notes",
-      });
-    }
-
-    const { notes } = req.body;
-
-    const updatedSession = await TelemedicineSession.findOneAndUpdate(
-      {
-        appointmentId: req.params.appointmentId,
-        doctorId: { $in: getDoctorIdentityValues(req) },
-      },
-      {
-        notes: String(notes || ""),
-      },
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
-
-    if (!updatedSession) {
-      return res.status(404).json({
-        message: "Session not found",
-      });
-    }
-
-    const enrichedSession = await buildEnrichedSession(updatedSession);
-
-    return res.status(200).json({
-      message: "Session notes updated successfully",
-      session: enrichedSession,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to update session notes",
-      error: error.message,
-    });
-  }
-};
-
 module.exports = {
   createSession,
   createSessionInternal,
@@ -721,5 +677,6 @@ module.exports = {
   getSessionsByDoctorId,
   getSessionsByPatientId,
   updateSessionStatus,
-  updateSessionNotes,
+  buildEnrichedSession,
+  getDoctorIdentityValues,
 };

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
 import { PATIENT_API_URL } from "../../config/api";
-import { getDoctorAppointments } from "../../services/appointmentApi";
 import {
   getSessionByAppointmentId,
   type TelemedicineSession,
@@ -17,14 +16,6 @@ type PatientProfile = {
   _id: string;
   firstName?: string;
   lastName?: string;
-};
-
-type SessionDetailsData = TelemedicineSession & {
-  paymentStatus?: string;
-  appointment?: TelemedicineSession["appointment"] & {
-    patientName?: string;
-    paymentStatus?: string;
-  };
 };
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -53,13 +44,11 @@ export default function SessionDetails() {
   const navigate = useNavigate();
   const [session, setSession] = useState<TelemedicineSession | null>(null);
   const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(null);
-  const [resolvedPaymentStatus, setResolvedPaymentStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
 
   const auth = getStoredTelemedicineAuth();
-  const doctorId = auth.doctorProfileId || auth.userId;
 
   useEffect(() => {
     let isMounted = true;
@@ -75,7 +64,6 @@ export default function SessionDetails() {
         setLoading(true);
         setError("");
         setPatientProfile(null);
-        setResolvedPaymentStatus("");
         const data = await getSessionByAppointmentId(appointmentId);
 
         if (isMounted) {
@@ -103,62 +91,31 @@ export default function SessionDetails() {
   useEffect(() => {
     let isMounted = true;
 
-    async function loadSessionExtras() {
-      if (!session) {
+    async function loadPatientProfile() {
+      if (!session?.patientId) {
         return;
       }
 
-      const tasks: Promise<void>[] = [];
+      try {
+        const response = await fetch(`${PATIENT_API_URL}/${session.patientId}`);
+        const patient = await parseResponse<PatientProfile>(response);
 
-      if (session.patientId) {
-        tasks.push(
-          (async () => {
-            try {
-              const response = await fetch(`${PATIENT_API_URL}/${session.patientId}`);
-              const patient = await parseResponse<PatientProfile>(response);
-
-              if (isMounted) {
-                setPatientProfile(patient);
-              }
-            } catch {
-              if (isMounted) {
-                setPatientProfile(null);
-              }
-            }
-          })()
-        );
+        if (isMounted) {
+          setPatientProfile(patient);
+        }
+      } catch {
+        if (isMounted) {
+          setPatientProfile(null);
+        }
       }
-
-      if (auth.token && doctorId) {
-        tasks.push(
-          (async () => {
-            try {
-              const appointments = await getDoctorAppointments(auth.token!, doctorId);
-              const matchingAppointment = appointments.find(
-                (appointment) => appointment._id === session.appointmentId
-              );
-
-              if (isMounted) {
-                setResolvedPaymentStatus(matchingAppointment?.paymentStatus || "");
-              }
-            } catch {
-              if (isMounted) {
-                setResolvedPaymentStatus("");
-              }
-            }
-          })()
-        );
-      }
-
-      await Promise.allSettled(tasks);
     }
 
-    loadSessionExtras();
+    loadPatientProfile();
 
     return () => {
       isMounted = false;
     };
-  }, [auth.token, doctorId, session]);
+  }, [session]);
 
   async function handleStartSession() {
     if (!appointmentId || !session || session.status !== "scheduled") {
@@ -212,24 +169,16 @@ export default function SessionDetails() {
     );
   }
 
-  const sessionDetails = session as SessionDetailsData | null;
   const patientProfileName =
     `${patientProfile?.firstName || ""} ${patientProfile?.lastName || ""}`.trim();
 
-  const doctorName = sessionDetails?.doctor?.fullName || auth.username || "Doctor";
+  const doctorName = session?.doctor?.fullName || auth.username || "Doctor";
   const patientName =
-    sessionDetails?.patient?.fullName ||
-    sessionDetails?.patient?.name ||
-    sessionDetails?.patientName ||
-    sessionDetails?.appointment?.patientName ||
+    session?.patient?.fullName ||
+    session?.patient?.name ||
+    session?.patientName ||
     patientProfileName ||
     "Patient name not available";
-
-  const paymentStatus =
-    sessionDetails?.paymentStatus ||
-    sessionDetails?.appointment?.paymentStatus ||
-    resolvedPaymentStatus ||
-    "Not available";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 px-4 py-8 sm:px-6 lg:px-8">
@@ -247,7 +196,7 @@ export default function SessionDetails() {
             Session not found.
           </div>
         ) : (
-          <div className="rounded-[32px] bg-white p-8 shadow-sm">
+          <div className="rounded-[32px] border border-blue-100/80 bg-white p-8 shadow-[0_22px_60px_rgba(59,130,246,0.12)]">
             <div className="mb-6 text-center">
               <h1 className="text-3xl font-bold text-gray-900">
                 Session Details
@@ -257,17 +206,13 @@ export default function SessionDetails() {
               </p>
             </div>
 
-            <div className="grid gap-4 rounded-2xl bg-slate-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
-              <p>
-                <span className="font-semibold">Doctor Name:</span> {doctorName}
-              </p>
+            <div className="grid gap-4 rounded-2xl bg-blue-100/80 p-5 text-sm text-gray-700 sm:grid-cols-2">
               <p>
                 <span className="font-semibold">Patient Name:</span>{" "}
                 {patientName}
               </p>
               <p>
-                <span className="font-semibold">Appointment ID:</span>{" "}
-                {session.appointmentId}
+                <span className="font-semibold">Doctor Name:</span> {doctorName}
               </p>
               <p>
                 <span className="font-semibold">Date:</span>{" "}
@@ -278,16 +223,12 @@ export default function SessionDetails() {
                 {session.scheduledTime}
               </p>
               <p>
-                <span className="font-semibold">Payment Status:</span>{" "}
-                {paymentStatus}
+                <span className="font-semibold">Room Name:</span>{" "}
+                {session.roomName || "Not available"}
               </p>
               <p>
                 <span className="font-semibold">Session Status:</span>{" "}
                 {session.status}
-              </p>
-              <p>
-                <span className="font-semibold">Room Name:</span>{" "}
-                {session.roomName || "Not available"}
               </p>
             </div>
 

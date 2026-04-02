@@ -67,7 +67,7 @@ export default function DoctorSessions() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8 rounded-3xl bg-white p-6 shadow-sm">
+        <div className="mb-8 rounded-3xl bg-white p-6 text-center shadow-sm">
           <h1 className="text-3xl font-bold text-gray-900">
             Approved Sessions
           </h1>

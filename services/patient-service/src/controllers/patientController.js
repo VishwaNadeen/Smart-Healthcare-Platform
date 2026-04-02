@@ -16,6 +16,27 @@ const deleteCloudinaryImage = async (publicId) => {
 const normalizeEmail = (email) =>
   typeof email === "string" ? email.trim().toLowerCase() : "";
 
+const getAgeFromBirthday = (birthday) => {
+  const date = new Date(birthday);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const monthDifference = today.getMonth() - date.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (monthDifference === 0 && today.getDate() < date.getDate())
+  ) {
+    age -= 1;
+  }
+
+  return age >= 0 ? age : null;
+};
+
 const buildPatientPayload = (body = {}) => ({
   firstName: body.firstName,
   lastName: body.lastName,
@@ -33,8 +54,10 @@ const findPatientForAuthUser = async (authUser) => {
     return null;
   }
 
-  if (authUser.id) {
-    const patientByAuthId = await Patient.findOne({ authUserId: authUser.id });
+  const authUserId = authUser.userId || authUser.id;
+
+  if (authUserId) {
+    const patientByAuthId = await Patient.findOne({ authUserId });
     if (patientByAuthId) {
       return patientByAuthId;
     }
@@ -46,6 +69,15 @@ const findPatientForAuthUser = async (authUser) => {
 
   return null;
 };
+
+const buildPatientSummary = (patient) => ({
+  _id: patient._id,
+  authUserId: patient.authUserId || "",
+  firstName: patient.firstName,
+  lastName: patient.lastName,
+  age: getAgeFromBirthday(patient.birthday),
+  profileImage: patient.profileImage || "",
+});
 
 // Create patient with auth-service registration
 const createPatient = async (req, res) => {
@@ -169,8 +201,8 @@ const getCurrentPatient = async (req, res) => {
       return res.status(404).json({ message: "Patient profile not found" });
     }
 
-    if (!patient.authUserId && req.authUser?.id) {
-      patient.authUserId = req.authUser.id;
+    if (!patient.authUserId && req.authUser?.userId) {
+      patient.authUserId = req.authUser.userId;
       await patient.save();
     }
 
@@ -200,6 +232,43 @@ const getPatientById = async (req, res) => {
   }
 };
 
+const getPatientSummaryByAuthUserId = async (req, res) => {
+  try {
+    const requestedAuthUserId = String(req.params.authUserId || "").trim();
+    const requesterUserId = String(req.authUser?.userId || "").trim();
+    const requesterRole = String(req.authUser?.role || "").toLowerCase();
+
+    if (!requestedAuthUserId) {
+      return res.status(400).json({ message: "authUserId is required" });
+    }
+
+    const isSamePatient = requesterRole === "patient" && requesterUserId === requestedAuthUserId;
+    const canReadSummary =
+      requesterRole === "doctor" || requesterRole === "admin" || isSamePatient;
+
+    if (!canReadSummary) {
+      return res.status(403).json({
+        message: "You are not allowed to access this patient summary",
+      });
+    }
+
+    const patient = await Patient.findOne({ authUserId: requestedAuthUserId }).select(
+      "_id authUserId firstName lastName birthday profileImage"
+    );
+
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    return res.status(200).json(buildPatientSummary(patient));
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch patient summary",
+      error: error.message,
+    });
+  }
+};
+
 const updateCurrentPatient = async (req, res) => {
   try {
     const requestedEmail = normalizeEmail(req.body.email);
@@ -210,8 +279,8 @@ const updateCurrentPatient = async (req, res) => {
       return res.status(404).json({ message: "Patient profile not found" });
     }
 
-    if (!patient.authUserId && req.authUser?.id) {
-      patient.authUserId = req.authUser.id;
+    if (!patient.authUserId && req.authUser?.userId) {
+      patient.authUserId = req.authUser.userId;
     }
 
     if (requestedEmail && requestedEmail !== patient.email) {
@@ -255,8 +324,8 @@ const uploadCurrentPatientProfileImage = async (req, res) => {
       return res.status(404).json({ message: "Patient profile not found" });
     }
 
-    if (!patient.authUserId && req.authUser?.id) {
-      patient.authUserId = req.authUser.id;
+    if (!patient.authUserId && req.authUser?.userId) {
+      patient.authUserId = req.authUser.userId;
     }
 
     const oldPublicId = patient.profileImagePublicId;
@@ -375,6 +444,7 @@ module.exports = {
   getAllPatients,
   getCurrentPatient,
   getPatientById,
+  getPatientSummaryByAuthUserId,
   updateCurrentPatient,
   uploadCurrentPatientProfileImage,
   removeCurrentPatientProfileImage,
