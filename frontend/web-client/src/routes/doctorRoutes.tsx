@@ -2,6 +2,8 @@ import { Route } from "react-router-dom";
 import MainLayout from "../layouts/mainLayout";
 import DoctorRegisterPage from "../pages/doctor/Register";
 import DoctorProfilePage from "../pages/doctor/Profile";
+import DoctorAvailabilityPage from "../pages/doctor/Availability";
+import RequireTelemedicineRole from "../components/telemedicine/RequireTelemedicineRole";
 
 export const doctorRoutes = (
   <>
@@ -18,7 +20,20 @@ export const doctorRoutes = (
       path="/doctor/profile"
       element={
         <MainLayout>
-          <DoctorProfilePage />
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorProfilePage />
+          </RequireTelemedicineRole>
+        </MainLayout>
+      }
+    />
+
+    <Route
+      path="/doctor/availability"
+      element={
+        <MainLayout>
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorAvailabilityPage />
+          </RequireTelemedicineRole>
         </MainLayout>
       }
     />

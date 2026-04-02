@@ -8,7 +8,7 @@ const {
 } = require("../services/authService");
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const APPOINTMENT_DURATION_MINUTES = 15;
+const APPOINTMENT_DURATION_MINUTES = 10;
 
 const parseBoolean = (value) => {
   if (typeof value === "boolean") return value;

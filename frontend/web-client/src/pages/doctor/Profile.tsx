@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../../components/common/ToastProvider";
 import {
   deleteCurrentDoctor,
@@ -39,17 +39,6 @@ type FormState = {
   availabilitySchedule: DoctorAvailabilityScheduleItem[];
 };
 
-const DAY_OPTIONS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-const CONSULTATION_DURATION_MINUTES = 15;
-
 function emptyForm(): FormState {
   return {
     fullName: "",
@@ -82,18 +71,6 @@ function fieldClass(readOnly = false) {
   }`;
 }
 
-function toMinutes(time: string) {
-  const [hours, minutes] = String(time || "")
-    .split(":")
-    .map((part) => Number(part));
-
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return NaN;
-  }
-
-  return hours * 60 + minutes;
-}
-
 function buildAvailabilitySummary(schedule: DoctorAvailabilityScheduleItem[]) {
   const completeSlots = schedule.filter(
     (slot) => slot.day && slot.startTime && slot.endTime
@@ -107,54 +84,6 @@ function buildAvailabilitySummary(schedule: DoctorAvailabilityScheduleItem[]) {
       ),
     ],
   };
-}
-
-function getScheduleOverlapMessage(schedule: DoctorAvailabilityScheduleItem[]) {
-  const groupedByDay = new Map<string, DoctorAvailabilityScheduleItem[]>();
-
-  for (const slot of schedule) {
-    const start = toMinutes(slot.startTime);
-    const end = toMinutes(slot.endTime);
-
-    if (Number.isNaN(start) || Number.isNaN(end) || start >= end) {
-      return `Invalid time range for ${slot.day || "selected day"}. End time must be later than start time.`;
-    }
-
-    const daySlots = groupedByDay.get(slot.day) || [];
-    daySlots.push(slot);
-    groupedByDay.set(slot.day, daySlots);
-  }
-
-  for (const [day, daySlots] of groupedByDay.entries()) {
-    const sortedSlots = [...daySlots].sort(
-      (left, right) => toMinutes(left.startTime) - toMinutes(right.startTime)
-    );
-
-    for (let index = 1; index < sortedSlots.length; index += 1) {
-      const previous = sortedSlots[index - 1];
-      const current = sortedSlots[index];
-
-      if (toMinutes(current.startTime) < toMinutes(previous.endTime)) {
-        return `${day} has overlapping time slots. Please adjust the times so they do not overlap.`;
-      }
-    }
-  }
-
-  return "";
-}
-
-function getCalculatedMaxAppointments(startTime: string, endTime: string) {
-  const start = toMinutes(startTime);
-  const end = toMinutes(endTime);
-
-  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
-    return 1;
-  }
-
-  return Math.max(
-    1,
-    Math.floor((end - start) / CONSULTATION_DURATION_MINUTES)
-  );
 }
 
 function OverviewCard({
@@ -325,78 +254,19 @@ export default function DoctorProfilePage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleScheduleChange = (
-    index: number,
-    field: keyof DoctorAvailabilityScheduleItem,
-    value: string
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      availabilitySchedule: prev.availabilitySchedule.map((slot, slotIndex) =>
-        slotIndex === index
-          ? (() => {
-              const nextSlot = {
-                ...slot,
-                [field]: value,
-              };
-
-              return {
-                ...nextSlot,
-                maxAppointments: getCalculatedMaxAppointments(
-                  nextSlot.startTime,
-                  nextSlot.endTime
-                ),
-              };
-            })()
-          : slot
-      ),
-    }));
-  };
-
-  const addScheduleRow = () => {
-    setFormData((prev) => ({
-      ...prev,
-      availabilitySchedule: [
-        ...prev.availabilitySchedule,
-        { day: "", startTime: "", endTime: "", mode: "both", maxAppointments: 1 },
-      ],
-    }));
-  };
-
-  const removeScheduleRow = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      availabilitySchedule:
-        prev.availabilitySchedule.length === 1
-          ? []
-          : prev.availabilitySchedule.filter((_, slotIndex) => slotIndex !== index),
-    }));
-  };
-
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
       setSuccessMessage("");
       setErrorMessage("");
-      const filteredSchedule = formData.availabilitySchedule.filter(
-        (slot) => slot.day && slot.startTime && slot.endTime
-      );
-      const overlapMessage = getScheduleOverlapMessage(filteredSchedule);
-
-      if (overlapMessage) {
-        setErrorMessage(overlapMessage);
-        showToast(overlapMessage, "error");
-        return;
-      }
-
-      const summary = buildAvailabilitySummary(filteredSchedule);
+      const summary = buildAvailabilitySummary(formData.availabilitySchedule);
       const response = await updateCurrentDoctorProfile(token, {
         ...formData,
         availableDays: summary.availableDays,
         availableTimeSlots: summary.availableTimeSlots,
         experience: Number(formData.experience) || 0,
         consultationFee: Number(formData.consultationFee) || 0,
-        availabilitySchedule: filteredSchedule,
+        availabilitySchedule: formData.availabilitySchedule,
       });
       applyProfile(response);
       setSuccessMessage("Doctor profile updated successfully.");
@@ -540,9 +410,8 @@ export default function DoctorProfilePage() {
                   {formData.fullName || "Doctor Profile"}
                 </h1>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-blue-100/95">
-                  This is the working profile for doctor-service details and availability.
-                  Keep professional details tidy here, and maintain the schedule patients
-                  will book against.
+                  This page now focuses on doctor-service profile details. Booking
+                  availability has its own dedicated doctor menu page.
                 </p>
               </div>
             </div>
@@ -749,12 +618,23 @@ export default function DoctorProfilePage() {
                 </div>
 
                 <div className="rounded-[28px] border border-slate-200 bg-white p-6 md:p-7">
-                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
-                    Availability
-                  </p>
-                  <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                    Booking Schedule
-                  </h2>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                        Availability
+                      </p>
+                      <h2 className="mt-2 text-2xl font-bold text-slate-900">
+                        Booking Schedule
+                      </h2>
+                    </div>
+
+                    <Link
+                      to="/doctor/availability"
+                      className="rounded-2xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                    >
+                      Manage Availability
+                    </Link>
+                  </div>
 
                   <div className="mt-6 space-y-5">
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
@@ -817,6 +697,11 @@ export default function DoctorProfilePage() {
                         value={formData.acceptsNewAppointments ? "Yes" : "No"}
                       />
                     </div>
+
+                    <p className="text-sm leading-6 text-slate-500">
+                      Use the dedicated availability page to add, edit, or remove
+                      booking slots.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1023,169 +908,20 @@ export default function DoctorProfilePage() {
                     </div>
                   </div>
 
-                  <div className="mt-6 space-y-6">
+                  <div className="mt-6 space-y-4">
+                    <p className="max-w-2xl text-sm leading-7 text-slate-500">
+                      Schedule editing has been moved out of the doctor profile page.
+                      Open the dedicated availability route from the doctor menu to
+                      manage booking slots and appointment preferences.
+                    </p>
+
                     <div>
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <label className="block text-sm font-semibold text-slate-700">
-                          Availability Schedule
-                        </label>
-                        <button
-                          type="button"
-                          onClick={addScheduleRow}
-                          className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                        >
-                          Add slot
-                        </button>
-                      </div>
-
-                      <div className="space-y-3">
-                        {formData.availabilitySchedule.length === 0 && (
-                          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-                            No detailed schedule added yet.
-                          </div>
-                        )}
-
-                        {formData.availabilitySchedule.map((slot, index) => (
-                          <div
-                            key={`${slot.day}-${index}`}
-                            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                          >
-                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                              <p className="text-sm font-semibold text-slate-800">
-                                Schedule Slot {index + 1}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => removeScheduleRow(index)}
-                                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
-                              >
-                                Remove
-                              </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                              <div>
-                                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                  Day
-                                </label>
-                                <select
-                                  value={slot.day}
-                                  onChange={(event) =>
-                                    handleScheduleChange(index, "day", event.target.value)
-                                  }
-                                  className={fieldClass()}
-                                >
-                                  <option value="">Select day</option>
-                                  {DAY_OPTIONS.map((day) => (
-                                    <option key={day} value={day}>
-                                      {day}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div>
-                                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                  Start Time
-                                </label>
-                                <input
-                                  type="time"
-                                  value={slot.startTime}
-                                  onChange={(event) =>
-                                    handleScheduleChange(
-                                      index,
-                                      "startTime",
-                                      event.target.value
-                                    )
-                                  }
-                                  className={fieldClass()}
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                  End Time
-                                </label>
-                                <input
-                                  type="time"
-                                  value={slot.endTime}
-                                  onChange={(event) =>
-                                    handleScheduleChange(
-                                      index,
-                                      "endTime",
-                                      event.target.value
-                                    )
-                                  }
-                                  className={fieldClass()}
-                                />
-                              </div>
-                              <div>
-                                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                  Mode
-                                </label>
-                                <select
-                                  value={slot.mode}
-                                  onChange={(event) =>
-                                    handleScheduleChange(index, "mode", event.target.value)
-                                  }
-                                  className={fieldClass()}
-                                >
-                                  <option value="both">Both</option>
-                                  <option value="in_person">In Person</option>
-                                  <option value="video">Video</option>
-                                </select>
-                              </div>
-                              <div className="xl:col-span-2">
-                                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                                  Max Appointments
-                                </label>
-                                <input
-                                  type="number"
-                                  value={slot.maxAppointments}
-                                  readOnly
-                                  className={fieldClass(true)}
-                                />
-                                <p className="mt-2 text-xs leading-5 text-slate-500">
-                                  Auto-calculated from the selected time range using
-                                  {` ${CONSULTATION_DURATION_MINUTES} `}
-                                  minutes per patient.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                      <label className="flex min-h-20 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          name="isAvailableForVideo"
-                          checked={formData.isAvailableForVideo}
-                          onChange={handleChange}
-                          className="mt-1 shrink-0"
-                        />
-                        <span className="leading-6">Available for video sessions</span>
-                      </label>
-                      <label className="flex min-h-20 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          name="supportsDigitalPrescriptions"
-                          checked={formData.supportsDigitalPrescriptions}
-                          onChange={handleChange}
-                          className="mt-1 shrink-0"
-                        />
-                        <span className="leading-6">Support digital prescriptions</span>
-                      </label>
-                      <label className="flex min-h-20 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          name="acceptsNewAppointments"
-                          checked={formData.acceptsNewAppointments}
-                          onChange={handleChange}
-                          className="mt-1 shrink-0"
-                        />
-                        <span className="leading-6">Accept new appointments</span>
-                      </label>
+                      <Link
+                        to="/doctor/availability"
+                        className="inline-flex rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        Open Availability Page
+                      </Link>
                     </div>
                   </div>
                 </div>
