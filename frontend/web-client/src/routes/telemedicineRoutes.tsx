@@ -10,6 +10,7 @@ import DoctorSessions from "../pages/telemedicine/doctorsessions";
 import PatientSessions from "../pages/telemedicine/patientsessions";
 import DoctorWaitingRoom from "../pages/telemedicine/doctorWaitingRoom";
 import PatientWaitingRoom from "../pages/telemedicine/patientWaitingRoom";
+import DoctorSessionSummary from "../pages/telemedicine/doctorSessionSummary";
 import SessionSummary from "../pages/telemedicine/sessionsummary";
 import SessionHistory from "../pages/telemedicine/sessionHistory";
 
@@ -138,6 +139,17 @@ export const telemedicineRoutes = (
         <MainLayout>
           <RequireTelemedicineRole allowedRoles={["doctor", "patient"]}>
             <SessionSummary />
+          </RequireTelemedicineRole>
+        </MainLayout>
+      }
+    />
+
+    <Route
+      path="/doctor-session-summary/:appointmentId"
+      element={
+        <MainLayout>
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorSessionSummary />
           </RequireTelemedicineRole>
         </MainLayout>
       }

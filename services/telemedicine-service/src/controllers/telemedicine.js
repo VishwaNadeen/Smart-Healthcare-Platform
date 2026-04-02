@@ -4,6 +4,7 @@ const {
   updateAppointmentStatus,
 } = require("../services/appointmentService");
 const { getAuthUserById } = require("../services/authProfileService");
+const { getDoctorById } = require("../services/doctorService");
 
 const SESSION_STATUSES = ["scheduled", "active", "completed", "cancelled"];
 const SESSION_TO_APPOINTMENT_STATUS_MAP = {
@@ -141,15 +142,17 @@ const buildEnrichedSession = async (sessionDoc) => {
   const session =
     typeof sessionDoc.toObject === "function" ? sessionDoc.toObject() : sessionDoc;
 
-  const [appointment, patientAuthUser] = await Promise.all([
+  const [appointment, patientAuthUser, doctorProfile] = await Promise.all([
     getAppointmentPayload(session.appointmentId),
     getAuthUserById(String(session.patientId)).catch(() => null),
+    getDoctorById(String(session.doctorId)).catch(() => null),
   ]);
 
   const doctorObject =
     appointment?.doctor ||
     appointment?.doctorDetails ||
     appointment?.doctorProfile ||
+    doctorProfile ||
     null;
 
   const patientObject =
@@ -203,6 +206,11 @@ const buildEnrichedSession = async (sessionDoc) => {
       email: pickFirstString(doctorObject?.email) || undefined,
       phone: pickFirstString(doctorObject?.phone) || undefined,
       specialization: doctorSpecialization || undefined,
+      licenseNumber: pickFirstString(doctorObject?.licenseNumber) || undefined,
+      hospitalName: pickFirstString(
+        doctorObject?.hospitalName,
+        doctorObject?.hospital
+      ) || undefined,
       profileImage: pickFirstString(
         doctorObject?.profileImage,
         doctorObject?.profileImageUrl,
