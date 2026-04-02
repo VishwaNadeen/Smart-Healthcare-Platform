@@ -8,7 +8,8 @@ import { getStoredTelemedicineAuth } from "../utils/telemedicineAuth";
 import Consultation from "../pages/telemedicine/consultation";
 import DoctorSessions from "../pages/telemedicine/doctorsessions";
 import PatientSessions from "../pages/telemedicine/Patientsessions";
-import WaitingRoom from "../pages/telemedicine/waitingroom";
+import DoctorWaitingRoom from "../pages/telemedicine/DoctorWaitingRoom";
+import PatientWaitingRoom from "../pages/telemedicine/PatientWaitingRoom";
 import SessionSummary from "../pages/telemedicine/sessionsummary";
 import SessionHistory from "../pages/telemedicine/sessionHistory";
 
@@ -99,11 +100,22 @@ export const telemedicineRoutes = (
     />
 
     <Route
-      path="/waiting-room/:appointmentId"
+      path="/doctor-waiting-room/:appointmentId"
       element={
         <FullScreenLayout>
-          <RequireTelemedicineRole allowedRoles={["doctor", "patient"]}>
-            <WaitingRoom />
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorWaitingRoom />
+          </RequireTelemedicineRole>
+        </FullScreenLayout>
+      }
+    />
+
+    <Route
+      path="/patient-waiting-room/:appointmentId"
+      element={
+        <FullScreenLayout>
+          <RequireTelemedicineRole allowedRoles={["patient"]}>
+            <PatientWaitingRoom />
           </RequireTelemedicineRole>
         </FullScreenLayout>
       }

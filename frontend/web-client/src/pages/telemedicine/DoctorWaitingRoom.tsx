@@ -39,7 +39,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
-export default function SessionDetails() {
+export default function DoctorWaitingRoom() {
   const { appointmentId } = useParams();
   const navigate = useNavigate();
   const [session, setSession] = useState<TelemedicineSession | null>(null);
