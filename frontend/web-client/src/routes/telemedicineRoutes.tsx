@@ -7,12 +7,12 @@ import { getStoredTelemedicineAuth } from "../utils/telemedicineAuth";
 
 import Consultation from "../pages/telemedicine/consultation";
 import DoctorSessions from "../pages/telemedicine/doctorsessions";
-import PatientSessions from "../pages/telemedicine/Patientsessions";
-import WaitingRoom from "../pages/telemedicine/waitingroom";
+import PatientSessions from "../pages/telemedicine/patientsessions";
+import DoctorWaitingRoom from "../pages/telemedicine/doctorWaitingRoom";
+import PatientWaitingRoom from "../pages/telemedicine/patientWaitingRoom";
+import DoctorSessionSummary from "../pages/telemedicine/doctorSessionSummary";
 import SessionSummary from "../pages/telemedicine/sessionsummary";
 import SessionHistory from "../pages/telemedicine/sessionHistory";
-import Dashboard from "../pages/telemedicine/dashboard";
-import Statistics from "../pages/telemedicine/statistics";
 
 function ConsultationRedirect() {
   const auth = getStoredTelemedicineAuth();
@@ -101,11 +101,22 @@ export const telemedicineRoutes = (
     />
 
     <Route
-      path="/waiting-room/:appointmentId"
+      path="/doctor-waiting-room/:appointmentId"
       element={
         <FullScreenLayout>
-          <RequireTelemedicineRole allowedRoles={["doctor", "patient"]}>
-            <WaitingRoom />
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorWaitingRoom />
+          </RequireTelemedicineRole>
+        </FullScreenLayout>
+      }
+    />
+
+    <Route
+      path="/patient-waiting-room/:appointmentId"
+      element={
+        <FullScreenLayout>
+          <RequireTelemedicineRole allowedRoles={["patient"]}>
+            <PatientWaitingRoom />
           </RequireTelemedicineRole>
         </FullScreenLayout>
       }
@@ -134,6 +145,17 @@ export const telemedicineRoutes = (
     />
 
     <Route
+      path="/doctor-session-summary/:appointmentId"
+      element={
+        <MainLayout>
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorSessionSummary />
+          </RequireTelemedicineRole>
+        </MainLayout>
+      }
+    />
+
+    <Route
       path="/session-history"
       element={
         <MainLayout>
@@ -144,26 +166,5 @@ export const telemedicineRoutes = (
       }
     />
 
-    <Route
-      path="/telemedicine-dashboard"
-      element={
-        <MainLayout>
-          <RequireTelemedicineRole allowedRoles={["doctor", "patient"]}>
-            <Dashboard />
-          </RequireTelemedicineRole>
-        </MainLayout>
-      }
-    />
-
-    <Route
-      path="/telemedicine-statistics"
-      element={
-        <MainLayout>
-          <RequireTelemedicineRole allowedRoles={["doctor"]}>
-            <Statistics />
-          </RequireTelemedicineRole>
-        </MainLayout>
-      }
-    />
   </>
 );

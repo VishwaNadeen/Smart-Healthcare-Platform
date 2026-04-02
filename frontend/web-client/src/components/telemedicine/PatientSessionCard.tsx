@@ -78,7 +78,7 @@ export default function PatientSessionCard({ session }: Props) {
     if (isScheduled) {
       return (
         <Link
-          to={`/waiting-room/${session.appointmentId}`}
+          to={`/patient-waiting-room/${session.appointmentId}`}
           className="inline-flex w-full items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-[#bfdbfe] bg-[#eff6ff] px-5 py-[11px] text-[14px] font-semibold tracking-[-0.01em] text-[#1d4ed8] no-underline transition-all duration-200 ease-in-out box-border hover:border-[#93c5fd] hover:bg-[#dbeafe]"
         >
           <svg

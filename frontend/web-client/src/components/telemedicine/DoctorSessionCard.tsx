@@ -21,7 +21,7 @@ export default function DoctorSessionCard({ session }: Props) {
     if (isCompleted) {
       return (
         <Link
-          to={`/session-summary/${session.appointmentId}`}
+          to={`/doctor-session-summary/${session.appointmentId}`}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-700 transition-all duration-150 hover:bg-green-100"
         >
           <svg
@@ -72,7 +72,7 @@ export default function DoctorSessionCard({ session }: Props) {
     if (isScheduled) {
       return (
         <Link
-          to={`/waiting-room/${session.appointmentId}`}
+          to={`/doctor-waiting-room/${session.appointmentId}`}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-semibold text-sky-700 transition-all duration-150 hover:border-sky-300 hover:bg-sky-100"
         >
           <svg
