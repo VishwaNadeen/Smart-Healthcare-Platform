@@ -1,0 +1,18 @@
+{
+  "name": "smart-healthcare-platform",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -names \"admin,web-client,auth,patient,doctor,appointment,telemedicine\" -prefix name \"npm run dev --prefix admin\" \"npm run dev --prefix frontend/web-client\" \"npm run dev --prefix services/auth-service\" \"npm run dev --prefix services/patient-service\" \"npm run dev --prefix services/doctor-service\" \"npm run dev --prefix services/appointment-service\" \"npm run dev --prefix services/telemedicine-service\"",
+
+    "admin": "npm run dev --prefix admin",
+    "web-client": "npm run dev --prefix frontend/web-client",
+    "auth": "npm run dev --prefix services/auth-service",
+    "patient": "npm run dev --prefix services/patient-service",
+    "doctor": "npm run dev --prefix services/doctor-service",
+    "appointment": "npm run dev --prefix services/appointment-service",
+    "telemedicine": "npm run dev --prefix services/telemedicine-service"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
