@@ -11,6 +11,7 @@ export type PatientFieldErrors = Partial<
     | "countryCode"
     | "phone"
     | "birthday"
+    | "gender"
     | "address"
     | "country",
     string

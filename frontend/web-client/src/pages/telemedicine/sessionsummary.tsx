@@ -82,32 +82,6 @@ function formatStatus(status: string | undefined) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function getStatusClasses(status: string | undefined) {
-  const normalized = (status || "").toLowerCase();
-
-  if (
-    normalized === "completed" ||
-    normalized === "finished" ||
-    normalized === "closed"
-  ) {
-    return "bg-green-100 text-green-700 border-green-200";
-  }
-
-  if (
-    normalized === "ongoing" ||
-    normalized === "in-progress" ||
-    normalized === "active"
-  ) {
-    return "bg-blue-100 text-blue-700 border-blue-200";
-  }
-
-  if (normalized === "cancelled" || normalized === "canceled") {
-    return "bg-red-100 text-red-700 border-red-200";
-  }
-
-  return "bg-amber-100 text-amber-700 border-amber-200";
-}
-
 function DetailCard({
   label,
   value,
@@ -276,8 +250,6 @@ export default function SessionSummary() {
 
   const doctor = getPersonDetails(session, "doctor");
   const patient = getPersonDetails(session, "patient");
-  const statusText = formatStatus(session.status);
-
   const consultationType =
     getSummaryValue(session, "consultationType") ||
     getSummaryValue(session, "sessionType") ||
@@ -324,8 +296,8 @@ export default function SessionSummary() {
                 {session.appointmentId}
               </p>
 
-              <div className="mt-3 inline-flex rounded-full bg-green-100 text-green-700 px-3 py-1 text-xs font-semibold">
-                {session.status}
+              <div className="mt-3 inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
+                {formatStatus(session.status)}
               </div>
             </div>
           </div>

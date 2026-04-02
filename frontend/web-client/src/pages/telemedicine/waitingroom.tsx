@@ -1,4 +1,4 @@
-import DoctorWaitingRoom from "./sessionDetails";
+import DoctorWaitingRoom from "./sessiondetails";
 import PatientWaitingRoom from "./PatientWaitingRoom";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
