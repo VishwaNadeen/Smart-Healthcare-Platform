@@ -17,6 +17,7 @@ export type AppointmentStatusHistoryItem = {
 export type Appointment = {
   _id: string;
   patientId: string;
+  patientName?: string;
   doctorId: string;
   doctorName: string;
   specialization: string;

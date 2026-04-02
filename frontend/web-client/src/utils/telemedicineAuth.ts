@@ -158,19 +158,27 @@ export function getRoleHomePath(role: TelemedicineRole | null): string {
   return "/";
 }
 
-export function getPostLoginPath(
-  role: TelemedicineRole | null,
-  fromPathname?: string | null
-): string {
-  if (isSafeRedirectPath(fromPathname)) {
-    return fromPathname;
+export function getProfilePath(role: TelemedicineRole | null): string {
+  if (role === "doctor") {
+    return "/profile/doctor";
   }
 
   if (role === "patient") {
     return "/patient/profile";
   }
 
-  return getRoleHomePath(role);
+  return "/";
+}
+
+export function getPostLoginPath(
+  _role: TelemedicineRole | null,
+  fromPathname?: string | null
+): string {
+  if (isSafeRedirectPath(fromPathname)) {
+    return fromPathname;
+  }
+
+  return "/";
 }
 
 export function canAccessTelemedicineSession(

@@ -1,5 +1,6 @@
 const Appointment = require("../models/appointmentModel");
 const { enforceDoctorAppointmentOwnership } = require("../middleware/authMiddleware");
+const { getAuthUserById } = require("../services/authService");
 const {
   createTelemedicineSessionForAppointment,
 } = require("../services/telemedicineService");
@@ -14,6 +15,27 @@ const STATUS_TRANSITIONS = {
 };
 
 const normalizeString = (value) => String(value || "").trim();
+
+const enrichAppointmentWithPatientName = async (appointmentDoc) => {
+  const appointment =
+    typeof appointmentDoc?.toObject === "function"
+      ? appointmentDoc.toObject()
+      : appointmentDoc;
+
+  try {
+    const authUser = await getAuthUserById(String(appointment.patientId || ""));
+
+    return {
+      ...appointment,
+      patientName:
+        typeof authUser?.username === "string" && authUser.username.trim()
+          ? authUser.username.trim()
+          : undefined,
+    };
+  } catch {
+    return appointment;
+  }
+};
 
 const hasTimeConflict = async (doctorId, appointmentDate, appointmentTime, excludeAppointmentId) => {
   const query = {
@@ -175,7 +197,11 @@ const getAppointmentsByDoctorId = async (req, res) => {
   try {
     const doctorId = req.user?.doctorProfileId || req.params.doctorId || req.user?.id;
     const appointments = await Appointment.find({ doctorId }).sort({ createdAt: -1 });
-    res.status(200).json(appointments);
+    const enrichedAppointments = await Promise.all(
+      appointments.map((appointment) => enrichAppointmentWithPatientName(appointment))
+    );
+
+    res.status(200).json(enrichedAppointments);
   } catch (error) {
     res.status(500).json({
       message: "Failed to fetch doctor appointments",
