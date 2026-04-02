@@ -84,6 +84,8 @@ router.delete(
 );
 router.get("/internal/users/:id", getUserByIdInternal);
 
+router.get("/internal/users/:id", getUserByIdInternal);
+
 router.get(
   "/doctor/dashboard",
   authMiddleware,

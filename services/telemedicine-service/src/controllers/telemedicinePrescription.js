@@ -1,4 +1,9 @@
 const TelemedicinePrescription = require("../models/telemedicinePrescription");
+const TelemedicineSession = require("../models/telemedicineSession");
+const {
+  buildEnrichedSession,
+  getDoctorIdentityValues,
+} = require("./telemedicine");
 
 exports.createPrescription = async (req, res) => {
   try {
@@ -69,6 +74,54 @@ exports.getPrescriptionsByAppointmentId = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch prescriptions",
+      error: error.message,
+    });
+  }
+};
+
+exports.updateConsultationNotes = async (req, res) => {
+  try {
+    if (req.user.role !== "doctor") {
+      return res.status(403).json({
+        success: false,
+        message: "Only doctors can update consultation notes",
+      });
+    }
+
+    const { notes } = req.body;
+
+    const updatedSession = await TelemedicineSession.findOneAndUpdate(
+      {
+        appointmentId: req.params.appointmentId,
+        doctorId: { $in: getDoctorIdentityValues(req) },
+      },
+      {
+        notes: String(notes || ""),
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!updatedSession) {
+      return res.status(404).json({
+        success: false,
+        message: "Session not found",
+      });
+    }
+
+    const enrichedSession = await buildEnrichedSession(updatedSession);
+
+    return res.status(200).json({
+      success: true,
+      data: enrichedSession,
+      message: "Consultation notes updated successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update consultation notes",
       error: error.message,
     });
   }

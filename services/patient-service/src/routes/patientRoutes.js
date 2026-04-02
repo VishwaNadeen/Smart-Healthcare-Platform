@@ -9,6 +9,7 @@ const {
   getAllPatients,
   getCurrentPatient,
   getPatientById,
+  getPatientSummaryByAuthUserId,
   updateCurrentPatient,
   uploadCurrentPatientProfileImage,
   removeCurrentPatientProfileImage,
@@ -63,6 +64,8 @@ router.delete(
   validate(deleteCurrentPatientSchema),
   deleteCurrentPatient
 );
+
+router.get("/lookup/auth/:authUserId", authMiddleware, getPatientSummaryByAuthUserId);
 
 router.get("/:id", getPatientById);
 
