@@ -9,6 +9,8 @@ const {
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const APPOINTMENT_DURATION_MINUTES = 10;
+const MIN_SLOT_DURATION_MINUTES = 120;
+const MAX_SLOT_DURATION_MINUTES = 360;
 
 const parseBoolean = (value) => {
   if (typeof value === "boolean") return value;
@@ -94,8 +96,12 @@ const getAvailabilityOverlapMessage = (slots = []) => {
       return `Invalid time range for ${slot.day || "selected day"}. End time must be later than start time.`;
     }
 
-    if (end - start < APPOINTMENT_DURATION_MINUTES) {
-      return `Invalid time range for ${slot.day || "selected day"}. Each slot must allow at least ${APPOINTMENT_DURATION_MINUTES} minutes.`;
+    if (end - start < MIN_SLOT_DURATION_MINUTES) {
+      return `Invalid time range for ${slot.day || "selected day"}. Each slot must be at least 2 hours.`;
+    }
+
+    if (end - start > MAX_SLOT_DURATION_MINUTES) {
+      return `Invalid time range for ${slot.day || "selected day"}. Each slot cannot exceed 6 hours.`;
     }
 
     const daySlots = groupedByDay.get(slot.day) || [];

@@ -29,6 +29,11 @@ const DAY_OPTIONS = [
   "Sunday",
 ];
 const CONSULTATION_DURATION_MINUTES = 10;
+const MIN_SLOT_DURATION_MINUTES = 120;
+const MAX_SLOT_DURATION_MINUTES = 360;
+const LAST_TIME_OPTION_MINUTES = 23 * 60 + 50;
+const LATEST_START_TIME_MINUTES =
+  LAST_TIME_OPTION_MINUTES - MIN_SLOT_DURATION_MINUTES;
 
 function createEmptyScheduleSlot(): DoctorAvailabilityScheduleItem {
   return {
@@ -50,6 +55,95 @@ function toMinutes(time: string) {
   }
 
   return hours * 60 + minutes;
+}
+
+function toTimeValue(totalMinutes: number) {
+  const normalized = Math.max(0, Math.min(totalMinutes, LAST_TIME_OPTION_MINUTES));
+  const hours = String(Math.floor(normalized / 60)).padStart(2, "0");
+  const minutes = String(normalized % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function formatTimeLabel(time: string) {
+  const [rawHours, rawMinutes] = String(time || "")
+    .split(":")
+    .map((part) => Number(part));
+
+  if (Number.isNaN(rawHours) || Number.isNaN(rawMinutes)) {
+    return time;
+  }
+
+  const period = rawHours >= 12 ? "PM" : "AM";
+  const hours12 = rawHours % 12 === 0 ? 12 : rawHours % 12;
+  const minutes = String(rawMinutes).padStart(2, "0");
+
+  return `${hours12}:${minutes} ${period}`;
+}
+
+function buildTimeOptions(startMinutes: number, endMinutes: number) {
+  const options: string[] = [];
+
+  for (
+    let minutes = startMinutes;
+    minutes <= endMinutes;
+    minutes += CONSULTATION_DURATION_MINUTES
+  ) {
+    options.push(toTimeValue(minutes));
+  }
+
+  return options;
+}
+
+function getMinimumEndTime(startTime: string) {
+  const start = toMinutes(startTime);
+
+  if (Number.isNaN(start)) {
+    return "";
+  }
+
+  return toTimeValue(start + MIN_SLOT_DURATION_MINUTES);
+}
+
+function getMaximumEndTime(startTime: string) {
+  const start = toMinutes(startTime);
+
+  if (Number.isNaN(start)) {
+    return "";
+  }
+
+  return toTimeValue(
+    Math.min(start + MAX_SLOT_DURATION_MINUTES, LAST_TIME_OPTION_MINUTES)
+  );
+}
+
+function normalizeSlotTimes(slot: DoctorAvailabilityScheduleItem) {
+  const start = toMinutes(slot.startTime);
+  const end = toMinutes(slot.endTime);
+
+  if (Number.isNaN(start)) {
+    return slot;
+  }
+
+  const minimumEndTime = getMinimumEndTime(slot.startTime);
+  const maximumEndTime = getMaximumEndTime(slot.startTime);
+  const minimumEnd = toMinutes(minimumEndTime);
+  const maximumEnd = toMinutes(maximumEndTime);
+
+  let nextEndTime = slot.endTime;
+
+  if (
+    !slot.endTime ||
+    Number.isNaN(end) ||
+    end < minimumEnd ||
+    end > maximumEnd
+  ) {
+    nextEndTime = minimumEndTime;
+  }
+
+  return {
+    ...slot,
+    endTime: nextEndTime,
+  };
 }
 
 function fieldClass(readOnly = false) {
@@ -102,6 +196,14 @@ function getScheduleOverlapMessage(schedule: DoctorAvailabilityScheduleItem[]) {
 
     if (Number.isNaN(start) || Number.isNaN(end) || start >= end) {
       return `Invalid time range for ${slot.day || "selected day"}. End time must be later than start time.`;
+    }
+
+    if (end - start < MIN_SLOT_DURATION_MINUTES) {
+      return `Invalid time range for ${slot.day || "selected day"}. Each slot must be at least 2 hours.`;
+    }
+
+    if (end - start > MAX_SLOT_DURATION_MINUTES) {
+      return `Invalid time range for ${slot.day || "selected day"}. Each slot cannot exceed 6 hours.`;
     }
 
     const daySlots = groupedByDay.get(slot.day) || [];
@@ -213,6 +315,11 @@ export default function DoctorAvailabilityPage() {
   const availabilitySummary = useMemo(
     () => buildAvailabilitySummary(formData.availabilitySchedule),
     [formData.availabilitySchedule]
+  );
+
+  const startTimeOptions = useMemo(
+    () => buildTimeOptions(0, LATEST_START_TIME_MINUTES),
+    []
   );
 
   const configuredSlotCount = useMemo(
@@ -364,10 +471,14 @@ export default function DoctorAvailabilityPage() {
         availabilitySchedule: prev.availabilitySchedule.map((slot, slotIndex) =>
           slotIndex === index
             ? (() => {
-                const nextSlot = {
+                const draftSlot = {
                   ...slot,
                   [field]: value,
                 };
+                const nextSlot =
+                  field === "startTime" || field === "endTime"
+                    ? normalizeSlotTimes(draftSlot)
+                    : draftSlot;
 
                 return {
                   ...nextSlot,
@@ -381,6 +492,19 @@ export default function DoctorAvailabilityPage() {
         ),
       };
     });
+  };
+
+  const getEndTimeOptions = (startTime: string) => {
+    const start = toMinutes(startTime);
+
+    if (Number.isNaN(start)) {
+      return [];
+    }
+
+    const minimumEnd = toMinutes(getMinimumEndTime(startTime));
+    const maximumEnd = toMinutes(getMaximumEndTime(startTime));
+
+    return buildTimeOptions(minimumEnd, maximumEnd);
   };
 
   const handleUpdateRow = (index: number) => {
@@ -642,8 +766,7 @@ export default function DoctorAvailabilityPage() {
                                         Time Range
                                       </label>
                                       <div className="grid min-w-[260px] grid-cols-2 gap-3">
-                                        <input
-                                          type="time"
+                                        <select
                                           value={slot.startTime}
                                           onChange={(event) =>
                                             handleScheduleChange(
@@ -654,9 +777,15 @@ export default function DoctorAvailabilityPage() {
                                           }
                                           disabled={editingRowKey !== `row-${index}`}
                                           className={fieldClass()}
-                                        />
-                                        <input
-                                          type="time"
+                                        >
+                                          <option value="">Select start</option>
+                                          {startTimeOptions.map((time) => (
+                                            <option key={time} value={time}>
+                                              {formatTimeLabel(time)}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <select
                                           value={slot.endTime}
                                           onChange={(event) =>
                                             handleScheduleChange(
@@ -665,9 +794,21 @@ export default function DoctorAvailabilityPage() {
                                               event.target.value
                                             )
                                           }
-                                          disabled={editingRowKey !== `row-${index}`}
+                                          disabled={
+                                            editingRowKey !== `row-${index}` ||
+                                            !slot.startTime
+                                          }
                                           className={fieldClass()}
-                                        />
+                                        >
+                                          <option value="">
+                                            {slot.startTime ? "Select end" : "Choose start first"}
+                                          </option>
+                                          {getEndTimeOptions(slot.startTime).map((time) => (
+                                            <option key={time} value={time}>
+                                              {formatTimeLabel(time)}
+                                            </option>
+                                          ))}
+                                        </select>
                                       </div>
                                     </div>
 
