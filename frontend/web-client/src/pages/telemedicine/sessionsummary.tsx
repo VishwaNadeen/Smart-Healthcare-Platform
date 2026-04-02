@@ -324,8 +324,12 @@ export default function SessionSummary() {
                 {session.appointmentId}
               </p>
 
-              <div className="mt-3 inline-flex rounded-full bg-green-100 text-green-700 px-3 py-1 text-xs font-semibold">
-                {session.status}
+              <div
+                className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClasses(
+                  session.status
+                )}`}
+              >
+                {statusText}
               </div>
             </div>
           </div>

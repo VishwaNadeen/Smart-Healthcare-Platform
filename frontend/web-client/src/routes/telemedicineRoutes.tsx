@@ -11,8 +11,6 @@ import PatientSessions from "../pages/telemedicine/Patientsessions";
 import WaitingRoom from "../pages/telemedicine/waitingroom";
 import SessionSummary from "../pages/telemedicine/sessionsummary";
 import SessionHistory from "../pages/telemedicine/sessionHistory";
-import Dashboard from "../pages/telemedicine/dashboard";
-import Statistics from "../pages/telemedicine/statistics";
 
 function ConsultationRedirect() {
   const auth = getStoredTelemedicineAuth();
@@ -144,26 +142,5 @@ export const telemedicineRoutes = (
       }
     />
 
-    <Route
-      path="/telemedicine-dashboard"
-      element={
-        <MainLayout>
-          <RequireTelemedicineRole allowedRoles={["doctor", "patient"]}>
-            <Dashboard />
-          </RequireTelemedicineRole>
-        </MainLayout>
-      }
-    />
-
-    <Route
-      path="/telemedicine-statistics"
-      element={
-        <MainLayout>
-          <RequireTelemedicineRole allowedRoles={["doctor"]}>
-            <Statistics />
-          </RequireTelemedicineRole>
-        </MainLayout>
-      }
-    />
   </>
 );

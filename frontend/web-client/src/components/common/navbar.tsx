@@ -86,9 +86,7 @@ function isConsultationPath(pathname: string) {
     pathname.startsWith("/patient-sessions") ||
     pathname.startsWith("/waiting-room/") ||
     pathname.startsWith("/session-summary/") ||
-    pathname.startsWith("/session-history") ||
-    pathname.startsWith("/telemedicine-dashboard") ||
-    pathname.startsWith("/telemedicine-statistics")
+    pathname.startsWith("/session-history")
   );
 }
 
