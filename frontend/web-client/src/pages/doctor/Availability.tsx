@@ -28,7 +28,7 @@ const DAY_OPTIONS = [
   "Saturday",
   "Sunday",
 ];
-const CONSULTATION_DURATION_MINUTES = 15;
+const CONSULTATION_DURATION_MINUTES = 10;
 
 function createEmptyScheduleSlot(): DoctorAvailabilityScheduleItem {
   return {

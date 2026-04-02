@@ -8,7 +8,7 @@ const {
 const ACTIVE_APPOINTMENT_STATUSES = ["pending", "confirmed"];
 const APPOINTMENT_STATUSES = ["pending", "confirmed", "completed", "cancelled"];
 const DOCTOR_SERVICE_URL = process.env.DOCTOR_SERVICE_URL || "http://localhost:5003";
-const CONSULTATION_DURATION_MINUTES = 15;
+const CONSULTATION_DURATION_MINUTES = 10;
 const STATUS_TRANSITIONS = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["completed", "cancelled"],
