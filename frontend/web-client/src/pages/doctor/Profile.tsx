@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "../../components/common/ToastProvider";
 import {
   deleteCurrentDoctor,
@@ -139,27 +139,6 @@ export default function DoctorProfilePage() {
       .map((part) => part[0]?.toUpperCase() || "")
       .join("");
   }, [formData.fullName]);
-
-  const scheduleSummary = useMemo(
-    () =>
-      formData.availabilitySchedule
-        .filter((slot) => slot.day && slot.startTime && slot.endTime)
-        .map((slot) => {
-          const mode =
-            slot.mode === "in_person"
-              ? "In Person"
-              : slot.mode === "video"
-              ? "Video"
-              : "Both";
-          return `${slot.day} • ${slot.startTime}-${slot.endTime} • ${mode} • max ${slot.maxAppointments}`;
-        }),
-    [formData.availabilitySchedule]
-  );
-
-  const availabilitySummary = useMemo(
-    () => buildAvailabilitySummary(formData.availabilitySchedule),
-    [formData.availabilitySchedule]
-  );
 
   const applyProfile = (profile: DoctorProfile) => {
     const derivedAvailabilitySummary = buildAvailabilitySummary(
@@ -469,37 +448,6 @@ export default function DoctorProfilePage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-slate-200 bg-white p-6">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Availability Snapshot
-              </p>
-              <div className="mt-5 space-y-4 text-sm text-slate-700">
-                <div>
-                  <p className="font-semibold text-slate-900">Available Days</p>
-                  <p className="mt-1 leading-6">
-                    {availabilitySummary.availableDays.length > 0
-                      ? availabilitySummary.availableDays.join(", ")
-                      : "No days configured yet."}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-900">Time Slots</p>
-                  <p className="mt-1 leading-6">
-                    {availabilitySummary.availableTimeSlots.length > 0
-                      ? availabilitySummary.availableTimeSlots.join(", ")
-                      : "No time slots configured yet."}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-900">Video Sessions</p>
-                  <p className="mt-1 leading-6">
-                    {formData.isAvailableForVideo
-                      ? "Video consultations enabled"
-                      : "Video consultations disabled"}
-                  </p>
-                </div>
-              </div>
-            </div>
           </aside>
 
           <main>
@@ -617,93 +565,6 @@ export default function DoctorProfilePage() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-slate-200 bg-white p-6 md:p-7">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
-                        Availability
-                      </p>
-                      <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                        Booking Schedule
-                      </h2>
-                    </div>
-
-                    <Link
-                      to="/doctor/availability"
-                      className="rounded-2xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
-                    >
-                      Manage Availability
-                    </Link>
-                  </div>
-
-                  <div className="mt-6 space-y-5">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Available Days
-                      </p>
-                      <p className="mt-2 text-base text-slate-800">
-                        {availabilitySummary.availableDays.length > 0
-                          ? availabilitySummary.availableDays.join(", ")
-                          : "No days configured yet."}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Available Time Slots
-                      </p>
-                      <p className="mt-2 text-base text-slate-800">
-                        {availabilitySummary.availableTimeSlots.length > 0
-                          ? availabilitySummary.availableTimeSlots.join(", ")
-                          : "No time slots configured yet."}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Schedule Details
-                      </p>
-                      {scheduleSummary.length > 0 ? (
-                        <div className="mt-3 space-y-2">
-                          {scheduleSummary.map((item) => (
-                            <div
-                              key={item}
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700"
-                            >
-                              {item}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-2 text-base text-slate-800">
-                          No detailed schedule configured yet.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                      <OverviewCard
-                        label="Video"
-                        value={formData.isAvailableForVideo ? "Enabled" : "Disabled"}
-                      />
-                      <OverviewCard
-                        label="Digital Prescriptions"
-                        value={
-                          formData.supportsDigitalPrescriptions ? "Enabled" : "Disabled"
-                        }
-                      />
-                      <OverviewCard
-                        label="Accepting Appointments"
-                        value={formData.acceptsNewAppointments ? "Yes" : "No"}
-                      />
-                    </div>
-
-                    <p className="text-sm leading-6 text-slate-500">
-                      Use the dedicated availability page to add, edit, or remove
-                      booking slots.
-                    </p>
-                  </div>
-                </div>
               </div>
             ) : (
               <form onSubmit={handleSave} className="space-y-6">
@@ -892,40 +753,6 @@ export default function DoctorProfilePage() {
                   </div>
                 </div>
 
-                <div className="rounded-[28px] border border-slate-200 bg-white p-6 md:p-7">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
-                        Availability
-                      </p>
-                      <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                        Manage Booking Schedule
-                      </h2>
-                      <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-                        Keep this section up to date so appointment-service can reflect the
-                        doctor’s latest availability and booking preferences.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 space-y-4">
-                    <p className="max-w-2xl text-sm leading-7 text-slate-500">
-                      Schedule editing has been moved out of the doctor profile page.
-                      Open the dedicated availability route from the doctor menu to
-                      manage booking slots and appointment preferences.
-                    </p>
-
-                    <div>
-                      <Link
-                        to="/doctor/availability"
-                        className="inline-flex rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
-                      >
-                        Open Availability Page
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="submit"
@@ -966,3 +793,4 @@ export default function DoctorProfilePage() {
     </div>
   );
 }
+

@@ -215,6 +215,11 @@ export default function DoctorAvailabilityPage() {
     [formData.availabilitySchedule]
   );
 
+  const configuredSlotCount = useMemo(
+    () => formData.availabilitySchedule.filter(isCompleteScheduleSlot).length,
+    [formData.availabilitySchedule]
+  );
+
   const scheduleSummary = useMemo(
     () =>
       formData.availabilitySchedule
@@ -380,6 +385,7 @@ export default function DoctorAvailabilityPage() {
 
   const handleUpdateRow = (index: number) => {
     const nextRow = formData.availabilitySchedule[index];
+    const isNewDraft = !doctorProfile?.availabilitySchedule?.[index];
 
     if (!nextRow || !isCompleteScheduleSlot(nextRow)) {
       const message = "Please complete day, start time, and end time before updating.";
@@ -389,7 +395,9 @@ export default function DoctorAvailabilityPage() {
     }
 
     void persistAvailability(formData, {
-      successMessage: "Availability updated successfully.",
+      successMessage: isNewDraft
+        ? "Availability slot added successfully."
+        : "Availability updated successfully.",
     });
   };
 
@@ -416,7 +424,7 @@ export default function DoctorAvailabilityPage() {
 
     setFormData(nextFormData);
     void persistAvailability(nextFormData, {
-      successMessage: "Availability updated successfully.",
+      successMessage: "Availability slot deleted successfully.",
     });
   };
 
@@ -472,7 +480,7 @@ export default function DoctorAvailabilityPage() {
                 Time Slots
               </p>
               <p className="mt-3 text-lg font-semibold text-slate-900">
-                {scheduleSummary.length > 0
+                            {scheduleSummary.length > 0
                   ? `${scheduleSummary.length} session${scheduleSummary.length === 1 ? "" : "s"}`
                   : "No sessions yet"}
               </p>
@@ -551,8 +559,8 @@ export default function DoctorAvailabilityPage() {
                             Schedule List
                           </p>
                           <p className="text-xs text-slate-500">
-                            {formData.availabilitySchedule.length} slot
-                            {formData.availabilitySchedule.length === 1 ? "" : "s"} configured
+                            {configuredSlotCount} slot
+                            {configuredSlotCount === 1 ? "" : "s"} configured
                           </p>
                         </div>
                       </div>
@@ -575,11 +583,11 @@ export default function DoctorAvailabilityPage() {
                               </div>
                             </div>
 
-                            <div className="hidden grid-cols-[72px_200px_minmax(260px,1fr)_120px] gap-4 border-b border-slate-200 bg-white px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 md:grid">
-                              <span>Session</span>
-                              <span>Day</span>
-                              <span>Time Range</span>
-                              <span>Action</span>
+                            <div className="hidden grid-cols-[72px_160px_minmax(240px,1fr)_180px] gap-4 border-b border-slate-200 bg-white px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 md:grid">
+                              <span className="text-center">Session</span>
+                              <span className="text-center">Day</span>
+                              <span className="text-center">Time Range</span>
+                              <span className="text-center">Action</span>
                             </div>
 
                             <div className="divide-y divide-slate-200">
@@ -588,8 +596,14 @@ export default function DoctorAvailabilityPage() {
                                   key={`${group.day}-${index}`}
                                   className="px-4 py-4"
                                 >
-                                  <div className="grid grid-cols-1 gap-4 md:grid-cols-[72px_200px_minmax(260px,1fr)_120px] md:items-center">
-                                    <div>
+                                  {(() => {
+                                    const isEditing = editingRowKey === `row-${index}`;
+                                    const isComplete = isCompleteScheduleSlot(slot);
+                                    const isNewDraft = isEditing && !isComplete;
+
+                                    return (
+                                  <div className="grid grid-cols-1 gap-4 md:grid-cols-[72px_160px_minmax(240px,1fr)_180px] md:items-center">
+                                    <div className="md:flex md:justify-center">
                                       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 md:hidden">
                                         Session
                                       </label>
@@ -598,7 +612,7 @@ export default function DoctorAvailabilityPage() {
                                       </span>
                                     </div>
 
-                                    <div>
+                                    <div className="md:flex md:justify-center">
                                       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 md:hidden">
                                         Day
                                       </label>
@@ -623,7 +637,7 @@ export default function DoctorAvailabilityPage() {
                                       </select>
                                     </div>
 
-                                    <div>
+                                    <div className="md:flex md:justify-center">
                                       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 md:hidden">
                                         Time Range
                                       </label>
@@ -657,34 +671,24 @@ export default function DoctorAvailabilityPage() {
                                       </div>
                                     </div>
 
-                                    <div>
+                                    <div className="md:flex md:justify-center">
                                       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 md:hidden">
                                         Remove
                                       </label>
                                       <div className="flex items-center gap-2">
-                                        {editingRowKey === `row-${index}` ? (
+                                        {isEditing ? (
                                           <>
                                             <button
                                               type="button"
                                               onClick={() => handleUpdateRow(index)}
                                               disabled={saving}
-                                              className="rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-70"
-                                            >
-                                              Update
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setEditingRowKey(null);
-                                                if (doctorProfile) {
-                                                  setFormData(
-                                                    mapProfileToAvailabilityForm(doctorProfile)
-                                                  );
-                                                }
-                                              }}
-                                              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100"
-                                              title="Cancel"
-                                              aria-label={`Cancel editing session ${groupIndex + 1} for ${group.day}`}
+                                              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-white transition hover:bg-blue-700 disabled:opacity-70"
+                                              title={isNewDraft ? "Save new session" : "Update session"}
+                                              aria-label={
+                                                isNewDraft
+                                                  ? `Save new session for ${group.day}`
+                                                  : `Update session ${groupIndex + 1} for ${group.day}`
+                                              }
                                             >
                                               <svg
                                                 className="h-5 w-5"
@@ -694,11 +698,40 @@ export default function DoctorAvailabilityPage() {
                                               >
                                                 <path
                                                   fillRule="evenodd"
-                                                  d="M4.22 4.22a.75.75 0 011.06 0L10 8.94l4.72-4.72a.75.75 0 111.06 1.06L11.06 10l4.72 4.72a.75.75 0 11-1.06 1.06L10 11.06l-4.72 4.72a.75.75 0 01-1.06-1.06L8.94 10 4.22 5.28a.75.75 0 010-1.06z"
+                                                  d="M16.704 5.29a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0l-3.1-3.1a.75.75 0 111.06-1.06l2.57 2.569 6.72-6.72a.75.75 0 011.06 0z"
                                                   clipRule="evenodd"
                                                 />
                                               </svg>
                                             </button>
+                                            {!isNewDraft && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setEditingRowKey(null);
+                                                  if (doctorProfile) {
+                                                    setFormData(
+                                                      mapProfileToAvailabilityForm(doctorProfile)
+                                                    );
+                                                  }
+                                                }}
+                                                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100"
+                                                title="Cancel"
+                                                aria-label={`Cancel editing session ${groupIndex + 1} for ${group.day}`}
+                                              >
+                                                <svg
+                                                  className="h-5 w-5"
+                                                  viewBox="0 0 20 20"
+                                                  fill="currentColor"
+                                                  aria-hidden="true"
+                                                >
+                                                  <path
+                                                    fillRule="evenodd"
+                                                    d="M4.22 4.22a.75.75 0 011.06 0L10 8.94l4.72-4.72a.75.75 0 111.06 1.06L11.06 10l4.72 4.72a.75.75 0 11-1.06 1.06L10 11.06l-4.72 4.72a.75.75 0 01-1.06-1.06L8.94 10 4.22 5.28a.75.75 0 010-1.06z"
+                                                    clipRule="evenodd"
+                                                  />
+                                                </svg>
+                                              </button>
+                                            )}
                                           </>
                                         ) : (
                                           <button
@@ -745,6 +778,8 @@ export default function DoctorAvailabilityPage() {
                                       </div>
                                     </div>
                                   </div>
+                                    );
+                                  })()}
                                 </div>
                               ))}
                             </div>
