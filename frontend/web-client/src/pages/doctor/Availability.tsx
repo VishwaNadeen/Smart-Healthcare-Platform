@@ -237,9 +237,9 @@ function mapProfileToAvailabilityForm(
     : [];
 
   return {
-    isAvailableForVideo: Boolean(profile.isAvailableForVideo),
-    supportsDigitalPrescriptions: profile.supportsDigitalPrescriptions !== false,
-    acceptsNewAppointments: profile.acceptsNewAppointments !== false,
+    isAvailableForVideo: true,
+    supportsDigitalPrescriptions: true,
+    acceptsNewAppointments: true,
     availabilitySchedule:
       availabilitySchedule.length > 0
         ? availabilitySchedule.map((slot) => ({
@@ -284,9 +284,9 @@ function buildAvailabilityPayload(
     consultationFee: Number(profile.consultationFee) || 0,
     profileImage: profile.profileImage || "",
     about: profile.about || "",
-    isAvailableForVideo: formData.isAvailableForVideo,
-    supportsDigitalPrescriptions: formData.supportsDigitalPrescriptions,
-    acceptsNewAppointments: formData.acceptsNewAppointments,
+    isAvailableForVideo: true,
+    supportsDigitalPrescriptions: true,
+    acceptsNewAppointments: true,
     availableDays: summary.availableDays,
     availableTimeSlots: summary.availableTimeSlots,
     availabilitySchedule: normalizedSchedule,
@@ -301,7 +301,7 @@ export default function DoctorAvailabilityPage() {
 
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [formData, setFormData] = useState<AvailabilityFormState>({
-    isAvailableForVideo: false,
+    isAvailableForVideo: true,
     supportsDigitalPrescriptions: true,
     acceptsNewAppointments: true,
     availabilitySchedule: [],
@@ -391,15 +391,6 @@ export default function DoctorAvailabilityPage() {
 
     void loadProfile();
   }, [navigate, token]);
-
-  const handleToggleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, checked } = event.target;
-    const nextFormData = { ...formData, [name]: checked };
-    setFormData(nextFormData);
-    void persistAvailability(nextFormData, {
-      successMessage: "Availability updated successfully.",
-    });
-  };
 
   const persistAvailability = async (
     nextFormData: AvailabilityFormState,
@@ -587,7 +578,7 @@ export default function DoctorAvailabilityPage() {
         </section>
 
         <section className="space-y-6 p-8 lg:p-10">
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="rounded-[24px] border border-slate-200 bg-white p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Available Days
@@ -608,41 +599,6 @@ export default function DoctorAvailabilityPage() {
                   ? `${scheduleSummary.length} session${scheduleSummary.length === 1 ? "" : "s"}`
                   : "No sessions yet"}
               </p>
-            </div>
-
-            <div className="rounded-[24px] border border-slate-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Booking Status
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    formData.isAvailableForVideo
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-slate-200 text-slate-600"
-                  }`}
-                >
-                  Video {formData.isAvailableForVideo ? "On" : "Off"}
-                </span>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    formData.supportsDigitalPrescriptions
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-slate-200 text-slate-600"
-                  }`}
-                >
-                  Prescriptions {formData.supportsDigitalPrescriptions ? "On" : "Off"}
-                </span>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    formData.acceptsNewAppointments
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-amber-100 text-amber-700"
-                  }`}
-                >
-                  {formData.acceptsNewAppointments ? "Accepting Appointments" : "Paused"}
-                </span>
-              </div>
             </div>
           </div>
 
@@ -934,52 +890,78 @@ export default function DoctorAvailabilityPage() {
 
               <div className="rounded-[28px] border border-slate-200 bg-white p-6 md:p-7">
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
-                  Preferences
+                  Included
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  Booking Options
+                  Service Features
                 </h2>
 
                 <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <label className="flex min-h-20 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      name="isAvailableForVideo"
-                      checked={formData.isAvailableForVideo}
-                      onChange={handleToggleChange}
-                      disabled={saving}
-                      className="mt-1 shrink-0"
-                    />
-                    <span className="leading-6">
-                      Available for video sessions
-                    </span>
-                  </label>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 5.29a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0l-3.1-3.1a.75.75 0 111.06-1.06l2.57 2.569 6.72-6.72a.75.75 0 011.06 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </span>
+                      <p className="text-sm font-semibold text-slate-800">
+                        Available for video sessions
+                      </p>
+                    </div>
+                  </div>
 
-                  <label className="flex min-h-20 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      name="supportsDigitalPrescriptions"
-                      checked={formData.supportsDigitalPrescriptions}
-                      onChange={handleToggleChange}
-                      disabled={saving}
-                      className="mt-1 shrink-0"
-                    />
-                    <span className="leading-6">
-                      Support digital prescriptions
-                    </span>
-                  </label>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 5.29a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0l-3.1-3.1a.75.75 0 111.06-1.06l2.57 2.569 6.72-6.72a.75.75 0 011.06 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </span>
+                      <p className="text-sm font-semibold text-slate-800">
+                        Support digital prescriptions
+                      </p>
+                    </div>
+                  </div>
 
-                  <label className="flex min-h-20 items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      name="acceptsNewAppointments"
-                      checked={formData.acceptsNewAppointments}
-                      onChange={handleToggleChange}
-                      disabled={saving}
-                      className="mt-1 shrink-0"
-                    />
-                    <span className="leading-6">Accept new appointments</span>
-                  </label>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 5.29a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0l-3.1-3.1a.75.75 0 111.06-1.06l2.57 2.569 6.72-6.72a.75.75 0 011.06 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </span>
+                      <p className="text-sm font-semibold text-slate-800">
+                        Accept new appointments
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
