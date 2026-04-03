@@ -23,7 +23,9 @@ exports.createPrescription = async (req, res) => {
       });
     }
 
-    if (String(req.session.doctorId) !== String(req.user.userId)) {
+    const doctorIds = getDoctorIdentityValues(req);
+
+    if (!doctorIds.includes(String(req.session.doctorId))) {
       return res.status(403).json({
         success: false,
         message: "You can create prescriptions only for your own sessions",
@@ -39,7 +41,7 @@ exports.createPrescription = async (req, res) => {
 
     const prescription = await TelemedicinePrescription.create({
       appointmentId,
-      doctorId: String(req.user.userId),
+      doctorId: String(req.session.doctorId),
       patientId,
       medicineName,
       dosage,
@@ -55,6 +57,67 @@ exports.createPrescription = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to save prescription",
+      error: error.message,
+    });
+  }
+};
+
+exports.updatePrescription = async (req, res) => {
+  try {
+    if (req.user.role !== "doctor") {
+      return res.status(403).json({
+        success: false,
+        message: "Only doctors can update prescriptions",
+      });
+    }
+
+    const { medicineName, dosage, instructions } = req.body || {};
+
+    if (!medicineName || !dosage || !instructions) {
+      return res.status(400).json({
+        success: false,
+        message: "medicineName, dosage and instructions are required",
+      });
+    }
+
+    const prescription = await TelemedicinePrescription.findById(
+      req.params.prescriptionId
+    );
+
+    if (!prescription) {
+      return res.status(404).json({
+        success: false,
+        message: "Prescription not found",
+      });
+    }
+
+    const session = await TelemedicineSession.findOne({
+      appointmentId: String(prescription.appointmentId),
+      doctorId: { $in: getDoctorIdentityValues(req) },
+    });
+
+    if (!session) {
+      return res.status(403).json({
+        success: false,
+        message: "You can update prescriptions only for your own sessions",
+      });
+    }
+
+    prescription.medicineName = String(medicineName).trim();
+    prescription.dosage = String(dosage).trim();
+    prescription.instructions = String(instructions).trim();
+
+    await prescription.save();
+
+    return res.status(200).json({
+      success: true,
+      data: prescription,
+      message: "Prescription updated successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update prescription",
       error: error.message,
     });
   }

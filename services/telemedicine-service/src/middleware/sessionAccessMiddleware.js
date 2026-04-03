@@ -3,6 +3,15 @@ const TelemedicineSession = require("../models/telemedicineSession");
 const getAppointmentIdFromRequest = (req) =>
   req.params.appointmentId || req.body.appointmentId || req.query.appointmentId;
 
+const getDoctorIdentityValues = (req) => {
+  return [
+    ...new Set(
+      [String(req.user?.userId || ""), String(req.user?.doctorProfileId || "")]
+        .filter(Boolean)
+    ),
+  ];
+};
+
 const sessionAccessMiddleware = async (req, res, next) => {
   try {
     const appointmentId = getAppointmentIdFromRequest(req);
@@ -22,8 +31,10 @@ const sessionAccessMiddleware = async (req, res, next) => {
     }
 
     const loggedUserId = String(req.user.userId);
+    const doctorIds = getDoctorIdentityValues(req);
     const isPatient = req.user.role === "patient" && String(session.patientId) === loggedUserId;
-    const isDoctor = req.user.role === "doctor" && String(session.doctorId) === loggedUserId;
+    const isDoctor =
+      req.user.role === "doctor" && doctorIds.includes(String(session.doctorId));
 
     if (!isPatient && !isDoctor) {
       return res.status(403).json({

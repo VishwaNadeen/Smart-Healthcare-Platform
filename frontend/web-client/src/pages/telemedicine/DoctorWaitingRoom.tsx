@@ -39,7 +39,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
-export default function SessionDetails() {
+export default function DoctorWaitingRoom() {
   const { appointmentId } = useParams();
   const navigate = useNavigate();
   const [session, setSession] = useState<TelemedicineSession | null>(null);
@@ -235,7 +235,7 @@ export default function SessionDetails() {
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               {session.status === "completed" ? (
                 <Link
-                  to={`/session-summary/${session.appointmentId}`}
+                  to={`/doctor-session-summary/${session.appointmentId}`}
                   className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700"
                 >
                   View Session Summary

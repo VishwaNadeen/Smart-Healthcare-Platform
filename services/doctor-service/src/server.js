@@ -1,6 +1,5 @@
-const dotenv = require("dotenv");
-
-dotenv.config();
+process.env.DOTENV_CONFIG_QUIET = "true";
+require("dotenv").config();
 
 const connectDB = require("./config/db");
 const app = require("./app");
