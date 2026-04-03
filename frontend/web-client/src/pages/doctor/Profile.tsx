@@ -86,32 +86,6 @@ function buildAvailabilitySummary(schedule: DoctorAvailabilityScheduleItem[]) {
   };
 }
 
-function OverviewCard({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "success" | "warning";
-}) {
-  const toneClass =
-    tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : tone === "warning"
-      ? "border-amber-200 bg-amber-50 text-amber-700"
-      : "border-slate-200 bg-white text-slate-700";
-
-  return (
-    <div className={`rounded-2xl border px-4 py-4 ${toneClass}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.22em] opacity-70">
-        {label}
-      </p>
-      <p className="mt-2 text-base font-semibold capitalize">{value || "-"}</p>
-    </div>
-  );
-}
-
 export default function DoctorProfilePage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -416,40 +390,7 @@ export default function DoctorProfilePage() {
           </div>
         </section>
 
-        <section className="grid gap-8 p-8 lg:grid-cols-[320px_1fr] lg:p-10">
-          <aside className="space-y-6">
-            <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-6">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Account State
-              </p>
-              <div className="mt-5 space-y-3">
-                <OverviewCard
-                  label="Verification"
-                  value={doctorProfile?.verificationStatus || "pending"}
-                  tone={
-                    doctorProfile?.verificationStatus === "approved"
-                      ? "success"
-                      : "warning"
-                  }
-                />
-                <OverviewCard
-                  label="Account Status"
-                  value={doctorProfile?.status || "inactive"}
-                  tone={
-                    doctorProfile?.status === "active" ? "success" : "warning"
-                  }
-                />
-                <OverviewCard
-                  label="Appointments"
-                  value={
-                    formData.acceptsNewAppointments ? "Accepting new patients" : "Paused"
-                  }
-                />
-              </div>
-            </div>
-
-          </aside>
-
+        <section className="p-8 lg:p-10">
           <main>
             {!editing ? (
               <div className="space-y-6">

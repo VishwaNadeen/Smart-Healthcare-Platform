@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../../components/common/ToastProvider";
+import PhoneNumberInput from "../../components/common/PhoneNumberInput";
 import { useLocationToast } from "../../hooks/useLocationToast";
 import { DOCTOR_API_URL, SPECIALTY_API_URL } from "../../config/api";
 
@@ -9,6 +10,7 @@ type DoctorFormData = {
   fullName: string;
   email: string;
   password: string;
+  confirmPassword: string;
   phone: string;
   specialization: string;
   experience: string;
@@ -22,6 +24,7 @@ type DoctorFormData = {
 };
 
 type FormErrors = Partial<Record<keyof DoctorFormData, string>>;
+type TouchedFields = Partial<Record<keyof DoctorFormData, boolean>>;
 
 type StepConfig = {
   id: number;
@@ -38,7 +41,7 @@ const STEPS: StepConfig[] = [
     eyebrow: "Doctor Info",
     description:
       "Set up the doctor account with essential identity and contact details.",
-    fields: ["fullName", "email", "password", "phone"],
+    fields: ["fullName", "email", "password", "confirmPassword", "phone"],
   },
   {
     id: 2,
@@ -72,42 +75,109 @@ function getFieldClass(hasError: boolean) {
   }`;
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^\+[1-9]\d{9,14}$/;
+const COUNTRY_CODE_ONLY_PATTERN = /^\+[1-9]\d{0,3}$/;
+
+function hasMeaningfulPhoneValue(value: string) {
+  const normalized = value.replace(/\s+/g, "");
+  return Boolean(normalized) && !COUNTRY_CODE_ONLY_PATTERN.test(normalized);
+}
+
+function validateDoctorField(
+  field: keyof DoctorFormData,
+  value: string,
+  data: DoctorFormData
+): string {
+  const trimmedValue = value.trim();
+
+  switch (field) {
+    case "fullName":
+      if (!trimmedValue) return "Full name is required.";
+      return "";
+
+    case "email":
+      if (!trimmedValue) return "Email is required.";
+      if (!EMAIL_PATTERN.test(trimmedValue)) {
+        return "Enter a valid email address.";
+      }
+      return "";
+
+    case "password":
+      if (!value) return "Password is required.";
+      if (value.length < 6) {
+        return "Password must be at least 6 characters.";
+      }
+      return "";
+
+    case "confirmPassword":
+      if (!value) return "Confirm password is required.";
+      if (value !== data.password) {
+        return "Passwords do not match.";
+      }
+      return "";
+
+    case "phone":
+      if (!trimmedValue || !hasMeaningfulPhoneValue(trimmedValue)) {
+        return "Phone number is required.";
+      }
+      if (!PHONE_PATTERN.test(trimmedValue.replace(/\s+/g, ""))) {
+        return "Enter a valid phone number with country code.";
+      }
+      return "";
+
+    case "specialization":
+      if (!trimmedValue) return "Please select a specialty.";
+      return "";
+
+    case "experience":
+      if (!trimmedValue || Number(data.experience) < 0) {
+        return "Enter valid experience.";
+      }
+      return "";
+
+    case "qualification":
+      if (!trimmedValue) return "Qualification is required.";
+      return "";
+
+    case "licenseNumber":
+      if (!trimmedValue) return "License number is required.";
+      return "";
+
+    case "consultationFee":
+      if (!trimmedValue || Number(data.consultationFee) < 0) {
+        return "Enter valid consultation fee.";
+      }
+      return "";
+
+    default:
+      return "";
+  }
+}
+
 function validateDoctorForm(data: DoctorFormData): FormErrors {
-  const errors: FormErrors = {};
+  return {
+    fullName: validateDoctorField("fullName", data.fullName, data),
+    email: validateDoctorField("email", data.email, data),
+    password: validateDoctorField("password", data.password, data),
+    confirmPassword: validateDoctorField(
+      "confirmPassword",
+      data.confirmPassword,
+      data
+    ),
+    phone: validateDoctorField("phone", data.phone, data),
+    specialization: validateDoctorField("specialization", data.specialization, data),
+    experience: validateDoctorField("experience", data.experience, data),
+    qualification: validateDoctorField("qualification", data.qualification, data),
+    licenseNumber: validateDoctorField("licenseNumber", data.licenseNumber, data),
+    consultationFee: validateDoctorField("consultationFee", data.consultationFee, data),
+  };
+}
 
-  if (!data.fullName.trim()) {
-    errors.fullName = "Full name is required.";
-  }
-  if (!data.email.trim()) {
-    errors.email = "Email is required.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) {
-    errors.email = "Enter a valid email address.";
-  }
-  if (!data.password) {
-    errors.password = "Password is required.";
-  } else if (data.password.length < 6) {
-    errors.password = "Password must be at least 6 characters.";
-  }
-  if (!data.phone.trim()) {
-    errors.phone = "Phone number is required.";
-  }
-  if (!data.specialization.trim()) {
-    errors.specialization = "Please select a specialty.";
-  }
-  if (!data.experience.trim() || Number(data.experience) < 0) {
-    errors.experience = "Enter valid experience.";
-  }
-  if (!data.qualification.trim()) {
-    errors.qualification = "Qualification is required.";
-  }
-  if (!data.licenseNumber.trim()) {
-    errors.licenseNumber = "License number is required.";
-  }
-  if (!data.consultationFee.trim() || Number(data.consultationFee) < 0) {
-    errors.consultationFee = "Enter valid consultation fee.";
-  }
-
-  return errors;
+function getFilledErrors(errors: FormErrors): FormErrors {
+  return Object.fromEntries(
+    Object.entries(errors).filter(([, value]) => Boolean(value))
+  ) as FormErrors;
 }
 
 async function readErrorMessage(response: Response, fallback: string) {
@@ -146,12 +216,15 @@ export default function DoctorRegisterPage() {
   const [allowSubmit, setAllowSubmit] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
+  const [touchedFields, setTouchedFields] = useState<TouchedFields>({});
+  const [showStepErrors, setShowStepErrors] = useState(false);
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState("");
   const [formData, setFormData] = useState<DoctorFormData>({
     fullName: "",
     email: "",
     password: "",
+    confirmPassword: "",
     phone: "",
     specialization: "",
     experience: "",
@@ -206,6 +279,19 @@ export default function DoctorRegisterPage() {
   }, [profileImageFile]);
 
   const currentStepConfig = STEPS[currentStep];
+  const hasFieldValue = (field: keyof DoctorFormData, value: string) =>
+    field === "password"
+      ? value.length > 0
+      : field === "phone"
+      ? hasMeaningfulPhoneValue(value)
+      : value.trim().length > 0;
+
+  const shouldShowFieldError = (field: keyof DoctorFormData) =>
+    Boolean(
+      errors[field] &&
+        (showStepErrors || hasFieldValue(field, formData[field]))
+    );
+
   const completionCount = useMemo(
     () =>
       Object.values(formData).filter((value) =>
@@ -218,15 +304,90 @@ export default function DoctorRegisterPage() {
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = event.target;
+    const fieldName = name as keyof DoctorFormData;
+    const nextFormData = {
+      ...formData,
+      [fieldName]: value,
+    };
+    const hasValue = hasFieldValue(fieldName, value);
 
-    setFormData((prev) => ({
+    setFormData(nextFormData);
+    setErrorMessage("");
+    setTouchedFields((prev) => ({
       ...prev,
-      [name]: value,
+      [fieldName]: prev[fieldName] || hasValue,
     }));
+    setErrors((prev) => ({
+      ...prev,
+      [fieldName]: touchedFields[fieldName]
+        ? hasValue
+          ? validateDoctorField(fieldName, value, nextFormData)
+          : showStepErrors
+          ? validateDoctorField(fieldName, value, nextFormData)
+          : ""
+        : hasValue
+        ? validateDoctorField(fieldName, value, nextFormData)
+        : "",
+    }));
+  };
+
+  const handleBlur = (
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = event.target;
+    const fieldName = name as keyof DoctorFormData;
 
     setErrors((prev) => ({
       ...prev,
-      [name]: "",
+      [fieldName]:
+        value.trim().length > 0 || showStepErrors
+          ? validateDoctorField(fieldName, value, formData)
+          : "",
+    }));
+    setTouchedFields((prev) => ({
+      ...prev,
+      [fieldName]: true,
+    }));
+  };
+
+  const handlePhoneChange = (phone: string) => {
+    const nextFormData = {
+      ...formData,
+      phone,
+    };
+    const hasValue = hasMeaningfulPhoneValue(phone);
+
+    setFormData(nextFormData);
+    setErrorMessage("");
+    setTouchedFields((prev) => ({
+      ...prev,
+      phone: prev.phone || hasValue,
+    }));
+    setErrors((prev) => ({
+      ...prev,
+      phone: touchedFields.phone
+        ? hasValue
+          ? validateDoctorField("phone", phone, nextFormData)
+          : showStepErrors
+          ? validateDoctorField("phone", phone, nextFormData)
+          : ""
+        : hasValue
+        ? validateDoctorField("phone", phone, nextFormData)
+        : "",
+    }));
+  };
+
+  const handlePhoneBlur = () => {
+    setTouchedFields((prev) => ({
+      ...prev,
+      phone: true,
+    }));
+    setErrors((prev) => ({
+      ...prev,
+      phone:
+        formData.phone.trim().length > 0 || showStepErrors
+          ? validateDoctorField("phone", formData.phone, formData)
+          : "",
     }));
   };
 
@@ -235,7 +396,7 @@ export default function DoctorRegisterPage() {
   };
 
   const goNextStep = () => {
-    const formErrors = validateDoctorForm(formData);
+    const formErrors = getFilledErrors(validateDoctorForm(formData));
     const stepErrors = currentStepConfig.fields.reduce<FormErrors>((acc, field) => {
       if (formErrors[field]) {
         acc[field] = formErrors[field];
@@ -244,18 +405,27 @@ export default function DoctorRegisterPage() {
     }, {});
 
     if (Object.keys(stepErrors).length > 0) {
+      setShowStepErrors(true);
+      setTouchedFields((prev) => ({
+        ...prev,
+        ...Object.fromEntries(
+          currentStepConfig.fields.map((field) => [field, true])
+        ),
+      }));
       setErrors((prev) => ({ ...prev, ...stepErrors }));
-      setErrorMessage("Please complete the required fields before continuing.");
+      setErrorMessage("");
       return;
     }
 
     setAllowSubmit(false);
+    setShowStepErrors(false);
     setErrorMessage("");
     setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));
   };
 
   const goPreviousStep = () => {
     setAllowSubmit(false);
+    setShowStepErrors(false);
     setErrorMessage("");
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
@@ -267,11 +437,16 @@ export default function DoctorRegisterPage() {
       return;
     }
 
-    const nextErrors = validateDoctorForm(formData);
+    const nextErrors = getFilledErrors(validateDoctorForm(formData));
     if (Object.keys(nextErrors).length > 0) {
+      setShowStepErrors(true);
+      setTouchedFields(
+        Object.fromEntries(
+          Object.keys(nextErrors).map((field) => [field, true])
+        ) as TouchedFields
+      );
       setErrors(nextErrors);
-      setErrorMessage("Please correct the highlighted fields.");
-      showToast("Please correct the highlighted fields.", "error");
+      setErrorMessage("");
       return;
     }
 
@@ -280,7 +455,9 @@ export default function DoctorRegisterPage() {
 
     const payload = new FormData();
     Object.entries(formData).forEach(([key, value]) => {
-      payload.append(key, value);
+      if (key !== "confirmPassword") {
+        payload.append(key, value);
+      }
     });
 
     if (profileImageFile) {
@@ -446,32 +623,34 @@ export default function DoctorRegisterPage() {
                       name="fullName"
                       value={formData.fullName}
                       onChange={handleChange}
-                      className={getFieldClass(Boolean(errors.fullName))}
+                      onBlur={handleBlur}
+                      className={getFieldClass(shouldShowFieldError("fullName"))}
                       placeholder="Dr. Shashen Kumara"
                     />
-                    {errors.fullName && (
+                    {shouldShowFieldError("fullName") && (
                       <p className="mt-2 text-sm text-red-600">{errors.fullName}</p>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-sm font-semibold text-slate-700">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        className={getFieldClass(Boolean(errors.email))}
-                        placeholder="doctor@gmail.com"
-                      />
-                      {errors.email && (
-                        <p className="mt-2 text-sm text-red-600">{errors.email}</p>
-                      )}
-                    </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      className={getFieldClass(shouldShowFieldError("email"))}
+                      placeholder="doctor@gmail.com"
+                    />
+                    {shouldShowFieldError("email") && (
+                      <p className="mt-2 text-sm text-red-600">{errors.email}</p>
+                    )}
+                  </div>
 
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                     <div>
                       <label className="mb-2 block text-sm font-semibold text-slate-700">
                         Password
@@ -481,11 +660,34 @@ export default function DoctorRegisterPage() {
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
-                        className={getFieldClass(Boolean(errors.password))}
+                        onBlur={handleBlur}
+                        className={getFieldClass(shouldShowFieldError("password"))}
                         placeholder="Enter password"
                       />
-                      {errors.password && (
+                      {shouldShowFieldError("password") && (
                         <p className="mt-2 text-sm text-red-600">{errors.password}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-700">
+                        Confirm Password
+                      </label>
+                      <input
+                        type="password"
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        className={getFieldClass(
+                          shouldShowFieldError("confirmPassword")
+                        )}
+                        placeholder="Re-enter password"
+                      />
+                      {shouldShowFieldError("confirmPassword") && (
+                        <p className="mt-2 text-sm text-red-600">
+                          {errors.confirmPassword}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -494,17 +696,13 @@ export default function DoctorRegisterPage() {
                     <label className="mb-2 block text-sm font-semibold text-slate-700">
                       Phone
                     </label>
-                    <input
-                      type="text"
-                      name="phone"
+                    <PhoneNumberInput
                       value={formData.phone}
-                      onChange={handleChange}
-                      className={getFieldClass(Boolean(errors.phone))}
-                      placeholder="+94771234567"
+                      onChange={(phone) => handlePhoneChange(phone)}
+                      onBlur={handlePhoneBlur}
+                      error={shouldShowFieldError("phone") ? errors.phone : ""}
+                      sizeVariant="large"
                     />
-                    {errors.phone && (
-                      <p className="mt-2 text-sm text-red-600">{errors.phone}</p>
-                    )}
                   </div>
                 </div>
               )}
@@ -520,7 +718,10 @@ export default function DoctorRegisterPage() {
                         name="specialization"
                         value={formData.specialization}
                         onChange={handleChange}
-                        className={getFieldClass(Boolean(errors.specialization))}
+                        onBlur={handleBlur}
+                        className={getFieldClass(
+                          shouldShowFieldError("specialization")
+                        )}
                         disabled={loadingSpecialties}
                       >
                         <option value="">
@@ -532,7 +733,7 @@ export default function DoctorRegisterPage() {
                           </option>
                         ))}
                       </select>
-                      {errors.specialization && (
+                      {shouldShowFieldError("specialization") && (
                         <p className="mt-2 text-sm text-red-600">{errors.specialization}</p>
                       )}
                     </div>
@@ -546,10 +747,13 @@ export default function DoctorRegisterPage() {
                         name="experience"
                         value={formData.experience}
                         onChange={handleChange}
-                        className={getFieldClass(Boolean(errors.experience))}
+                        onBlur={handleBlur}
+                        className={getFieldClass(
+                          shouldShowFieldError("experience")
+                        )}
                         placeholder="8"
                       />
-                      {errors.experience && (
+                      {shouldShowFieldError("experience") && (
                         <p className="mt-2 text-sm text-red-600">{errors.experience}</p>
                       )}
                     </div>
@@ -565,10 +769,13 @@ export default function DoctorRegisterPage() {
                         name="qualification"
                         value={formData.qualification}
                         onChange={handleChange}
-                        className={getFieldClass(Boolean(errors.qualification))}
+                        onBlur={handleBlur}
+                        className={getFieldClass(
+                          shouldShowFieldError("qualification")
+                        )}
                         placeholder="MBBS, MD Pediatrics"
                       />
-                      {errors.qualification && (
+                      {shouldShowFieldError("qualification") && (
                         <p className="mt-2 text-sm text-red-600">{errors.qualification}</p>
                       )}
                     </div>
@@ -582,10 +789,13 @@ export default function DoctorRegisterPage() {
                         name="licenseNumber"
                         value={formData.licenseNumber}
                         onChange={handleChange}
-                        className={getFieldClass(Boolean(errors.licenseNumber))}
+                        onBlur={handleBlur}
+                        className={getFieldClass(
+                          shouldShowFieldError("licenseNumber")
+                        )}
                         placeholder="SLMC-00715"
                       />
-                      {errors.licenseNumber && (
+                      {shouldShowFieldError("licenseNumber") && (
                         <p className="mt-2 text-sm text-red-600">{errors.licenseNumber}</p>
                       )}
                     </div>
@@ -601,10 +811,13 @@ export default function DoctorRegisterPage() {
                         name="consultationFee"
                         value={formData.consultationFee}
                         onChange={handleChange}
-                        className={getFieldClass(Boolean(errors.consultationFee))}
+                        onBlur={handleBlur}
+                        className={getFieldClass(
+                          shouldShowFieldError("consultationFee")
+                        )}
                         placeholder="4500"
                       />
-                      {errors.consultationFee && (
+                      {shouldShowFieldError("consultationFee") && (
                         <p className="mt-2 text-sm text-red-600">{errors.consultationFee}</p>
                       )}
                     </div>
