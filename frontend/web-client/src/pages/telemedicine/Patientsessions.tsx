@@ -85,7 +85,7 @@ export default function PatientSessions() {
             {error}
           </div>
         ) : approvedSessions.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-gray-600 shadow-sm">
+          <div className="flex min-h-[12rem] items-center justify-center text-center text-gray-600">
             No approved sessions found.
           </div>
         ) : (

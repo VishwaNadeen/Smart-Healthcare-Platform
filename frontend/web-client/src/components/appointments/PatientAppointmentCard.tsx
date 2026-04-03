@@ -130,7 +130,7 @@ export default function PatientAppointmentCard({
 
         {appointment.status === "confirmed" && (
           <Link
-            to={`/waiting-room/${appointment._id}`}
+            to={`/patient-waiting-room/${appointment._id}`}
             className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
           >
             Open Waiting Room

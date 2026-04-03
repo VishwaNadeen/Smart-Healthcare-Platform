@@ -1,12 +1,12 @@
+process.env.DOTENV_CONFIG_QUIET = "true";
+require("dotenv").config();
+
 const express = require("express");
-const dotenv = require("dotenv");
 const cors = require("cors");
 const connectDB = require("./config/db");
 const telemedicineRoutes = require("./routes/telemedicine");
 const telemedicineChatRoutes = require("./routes/telemedicineChat");
 const telemedicinePrescriptionRoutes = require("./routes/telemedicinePrescription");
-
-dotenv.config();
 
 const app = express();
 

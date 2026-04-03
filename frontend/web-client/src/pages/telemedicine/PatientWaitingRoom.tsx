@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
-import StatusBadge from "../../components/telemedicine/StatusBadge";
-import { getPatientAppointments } from "../../services/appointmentApi";
 import {
   getSessionByAppointmentId,
   type TelemedicineSession,
@@ -12,17 +10,9 @@ import {
   getStoredTelemedicineAuth,
 } from "../../utils/telemedicineAuth";
 
-type PatientWaitingRoomSession = TelemedicineSession & {
-  paymentStatus?: string;
-  appointment?: TelemedicineSession["appointment"] & {
-    paymentStatus?: string;
-  };
-};
-
 export default function PatientWaitingRoom() {
   const { appointmentId } = useParams();
   const [session, setSession] = useState<TelemedicineSession | null>(null);
-  const [resolvedPaymentStatus, setResolvedPaymentStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -39,7 +29,6 @@ export default function PatientWaitingRoom() {
       try {
         setLoading(true);
         setError("");
-        setResolvedPaymentStatus("");
         const data = await getSessionByAppointmentId(appointmentId);
         setSession(data);
       } catch (err) {
@@ -52,27 +41,6 @@ export default function PatientWaitingRoom() {
 
     loadSession();
   }, [appointmentId]);
-
-  useEffect(() => {
-    async function loadPaymentStatus() {
-      if (!auth.token || !session?.appointmentId) {
-        return;
-      }
-
-      try {
-        const appointments = await getPatientAppointments(auth.token);
-        const matchingAppointment = appointments.find(
-          (appointment) => appointment._id === session.appointmentId
-        );
-
-        setResolvedPaymentStatus(matchingAppointment?.paymentStatus || "");
-      } catch {
-        setResolvedPaymentStatus("");
-      }
-    }
-
-    loadPaymentStatus();
-  }, [auth.token, session?.appointmentId]);
 
   if (!auth.userId || !auth.actorRole) {
     return (
@@ -113,14 +81,6 @@ export default function PatientWaitingRoom() {
     auth.username ||
     "Patient";
 
-  const sessionDetails = session as PatientWaitingRoomSession | null;
-
-  const paymentStatus =
-    sessionDetails?.paymentStatus ||
-    sessionDetails?.appointment?.paymentStatus ||
-    resolvedPaymentStatus ||
-    "Not available";
-
   const canJoin = session?.status === "active";
 
   return (
@@ -139,7 +99,7 @@ export default function PatientWaitingRoom() {
             Session not found.
           </div>
         ) : (
-          <div className="rounded-[32px] bg-white p-8 shadow-sm">
+          <div className="rounded-[32px] border border-blue-100/80 bg-white p-8 shadow-[0_22px_60px_rgba(59,130,246,0.12)]">
             <div className="mb-6 text-center">
               <h1 className="text-3xl font-bold text-gray-900">
                 Waiting Room
@@ -155,11 +115,7 @@ export default function PatientWaitingRoom() {
               </p>
             </div>
 
-            <div className="mb-6 flex justify-center">
-              <StatusBadge status={session.status} />
-            </div>
-
-            <div className="grid gap-4 rounded-2xl bg-slate-50 p-5 text-sm text-gray-700 sm:grid-cols-2">
+            <div className="grid gap-4 rounded-2xl bg-blue-100/80 p-5 text-sm text-gray-700 sm:grid-cols-2">
               <p>
                 <span className="font-semibold">Doctor Name:</span> {doctorName}
               </p>
@@ -168,8 +124,8 @@ export default function PatientWaitingRoom() {
                 {patientName}
               </p>
               <p>
-                <span className="font-semibold">Appointment ID:</span>{" "}
-                {session.appointmentId}
+                <span className="font-semibold">Room Name:</span>{" "}
+                {session.roomName || "Not available"}
               </p>
               <p>
                 <span className="font-semibold">Date:</span>{" "}
@@ -178,10 +134,6 @@ export default function PatientWaitingRoom() {
               <p>
                 <span className="font-semibold">Time:</span>{" "}
                 {session.scheduledTime}
-              </p>
-              <p>
-                <span className="font-semibold">Payment Status:</span>{" "}
-                {paymentStatus}
               </p>
               <p>
                 <span className="font-semibold">Session Status:</span>{" "}

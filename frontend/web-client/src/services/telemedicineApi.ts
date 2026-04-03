@@ -13,6 +13,8 @@ export type TelemedicineParticipantDetails = {
   email?: string;
   phone?: string;
   specialization?: string;
+  licenseNumber?: string;
+  hospitalName?: string;
   profileImage?: string;
 };
 
@@ -356,6 +358,32 @@ export async function createPrescription(payload: {
     headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function updatePrescription(payload: {
+  prescriptionId: string;
+  medicineName: string;
+  dosage: string;
+  instructions: string;
+}): Promise<PrescriptionResponse> {
+  const response = await fetch(
+    `${TELEMEDICINE_API_URL}/prescriptions/${payload.prescriptionId}`,
+    {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        medicineName: payload.medicineName,
+        dosage: payload.dosage,
+        instructions: payload.instructions,
+      }),
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);

@@ -1,7 +1,12 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import PrescriptionForm from "../../components/telemedicine/PrescriptionForm";
+import PrescriptionPdfGenerator from "../../components/telemedicine/PrescriptionPdfGenerator";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
+import {
+  getCurrentPatientProfile,
+  getPatientSummaryByAuthUserId,
+} from "../../services/patientApi";
 import {
   getSessionByAppointmentId,
   type TelemedicineSession,
@@ -13,8 +18,8 @@ import {
 
 type SessionPersonDetails = {
   name: string;
-  email: string;
-  phone: string;
+  licenseNumber: string;
+  hospitalName: string;
   specialization: string;
 };
 
@@ -27,24 +32,40 @@ function getPersonDetails(
   type: "doctor" | "patient"
 ): SessionPersonDetails {
   const source = session as TelemedicineSession & Record<string, unknown>;
+  const doctorSource =
+    typeof source.doctor === "object" && source.doctor !== null
+      ? (source.doctor as Record<string, unknown>)
+      : {};
+  const patientSource =
+    typeof source.patient === "object" && source.patient !== null
+      ? (source.patient as Record<string, unknown>)
+      : {};
 
   if (type === "doctor") {
     return {
       name:
         getStringValue(source.doctorName) ||
+        getStringValue(doctorSource.fullName) ||
+        getStringValue(doctorSource.name) ||
         getStringValue(source.doctorFullName) ||
         getStringValue(source.doctor_display_name) ||
         getStringValue(source.doctor_username) ||
         "Doctor name not available",
-      email:
-        getStringValue(source.doctorEmail) ||
-        getStringValue(source.doctor_email) ||
+      licenseNumber:
+        getStringValue(doctorSource.licenseNumber) ||
+        getStringValue(source.licenseNumber) ||
+        getStringValue(source.doctorLicenseNumber) ||
+        getStringValue(source.doctor_license_number) ||
         "Not available",
-      phone:
-        getStringValue(source.doctorPhone) ||
-        getStringValue(source.doctor_phone) ||
+      hospitalName:
+        getStringValue(doctorSource.hospitalName) ||
+        getStringValue(source.hospitalName) ||
+        getStringValue(source.doctorHospitalName) ||
+        getStringValue(source.doctorHospital) ||
+        getStringValue(source.doctor_hospital_name) ||
         "Not available",
       specialization:
+        getStringValue(doctorSource.specialization) ||
         getStringValue(source.doctorSpecialization) ||
         getStringValue(source.specialization) ||
         getStringValue(source.doctor_specialization) ||
@@ -55,18 +76,14 @@ function getPersonDetails(
   return {
     name:
       getStringValue(source.patientName) ||
+      getStringValue(patientSource.fullName) ||
+      getStringValue(patientSource.name) ||
       getStringValue(source.patientFullName) ||
       getStringValue(source.patient_display_name) ||
       getStringValue(source.patient_username) ||
       "Patient name not available",
-    email:
-      getStringValue(source.patientEmail) ||
-      getStringValue(source.patient_email) ||
-      "Not available",
-    phone:
-      getStringValue(source.patientPhone) ||
-      getStringValue(source.patient_phone) ||
-      "Not available",
+    licenseNumber: "",
+    hospitalName: "",
     specialization: "",
   };
 }
@@ -76,10 +93,13 @@ function getSummaryValue(session: TelemedicineSession, key: string): string {
   return getStringValue(source[key]);
 }
 
-function formatStatus(status: string | undefined) {
-  const value = (status || "").trim();
-  if (!value) return "Unknown";
-  return value.charAt(0).toUpperCase() + value.slice(1);
+function formatLabelValue(value: string | undefined): string {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "Not available";
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 function DetailCard({
@@ -90,7 +110,7 @@ function DetailCard({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
@@ -104,54 +124,53 @@ function DetailCard({
 function PersonCard({
   title,
   name,
-  email,
-  phone,
+  primaryLabel,
+  primaryValue,
+  secondaryLabel,
+  secondaryValue,
   extraLabel,
   extraValue,
 }: {
   title: string;
   name: string;
-  email: string;
-  phone: string;
+  primaryLabel: string;
+  primaryValue: string;
+  secondaryLabel: string;
+  secondaryValue: string;
   extraLabel?: string;
   extraValue?: string;
 }) {
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-lg font-bold text-blue-700">
-          {title === "Doctor" ? "DR" : "PT"}
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-          <p className="text-sm text-slate-500">Consultation participant</p>
-        </div>
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+        <p className="text-sm text-slate-500">Consultation participant</p>
       </div>
 
-      <div className="space-y-3">
-        <div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Name
           </p>
           <p className="mt-1 text-sm font-medium text-slate-800">{name}</p>
         </div>
 
-        <div>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Email
+            {primaryLabel}
           </p>
-          <p className="mt-1 break-words text-sm text-slate-700">{email}</p>
+          <p className="mt-1 break-words text-sm text-slate-700">{primaryValue}</p>
         </div>
 
-        <div>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Phone
+            {secondaryLabel}
           </p>
-          <p className="mt-1 text-sm text-slate-700">{phone}</p>
+          <p className="mt-1 text-sm text-slate-700">{secondaryValue}</p>
         </div>
 
         {extraLabel && extraValue ? (
-          <div>
+          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {extraLabel}
             </p>
@@ -168,9 +187,12 @@ export default function SessionSummary() {
   const [session, setSession] = useState<TelemedicineSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [matchedPanelHeight, setMatchedPanelHeight] = useState<number | null>(null);
+  const [patientPdfName, setPatientPdfName] = useState("Not available");
+  const [patientPdfAge, setPatientPdfAge] = useState<number | null>(null);
+  const leftColumnRef = useRef<HTMLDivElement | null>(null);
   const auth = getStoredTelemedicineAuth();
   const role = auth.actorRole;
-  const isDoctor = role === "doctor";
 
   useEffect(() => {
     async function loadSession() {
@@ -196,6 +218,126 @@ export default function SessionSummary() {
 
     loadSession();
   }, [appointmentId]);
+
+  useEffect(() => {
+    function syncPanelHeight() {
+      if (typeof window === "undefined" || window.innerWidth < 1024) {
+        setMatchedPanelHeight(null);
+        return;
+      }
+
+      const nextHeight = leftColumnRef.current?.getBoundingClientRect().height ?? 0;
+      setMatchedPanelHeight(nextHeight > 0 ? Math.ceil(nextHeight) : null);
+    }
+
+    const frameId = window.requestAnimationFrame(syncPanelHeight);
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined" && leftColumnRef.current
+        ? new ResizeObserver(() => syncPanelHeight())
+        : null;
+
+    if (leftColumnRef.current && resizeObserver) {
+      resizeObserver.observe(leftColumnRef.current);
+    }
+
+    window.addEventListener("resize", syncPanelHeight);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", syncPanelHeight);
+    };
+  }, [session]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    function calculateAge(birthday: string) {
+      const birthDate = new Date(birthday);
+
+      if (Number.isNaN(birthDate.getTime())) {
+        return null;
+      }
+
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+
+      if (
+        monthDiff < 0 ||
+        (monthDiff === 0 && today.getDate() < birthDate.getDate())
+      ) {
+        age -= 1;
+      }
+
+      return age >= 0 ? age : null;
+    }
+
+    async function loadPatientPdfDetails() {
+      if (!session) {
+        if (isMounted) {
+          setPatientPdfName("Not available");
+          setPatientPdfAge(null);
+        }
+        return;
+      }
+
+      const fallbackPatientName =
+        getStringValue(session.patient?.fullName) ||
+        getStringValue(session.patient?.name) ||
+        getStringValue(session.patientName) ||
+        getStringValue(auth.username) ||
+        "Not available";
+
+      if (!auth.token || !role) {
+        if (isMounted) {
+          setPatientPdfName(fallbackPatientName);
+          setPatientPdfAge(null);
+        }
+        return;
+      }
+
+      try {
+        if (role === "patient") {
+          const patientProfile = await getCurrentPatientProfile(auth.token);
+          const fullName =
+            `${patientProfile.firstName || ""} ${patientProfile.lastName || ""}`.trim() ||
+            fallbackPatientName;
+
+          if (isMounted) {
+            setPatientPdfName(fullName);
+            setPatientPdfAge(calculateAge(patientProfile.birthday));
+          }
+          return;
+        }
+
+        const patientSummary = await getPatientSummaryByAuthUserId(
+          auth.token,
+          session.patientId
+        );
+        const fullName =
+          `${patientSummary.firstName || ""} ${patientSummary.lastName || ""}`.trim() ||
+          fallbackPatientName;
+
+        if (isMounted) {
+          setPatientPdfName(fullName);
+          setPatientPdfAge(patientSummary.age);
+        }
+      } catch (patientError) {
+        console.error("Failed to load patient PDF details:", patientError);
+        if (isMounted) {
+          setPatientPdfName(fallbackPatientName);
+          setPatientPdfAge(null);
+        }
+      }
+    }
+
+    void loadPatientPdfDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [auth.token, auth.username, role, session]);
 
   if (!auth.userId || !role) {
     return (
@@ -242,37 +384,24 @@ export default function SessionSummary() {
       <TelemedicineAccessNotice
         title="Summary access denied"
         description="This appointment belongs to a different doctor or patient account."
-        actionLabel={isDoctor ? "Doctor Sessions" : "Patient Sessions"}
-        actionTo={isDoctor ? "/doctor-sessions" : "/patient-sessions"}
+        actionLabel={role === "doctor" ? "Doctor Sessions" : "Patient Sessions"}
+        actionTo={role === "doctor" ? "/doctor-sessions" : "/patient-sessions"}
       />
     );
   }
 
   const doctor = getPersonDetails(session, "doctor");
-  const patient = getPersonDetails(session, "patient");
-  const consultationType =
-    getSummaryValue(session, "consultationType") ||
-    getSummaryValue(session, "sessionType") ||
-    "Video Consultation";
-
   const duration =
     getSummaryValue(session, "duration") ||
     getSummaryValue(session, "durationMinutes") ||
     "Not available";
-
-  const meetingLink =
-    getSummaryValue(session, "meetingLink") ||
-    getSummaryValue(session, "roomUrl") ||
-    getSummaryValue(session, "joinUrl");
-
-  const prescriptionStatus =
-    getSummaryValue(session, "prescriptionStatus") || "Available in summary";
+  const sessionStatus = formatLabelValue(session.status);
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="overflow-hidden rounded-3xl bg-white border border-slate-200 p-6 shadow-sm sm:p-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col items-center justify-center gap-5 text-center">
             <div>
               <div className="mb-3 inline-flex rounded-full bg-slate-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
                 Session Summary
@@ -283,73 +412,62 @@ export default function SessionSummary() {
               </h1>
 
               <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">
-                Review consultation details, patient and doctor information,
-                notes, and prescription summary for this appointment.
+                Review doctor information, notes, and prescription summary for
+                this appointment.
               </p>
             </div>
+          </div>
+        </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Appointment ID
-              </p>
-              <p className="mt-1 break-all text-sm font-semibold text-slate-800 sm:text-base">
-                {session.appointmentId}
-              </p>
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          <div ref={leftColumnRef} className="space-y-6">
+            <PersonCard
+              title="Doctor"
+              name={doctor.name}
+              primaryLabel="License No"
+              primaryValue={doctor.licenseNumber}
+              secondaryLabel="Hospital"
+              secondaryValue={doctor.hospitalName}
+              extraLabel="Specialization"
+              extraValue={doctor.specialization}
+            />
 
-              <div className="mt-3 inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                {formatStatus(session.status)}
+            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <h2 className="mb-4 text-lg font-semibold text-slate-900">
+                Appointment Details
+              </h2>
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <DetailCard label="Date" value={session.scheduledDate || "Not available"} />
+                <DetailCard label="Time" value={session.scheduledTime || "Not available"} />
+                <DetailCard label="Room Name" value={session.roomName || "Not available"} />
+                <DetailCard label="Doctor Name" value={doctor.name} />
+                <DetailCard label="Session Status" value={sessionStatus} />
+                <DetailCard label="Duration" value={duration} />
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <PersonCard
-            title="Doctor"
-            name={doctor.name}
-            email={doctor.email}
-            phone={doctor.phone}
-            extraLabel="Specialization"
-            extraValue={doctor.specialization}
-          />
-
-          <PersonCard
-            title="Patient"
-            name={patient.name}
-            email={patient.email}
-            phone={patient.phone}
-          />
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-slate-100 p-4 sm:p-5">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">
-            Appointment Details
-          </h2>
-
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <DetailCard label="Date" value={session.scheduledDate || "Not available"} />
-            <DetailCard label="Time" value={session.scheduledTime || "Not available"} />
-            <DetailCard label="Room Name" value={session.roomName || "Not available"} />
-            <DetailCard label="Consultation Type" value={consultationType} />
-            <DetailCard label="Doctor ID" value={session.doctorId || "Not available"} />
-            <DetailCard label="Patient ID" value={session.patientId || "Not available"} />
-            <DetailCard label="Duration" value={duration} />
-            <DetailCard label="Prescription Status" value={prescriptionStatus} />
-          </div>
-
-          {meetingLink ? (
-            <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-                Meeting Link / Room URL
-              </p>
-              <p className="mt-2 break-all text-sm text-blue-900">{meetingLink}</p>
+          <div
+            className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+            style={matchedPanelHeight ? { height: matchedPanelHeight } : undefined}
+          >
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Prescription & Medical Notes
+              </h2>
+              <PrescriptionPdfGenerator
+                appointmentId={session.appointmentId}
+                specialization={doctor.specialization}
+                doctorName={doctor.name}
+                licenseNumber={doctor.licenseNumber}
+                hospitalName={doctor.hospitalName}
+                patientName={patientPdfName}
+                patientAge={patientPdfAge}
+                buttonClassName="inline-flex rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+              />
             </div>
-          ) : null}
-        </div>
-
-        <div className="grid gap-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="rounded-2xl bg-slate-50 p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto">
               <PrescriptionForm
                 role={role}
                 appointmentId={session.appointmentId}
@@ -357,35 +475,11 @@ export default function SessionSummary() {
                 patientId={session.patientId}
                 consultationNotes={session.notes || ""}
                 readOnly
+                plainReadOnly
+                hideTitle
               />
             </div>
           </div>
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          {isDoctor ? (
-            <Link
-              to="/doctor-sessions"
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-            >
-              Back to Doctor Sessions
-            </Link>
-          ) : (
-            <>
-              <Link
-                to="/patient-sessions"
-                className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
-              >
-                Back to Patient Sessions
-              </Link>
-              <Link
-                to="/session-history"
-                className="rounded-xl bg-slate-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-900"
-              >
-                View Session History
-              </Link>
-            </>
-          )}
         </div>
       </div>
     </div>
