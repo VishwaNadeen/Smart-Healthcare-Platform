@@ -9,13 +9,14 @@ type PatientFormModalProps = {
 };
 
 const initialForm: PatientUpdatePayload = {
+  title: "",
   firstName: "",
   lastName: "",
+  nic: "",
   email: "",
   countryCode: "",
   phone: "",
   birthday: "",
-  gender: "",
   address: "",
   country: "",
 };
@@ -32,13 +33,14 @@ export default function PatientFormModal({
   useEffect(() => {
     if (patient) {
       setFormData({
+        title: patient.title || "",
         firstName: patient.firstName || "",
         lastName: patient.lastName || "",
+        nic: patient.nic || "",
         email: patient.email || "",
         countryCode: patient.countryCode || "",
         phone: patient.phone || "",
         birthday: patient.birthday ? patient.birthday.slice(0, 10) : "",
-        gender: patient.gender || "",
         address: patient.address || "",
         country: patient.country || "",
       });
@@ -85,6 +87,23 @@ export default function PatientFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Title
+            </label>
+            <select
+              name="title"
+              value={formData.title || ""}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-300 px-4 py-2 outline-none focus:border-blue-500"
+            >
+              <option value="">Select title</option>
+              <option value="Mr">Mr</option>
+              <option value="Miss">Miss</option>
+              <option value="Mrs">Mrs</option>
+            </select>
+          </div>
+
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
               First Name
@@ -156,6 +175,18 @@ export default function PatientFormModal({
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
+              NIC Number
+            </label>
+            <input
+              name="nic"
+              value={formData.nic || ""}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-300 px-4 py-2 outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
               Birthday
             </label>
             <input
@@ -165,23 +196,6 @@ export default function PatientFormModal({
               onChange={handleChange}
               className="w-full rounded-xl border border-slate-300 px-4 py-2 outline-none focus:border-blue-500"
             />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Gender
-            </label>
-            <select
-              name="gender"
-              value={formData.gender}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-300 px-4 py-2 outline-none focus:border-blue-500"
-            >
-              <option value="">Select gender</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
           </div>
 
           <div>

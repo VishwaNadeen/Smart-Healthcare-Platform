@@ -11,28 +11,32 @@ export type PatientAppointmentStats = {
 
 export type Patient = {
   _id: string;
+  authUserId?: string;
+  title?: "Mr" | "Miss" | "Mrs" | "";
   firstName: string;
   lastName: string;
+  nic?: string;
   email: string;
   countryCode?: string;
   phone?: string;
   birthday?: string;
-  gender?: "male" | "female" | "other" | "";
   address?: string;
   country?: string;
   status?: PatientStatus;
+  profileImage?: string;
   createdAt?: string;
   updatedAt?: string;
 };
 
 export type PatientUpdatePayload = {
+  title?: "Mr" | "Miss" | "Mrs" | "";
   firstName: string;
   lastName: string;
+  nic?: string;
   email: string;
   countryCode?: string;
   phone?: string;
   birthday?: string;
-  gender?: "male" | "female" | "other" | "";
   address?: string;
   country?: string;
 };
