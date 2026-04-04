@@ -6,6 +6,7 @@ import AdminAppointments from "../pages/appointments/AdminAppointments";
 import AdminDoctorVerifications from "../pages/doctor-verifications/AdminDoctorVerifications";
 import AdminPayments from "../pages/payments/AdminPayments";
 import AdminOperations from "../pages/operations/AdminOperations";
+import AdminDoctorSpecialties from "../pages/specialties/AdminDoctorSpecialties";
 import AdminUsers from "../pages/users/AdminUsers";
 
 export const adminRoutes = (
@@ -31,11 +32,21 @@ export const adminRoutes = (
       }
     />
     <Route
-      path="/doctor-verifications"
+      path="/doctors"
       element={
         <RequireAdminAuth>
           <AdminLayout>
             <AdminDoctorVerifications />
+          </AdminLayout>
+        </RequireAdminAuth>
+      }
+    />
+    <Route
+      path="/doctor-specialties"
+      element={
+        <RequireAdminAuth>
+          <AdminLayout>
+            <AdminDoctorSpecialties />
           </AdminLayout>
         </RequireAdminAuth>
       }

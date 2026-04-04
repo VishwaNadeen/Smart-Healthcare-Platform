@@ -11,6 +11,7 @@ import {
 import type {
   DoctorAvailabilityScheduleItem,
   DoctorProfile,
+  DoctorReviewNote,
 } from "../../services/doctorApi";
 import {
   clearTelemedicineAuth,
@@ -33,8 +34,6 @@ type FormState = {
   about: string;
   availableDays: string[];
   availableTimeSlots: string[];
-  isAvailableForVideo: boolean;
-  supportsDigitalPrescriptions: boolean;
   acceptsNewAppointments: boolean;
   availabilitySchedule: DoctorAvailabilityScheduleItem[];
 };
@@ -56,8 +55,6 @@ function emptyForm(): FormState {
     about: "",
     availableDays: [],
     availableTimeSlots: [],
-    isAvailableForVideo: false,
-    supportsDigitalPrescriptions: true,
     acceptsNewAppointments: true,
     availabilitySchedule: [],
   };
@@ -107,6 +104,14 @@ function DoctorProfileItem({
   );
 }
 
+function formatReviewDate(value?: string) {
+  if (!value) {
+    return "Recently";
+  }
+
+  return new Date(value).toLocaleString();
+}
+
 export default function DoctorProfilePage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -125,7 +130,12 @@ export default function DoctorProfilePage() {
   const [imagePreview, setImagePreview] = useState("");
 
   const verificationStatus = doctorProfile?.verificationStatus || "pending";
-  const isProfileLocked = verificationStatus !== "approved";
+  const editableFields = doctorProfile?.editableFields || [];
+  const isApproved = verificationStatus === "approved";
+  const canEditProfile =
+    isApproved || editableFields.length > 0;
+  const isProfileLocked = !canEditProfile;
+  const reviewNotes = (doctorProfile?.reviewNotes || []) as DoctorReviewNote[];
 
   const initials = useMemo(() => {
     const fullName = formData.fullName.trim();
@@ -137,6 +147,12 @@ export default function DoctorProfilePage() {
       .map((part) => part[0]?.toUpperCase() || "")
       .join("");
   }, [formData.fullName]);
+
+  const canEditField = (fieldName: keyof FormState) =>
+    fieldName === "licenseNumber"
+      ? editableFields.includes("licenseNumber")
+      : verificationStatus === "approved" ||
+        editableFields.includes(String(fieldName));
 
   const applyProfile = (profile: DoctorProfile) => {
     const derivedAvailabilitySummary = buildAvailabilitySummary(
@@ -170,8 +186,6 @@ export default function DoctorProfilePage() {
       about: profile.about || "",
       availableDays,
       availableTimeSlots,
-      isAvailableForVideo: Boolean(profile.isAvailableForVideo),
-      supportsDigitalPrescriptions: profile.supportsDigitalPrescriptions !== false,
       acceptsNewAppointments: profile.acceptsNewAppointments !== false,
       availabilitySchedule: profile.availabilitySchedule || [],
     });
@@ -218,10 +232,10 @@ export default function DoctorProfilePage() {
   }, [imagePreview]);
 
   useEffect(() => {
-    if (isProfileLocked && editing) {
+    if (!canEditProfile && editing) {
       setEditing(false);
     }
-  }, [isProfileLocked, editing]);
+  }, [canEditProfile, editing]);
 
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -239,7 +253,7 @@ export default function DoctorProfilePage() {
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (isProfileLocked) {
+    if (!canEditProfile) {
       return;
     }
     try {
@@ -269,7 +283,7 @@ export default function DoctorProfilePage() {
   const handleProfileImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    if (isProfileLocked) {
+    if (!isApproved) {
       event.target.value = "";
       return;
     }
@@ -300,7 +314,7 @@ export default function DoctorProfilePage() {
   };
 
   const handleRemoveProfileImage = async () => {
-    if (isProfileLocked) {
+    if (!isApproved) {
       return;
     }
     try {
@@ -321,7 +335,7 @@ export default function DoctorProfilePage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (isProfileLocked) {
+    if (!isApproved) {
       return;
     }
     try {
@@ -374,10 +388,16 @@ export default function DoctorProfilePage() {
           )}
           {verificationStatus === "rejected" && (
             <span>
-              Your profile was <b>rejected</b>. Please contact admin for more
-              information. You cannot edit or delete your profile.
+              Your profile was <b>rejected</b>. Review the admin notes below for
+              corrections before resubmitting your details.
             </span>
           )}
+        </div>
+      )}
+      {!isApproved && editableFields.length > 0 && (
+        <div className="mx-auto mb-6 max-w-3xl rounded-2xl border border-sky-200 bg-sky-50 px-6 py-4 text-center text-sky-800">
+          Admin has temporarily unlocked these fields for correction:{" "}
+          <b>{editableFields.join(", ")}</b>.
         </div>
       )}
       {showDeletePrompt && (
@@ -436,22 +456,24 @@ export default function DoctorProfilePage() {
                 </div>
               </div>
 
-              {!editing && !isProfileLocked && (
+              {!editing && canEditProfile && (
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
                     onClick={() => setEditing(true)}
                     className="rounded-xl bg-white px-6 py-3 font-semibold text-blue-700 transition hover:bg-blue-50"
                   >
-                    Edit Profile
+                    {isApproved ? "Edit Profile" : "Respond To Review"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeletePrompt(true)}
-                    className="rounded-xl border border-red-200 bg-white px-6 py-3 font-semibold text-red-700 transition hover:bg-red-50"
-                  >
-                    Delete Account
-                  </button>
+                  {isApproved && (
+                    <button
+                      type="button"
+                      onClick={() => setShowDeletePrompt(true)}
+                      className="rounded-xl border border-red-200 bg-white px-6 py-3 font-semibold text-red-700 transition hover:bg-red-50"
+                    >
+                      Delete Account
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -480,7 +502,7 @@ export default function DoctorProfilePage() {
                 <div className="mt-5 flex w-full flex-col gap-3">
                   <label
                     className={`cursor-pointer rounded-xl px-4 py-3 text-center text-sm font-semibold text-white transition ${
-                      isProfileLocked || uploadingImage
+                      !isApproved || uploadingImage
                         ? "bg-blue-400"
                         : "bg-blue-600 hover:bg-blue-700"
                     }`}
@@ -490,7 +512,7 @@ export default function DoctorProfilePage() {
                       type="file"
                       accept="image/*"
                       onChange={handleProfileImageUpload}
-                      disabled={uploadingImage || isProfileLocked}
+                      disabled={uploadingImage || !isApproved}
                       className="hidden"
                     />
                   </label>
@@ -499,57 +521,98 @@ export default function DoctorProfilePage() {
                     <button
                       type="button"
                       onClick={handleRemoveProfileImage}
-                      disabled={uploadingImage || isProfileLocked}
+                      disabled={uploadingImage || !isApproved}
                       className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Remove Picture
                     </button>
                   )}
 
-                  <p className="text-xs leading-5 text-slate-500">
-                    Stored through doctor-service using Cloudinary.
-                  </p>
+                  </div>
                 </div>
-              </div>
             </div>
 
             <div>
               {!editing ? (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <DoctorProfileItem label="Full Name" value={formData.fullName} />
-                  <DoctorProfileItem label="Email" value={formData.email} />
-                  <DoctorProfileItem label="Phone" value={formData.phone} />
-                  <DoctorProfileItem
-                    label="Specialization"
-                    value={formData.specialization}
-                  />
-                  <DoctorProfileItem
-                    label="Experience"
-                    value={formData.experience ? `${formData.experience} years` : "-"}
-                  />
-                  <DoctorProfileItem
-                    label="Consultation Fee"
-                    value={formData.consultationFee}
-                  />
-                  <DoctorProfileItem
-                    label="Qualification"
-                    value={formData.qualification}
-                  />
-                  <DoctorProfileItem
-                    label="License Number"
-                    value={formData.licenseNumber}
-                  />
-                  <DoctorProfileItem
-                    label="Hospital Name"
-                    value={formData.hospitalName}
-                  />
-                  <DoctorProfileItem label="City" value={formData.city} />
-                  <DoctorProfileItem
-                    label="Hospital Address"
-                    value={formData.hospitalAddress}
-                    full
-                  />
-                  <DoctorProfileItem label="About" value={formData.about} full />
+                <div className="space-y-6">
+                  {!isApproved && reviewNotes.length > 0 && (
+                    <div className="rounded-3xl border border-slate-200 bg-white p-6">
+                      <h2 className="text-lg font-bold text-slate-900">
+                        Review Notes
+                      </h2>
+                      <div className="mt-4 space-y-3">
+                        {reviewNotes
+                          .slice()
+                          .reverse()
+                          .map((entry, index) => (
+                            <div
+                              key={`${entry.createdAt || "note"}-${index}`}
+                              className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                  {entry.status}
+                                </span>
+                                <span className="text-xs text-slate-500">
+                                  {formatReviewDate(entry.createdAt)}
+                                </span>
+                                {entry.createdByName && (
+                                  <span className="text-xs text-slate-500">
+                                    by {entry.createdByName}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-3 text-sm leading-6 text-slate-700">
+                                {entry.note}
+                              </p>
+                              {entry.editableFields &&
+                                entry.editableFields.length > 0 && (
+                                  <p className="mt-3 text-xs font-medium uppercase tracking-[0.18em] text-sky-700">
+                                    Editable: {entry.editableFields.join(", ")}
+                                  </p>
+                                )}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <DoctorProfileItem label="Full Name" value={formData.fullName} />
+                    <DoctorProfileItem label="Email" value={formData.email} />
+                    <DoctorProfileItem label="Phone" value={formData.phone} />
+                    <DoctorProfileItem
+                      label="Specialization"
+                      value={formData.specialization}
+                    />
+                    <DoctorProfileItem
+                      label="Experience"
+                      value={formData.experience ? `${formData.experience} years` : "-"}
+                    />
+                    <DoctorProfileItem
+                      label="Consultation Fee"
+                      value={formData.consultationFee}
+                    />
+                    <DoctorProfileItem
+                      label="Qualification"
+                      value={formData.qualification}
+                    />
+                    <DoctorProfileItem
+                      label="License Number"
+                      value={formData.licenseNumber}
+                    />
+                    <DoctorProfileItem
+                      label="Hospital Name"
+                      value={formData.hospitalName}
+                    />
+                    <DoctorProfileItem label="City" value={formData.city} />
+                    <DoctorProfileItem
+                      label="Hospital Address"
+                      value={formData.hospitalAddress}
+                      full
+                    />
+                    <DoctorProfileItem label="About" value={formData.about} full />
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleSave} className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -561,7 +624,8 @@ export default function DoctorProfilePage() {
                         name="fullName"
                         value={formData.fullName}
                         onChange={handleChange}
-                        className={fieldClass()}
+                        readOnly={!canEditField("fullName")}
+                        className={fieldClass(!canEditField("fullName"))}
                       />
                     </div>
                     <div>
@@ -578,7 +642,8 @@ export default function DoctorProfilePage() {
                         name="phone"
                         value={formData.phone}
                         onChange={handleChange}
-                        className={fieldClass()}
+                        readOnly={!canEditField("phone")}
+                        className={fieldClass(!canEditField("phone"))}
                       />
                     </div>
                     <div>
@@ -600,7 +665,8 @@ export default function DoctorProfilePage() {
                         name="experience"
                         value={formData.experience}
                         onChange={handleChange}
-                        className={fieldClass()}
+                        readOnly={!canEditField("experience")}
+                        className={fieldClass(!canEditField("experience"))}
                       />
                     </div>
                     <div>
@@ -612,7 +678,8 @@ export default function DoctorProfilePage() {
                         name="consultationFee"
                         value={formData.consultationFee}
                         onChange={handleChange}
-                        className={fieldClass()}
+                        readOnly={!canEditField("consultationFee")}
+                        className={fieldClass(!canEditField("consultationFee"))}
                       />
                     </div>
                     <div>
@@ -623,7 +690,8 @@ export default function DoctorProfilePage() {
                         name="qualification"
                         value={formData.qualification}
                         onChange={handleChange}
-                        className={fieldClass()}
+                        readOnly={!canEditField("qualification")}
+                        className={fieldClass(!canEditField("qualification"))}
                       />
                     </div>
                     <div>
@@ -631,9 +699,11 @@ export default function DoctorProfilePage() {
                         License Number
                       </label>
                       <input
+                        name="licenseNumber"
+                        onChange={handleChange}
                         value={formData.licenseNumber}
-                        readOnly
-                        className={fieldClass(true)}
+                        readOnly={!canEditField("licenseNumber")}
+                        className={fieldClass(!canEditField("licenseNumber"))}
                       />
                     </div>
                     <div>
@@ -644,7 +714,8 @@ export default function DoctorProfilePage() {
                         name="hospitalName"
                         value={formData.hospitalName}
                         onChange={handleChange}
-                        className={fieldClass()}
+                        readOnly={!canEditField("hospitalName")}
+                        className={fieldClass(!canEditField("hospitalName"))}
                       />
                     </div>
                     <div>
@@ -655,7 +726,8 @@ export default function DoctorProfilePage() {
                         name="city"
                         value={formData.city}
                         onChange={handleChange}
-                        className={fieldClass()}
+                        readOnly={!canEditField("city")}
+                        className={fieldClass(!canEditField("city"))}
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -667,7 +739,8 @@ export default function DoctorProfilePage() {
                         value={formData.hospitalAddress}
                         onChange={handleChange}
                         rows={3}
-                        className={fieldClass()}
+                        readOnly={!canEditField("hospitalAddress")}
+                        className={fieldClass(!canEditField("hospitalAddress"))}
                       />
                     </div>
                     <div className="md:col-span-2">
@@ -679,7 +752,8 @@ export default function DoctorProfilePage() {
                         value={formData.about}
                         onChange={handleChange}
                         rows={4}
-                        className={fieldClass()}
+                        readOnly={!canEditField("about")}
+                        className={fieldClass(!canEditField("about"))}
                       />
                     </div>
                   <div className="md:col-span-2 flex gap-3 pt-2">

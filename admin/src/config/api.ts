@@ -9,6 +9,7 @@ const APPOINTMENT_SERVICE_URL =
 
 export const AUTH_API_URL = `${AUTH_SERVICE_URL}/api/auth`;
 export const DOCTOR_API_URL = `${DOCTOR_SERVICE_URL}/api/doctors`;
+export const DOCTOR_SPECIALTY_API_URL = `${DOCTOR_SERVICE_URL}/api/specialties`;
 export const TELEMEDICINE_API_URL = `${TELEMEDICINE_SERVICE_URL}/api/telemedicine`;
 export const TELEMEDICINE_FILES_API_URL = `${TELEMEDICINE_SERVICE_URL}/api/telemedicine/files`;
 export const TELEMEDICINE_PRESCRIPTIONS_API_URL = `${TELEMEDICINE_SERVICE_URL}/api/telemedicine/prescriptions`;

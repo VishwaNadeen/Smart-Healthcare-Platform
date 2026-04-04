@@ -5,12 +5,34 @@ const cloudinary = require("../config/cloudinary");
 const {
   registerDoctorAuth,
   deleteAuthAccountByEmail,
+  updateAuthUserIdentity,
+  getAuthUserById,
 } = require("../services/authService");
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const APPOINTMENT_DURATION_MINUTES = 10;
 const MIN_SLOT_DURATION_MINUTES = 120;
 const MAX_SLOT_DURATION_MINUTES = 360;
+const ADMIN_UNLOCKABLE_FIELDS = [
+  "fullName",
+  "phone",
+  "qualification",
+  "licenseNumber",
+  "hospitalName",
+  "hospitalAddress",
+  "city",
+  "consultationFee",
+  "about",
+];
+const hasValidInternalSecret = (req) => {
+  const expectedSecret = process.env.INTERNAL_SERVICE_SECRET;
+
+  if (!expectedSecret) {
+    return true;
+  }
+
+  return req.headers["x-internal-service-secret"] === expectedSecret;
+};
 
 const parseBoolean = (value) => {
   if (typeof value === "boolean") return value;
@@ -35,16 +57,17 @@ const doctorAllowedFields = [
   "availableDays",
   "availableTimeSlots",
   "consultationFee",
-  "isAvailableForVideo",
   "profileImage",
   "about",
-  "status",
-  "supportsDigitalPrescriptions",
   "acceptsNewAppointments",
   "availabilitySchedule",
 ];
 
-const adminDoctorAllowedFields = [...doctorAllowedFields, "verificationNote"];
+const adminDoctorAllowedFields = [
+  ...doctorAllowedFields,
+  "verificationNote",
+  "editableFields",
+];
 
 const sanitizeStringArray = (values) => {
   if (!Array.isArray(values)) {
@@ -180,6 +203,9 @@ const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
   if (sanitized.verificationNote !== undefined) {
     sanitized.verificationNote = String(sanitized.verificationNote).trim();
   }
+  if (sanitized.editableFields !== undefined) {
+    sanitized.editableFields = sanitizeEditableFields(sanitized.editableFields);
+  }
   if (sanitized.experience !== undefined && sanitized.experience !== "") {
     sanitized.experience = Number(sanitized.experience);
   }
@@ -203,18 +229,6 @@ const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
     );
   }
 
-  const isAvailableForVideo = parseBoolean(sanitized.isAvailableForVideo);
-  if (isAvailableForVideo !== undefined) {
-    sanitized.isAvailableForVideo = isAvailableForVideo;
-  }
-
-  const supportsDigitalPrescriptions = parseBoolean(
-    sanitized.supportsDigitalPrescriptions
-  );
-  if (supportsDigitalPrescriptions !== undefined) {
-    sanitized.supportsDigitalPrescriptions = supportsDigitalPrescriptions;
-  }
-
   const acceptsNewAppointments = parseBoolean(
     sanitized.acceptsNewAppointments
   );
@@ -222,11 +236,21 @@ const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
     sanitized.acceptsNewAppointments = acceptsNewAppointments;
   }
 
-  if (sanitized.status !== undefined) {
-    sanitized.status = String(sanitized.status).trim().toLowerCase();
+  return sanitized;
+};
+
+const sanitizeEditableFields = (values) => {
+  if (!Array.isArray(values)) {
+    return undefined;
   }
 
-  return sanitized;
+  return [
+    ...new Set(
+      values
+        .map((value) => String(value || "").trim())
+        .filter((value) => ADMIN_UNLOCKABLE_FIELDS.includes(value))
+    ),
+  ];
 };
 
 const sanitizeDoctorPayload = (payload = {}) =>
@@ -295,8 +319,43 @@ const toDoctorResponse = (doctorDocument, options = {}) => {
     delete doctor.authUserId;
   }
 
-  delete doctor.profileImagePublicId;
+  if (!options.includeProfileImagePublicId) {
+    delete doctor.profileImagePublicId;
+  }
+
   return doctor;
+};
+
+const enrichDoctorWithAuthUser = async (doctorDocument, options = {}) => {
+  const doctor = toDoctorResponse(doctorDocument, options);
+  const authUserId = doctor?.authUserId;
+
+  if (!doctor || !authUserId) {
+    return doctor;
+  }
+
+  try {
+    const authResponse = await getAuthUserById(authUserId);
+
+    return {
+      ...doctor,
+      isEmailVerified: Boolean(authResponse?.user?.isEmailVerified),
+    };
+  } catch {
+    return doctor;
+  }
+};
+
+const getDoctorEditableFields = (doctor) => {
+  const unlockedFields = sanitizeEditableFields(doctor?.editableFields || []) || [];
+
+  if (doctor?.verificationStatus === "approved") {
+    return doctorAllowedFields.filter(
+      (field) => field !== "licenseNumber" || unlockedFields.includes("licenseNumber")
+    );
+  }
+
+  return unlockedFields;
 };
 
 const deleteCloudinaryImage = async (publicId) => {
@@ -406,9 +465,10 @@ const createDoctor = async (req, res) => {
       email: normalizedEmail,
       specialization: specialty.name,
       specializationId: specialty._id,
-      status: "inactive",
       verificationStatus: "pending",
       verificationNote: "",
+      reviewNotes: [],
+      editableFields: [],
       verifiedAt: null,
     };
 
@@ -473,8 +533,6 @@ const getAllDoctors = async (req, res) => {
     const {
       specialization,
       city,
-      status,
-      isAvailableForVideo,
       acceptsNewAppointments,
     } = req.query;
 
@@ -493,15 +551,6 @@ const getAllDoctors = async (req, res) => {
       query.city = {
         $regex: new RegExp(`^${escapeRegExp(String(city).trim())}$`, "i"),
       };
-    }
-
-    if (status) {
-      query.status = String(status).trim().toLowerCase();
-    }
-
-    const videoAvailability = parseBoolean(isAvailableForVideo);
-    if (videoAvailability !== undefined) {
-      query.isAvailableForVideo = videoAvailability;
     }
 
     const appointmentAvailability = parseBoolean(acceptsNewAppointments);
@@ -525,7 +574,9 @@ const getAllDoctors = async (req, res) => {
 
 const getDoctorById = async (req, res) => {
   try {
-    const doctor = await Doctor.findById(req.params.id).populate(
+    const doctor = await Doctor.findById(req.params.id)
+      .select("+authUserId")
+      .populate(
       "specializationId",
       "name description isActive"
     );
@@ -534,7 +585,14 @@ const getDoctorById = async (req, res) => {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
-    return res.status(200).json(toDoctorResponse(doctor));
+    return res
+      .status(200)
+      .json(
+        await enrichDoctorWithAuthUser(doctor, {
+          includeAuthUserId: true,
+          includeProfileImagePublicId: true,
+        })
+      );
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch doctor",
@@ -610,13 +668,93 @@ const getDoctorsForVerification = async (req, res) => {
       .sort({ createdAt: -1 });
 
     return res.status(200).json(
-      doctors.map((doctor) =>
-        toDoctorResponse(doctor, { includeAuthUserId: true })
+      await Promise.all(
+        doctors.map((doctor) =>
+          enrichDoctorWithAuthUser(doctor, {
+            includeAuthUserId: true,
+            includeProfileImagePublicId: true,
+          })
+        )
       )
     );
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch doctor verifications",
+      error: error.message,
+    });
+  }
+};
+
+const getDoctorVerificationByAuthUserIdInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const authUserId = String(req.params.authUserId || "").trim();
+
+    if (!authUserId) {
+      return res.status(400).json({ message: "authUserId is required" });
+    }
+
+    const doctor = await Doctor.findOne({ authUserId })
+      .select(
+        "+authUserId verificationStatus verificationNote reviewNotes editableFields verifiedAt"
+      )
+      .populate("specializationId", "name description isActive");
+
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+
+    return res.status(200).json({
+      doctor: toDoctorResponse(doctor, { includeAuthUserId: true }),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch doctor verification status",
+      error: error.message,
+    });
+  }
+};
+
+const deleteDoctor = async (req, res) => {
+  try {
+    const doctor = await Doctor.findById(req.params.id).select(
+      "+profileImagePublicId +authUserId"
+    );
+
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+
+    const doctorEmail = doctor.email;
+
+    if (doctor.profileImagePublicId) {
+      await deleteCloudinaryImage(doctor.profileImagePublicId);
+    }
+
+    await doctor.deleteOne();
+
+    let authDeleteResult = null;
+
+    try {
+      authDeleteResult = await deleteAuthAccountByEmail(doctorEmail);
+    } catch (authError) {
+      return res.status(500).json({
+        message:
+          "Doctor profile deleted, but failed to delete auth account. Please clean up auth-service manually.",
+        error: authError?.response?.data?.message || authError.message,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Doctor deleted successfully",
+      authDeleteResult,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to delete doctor",
       error: error.message,
     });
   }
@@ -631,10 +769,12 @@ const updateDoctorVerification = async (req, res) => {
       req.body?.verificationNote === undefined
         ? undefined
         : String(req.body.verificationNote || "").trim();
+    const editableFields = sanitizeEditableFields(req.body?.editableFields) || [];
 
-    if (!["pending", "approved", "rejected"].includes(verificationStatus)) {
+    if (!["pending", "in-review", "approved", "rejected"].includes(verificationStatus)) {
       return res.status(400).json({
-        message: "verificationStatus must be pending, approved or rejected",
+        message:
+          "verificationStatus must be pending, in-review, approved or rejected",
       });
     }
 
@@ -647,10 +787,22 @@ const updateDoctorVerification = async (req, res) => {
     }
 
     doctor.verificationStatus = verificationStatus;
-    doctor.status = verificationStatus === "approved" ? "active" : "inactive";
     doctor.verificationNote =
       verificationNote !== undefined ? verificationNote : doctor.verificationNote;
+    doctor.editableFields = verificationStatus === "approved" ? [] : editableFields;
     doctor.verifiedAt = new Date();
+
+    if (verificationNote) {
+      doctor.reviewNotes.push({
+        note: verificationNote,
+        status: verificationStatus,
+        createdAt: new Date(),
+        createdByName: req.user?.username || "",
+        createdByEmail: req.user?.email || "",
+        editableFields,
+      });
+    }
+
     await doctor.save();
 
     return res.status(200).json({
@@ -787,7 +939,22 @@ const updateMyDoctorProfile = async (req, res) => {
     const doctor = await ensureDoctorIdentity(req, res);
     if (!doctor) return;
 
-    const updatePayload = sanitizeDoctorPayload(req.body);
+    const allowedSelfEditFields = getDoctorEditableFields(doctor);
+    const updatePayload = sanitizePayloadWithAllowedFields(
+      req.body,
+      allowedSelfEditFields
+    );
+    const nextFullName = updatePayload.fullName ?? doctor.fullName;
+    const nextEmail = updatePayload.email ?? doctor.email;
+
+    if (
+      doctor.verificationStatus !== "approved" &&
+      allowedSelfEditFields.length === 0
+    ) {
+      return res.status(403).json({
+        message: "Your profile is locked until admin approval.",
+      });
+    }
 
     if (updatePayload.availabilitySchedule !== undefined) {
       const overlapMessage = getAvailabilityOverlapMessage(
@@ -803,16 +970,6 @@ const updateMyDoctorProfile = async (req, res) => {
       );
     }
 
-    if (
-      updatePayload.email &&
-      req.user?.email &&
-      updatePayload.email !== req.user.email.toLowerCase()
-    ) {
-      return res.status(400).json({
-        message: "Email cannot be changed from doctor profile service",
-      });
-    }
-
     if (updatePayload.specialization !== undefined) {
       const specialty = await resolveSpecialty(updatePayload.specialization);
 
@@ -824,6 +981,34 @@ const updateMyDoctorProfile = async (req, res) => {
 
       updatePayload.specialization = specialty.name;
       updatePayload.specializationId = specialty._id;
+    }
+
+    if (
+      doctor.authUserId &&
+      (nextFullName !== doctor.fullName || nextEmail !== doctor.email)
+    ) {
+      try {
+        const authResponse = await updateAuthUserIdentity({
+          authUserId: doctor.authUserId,
+          fullName: nextFullName,
+          email: nextEmail,
+        });
+
+        if (authResponse?.user?.username) {
+          updatePayload.fullName = String(authResponse.user.username).trim();
+        }
+
+        if (authResponse?.user?.email) {
+          updatePayload.email = String(authResponse.user.email).trim().toLowerCase();
+        }
+      } catch (authError) {
+        return res.status(authError?.response?.status || 500).json({
+          message:
+            authError?.response?.data?.message ||
+            authError.message ||
+            "Failed to sync doctor identity with auth service",
+        });
+      }
     }
 
     Object.assign(doctor, updatePayload);
@@ -849,9 +1034,7 @@ const getMyAvailability = async (req, res) => {
       availableDays: doctor.availableDays || [],
       availableTimeSlots: doctor.availableTimeSlots || [],
       availabilitySchedule: doctor.availabilitySchedule || [],
-      isAvailableForVideo: doctor.isAvailableForVideo,
       acceptsNewAppointments: doctor.acceptsNewAppointments,
-      supportsDigitalPrescriptions: doctor.supportsDigitalPrescriptions,
     });
   } catch (error) {
     return res.status(500).json({
@@ -870,9 +1053,7 @@ const updateMyAvailability = async (req, res) => {
       availableDays: req.body.availableDays,
       availableTimeSlots: req.body.availableTimeSlots,
       availabilitySchedule: req.body.availabilitySchedule,
-      isAvailableForVideo: req.body.isAvailableForVideo,
       acceptsNewAppointments: req.body.acceptsNewAppointments,
-      supportsDigitalPrescriptions: req.body.supportsDigitalPrescriptions,
     });
 
     if (updatePayload.availabilitySchedule !== undefined) {
@@ -899,9 +1080,7 @@ const updateMyAvailability = async (req, res) => {
         availableDays: doctor.availableDays || [],
         availableTimeSlots: doctor.availableTimeSlots || [],
         availabilitySchedule: doctor.availabilitySchedule || [],
-        isAvailableForVideo: doctor.isAvailableForVideo,
         acceptsNewAppointments: doctor.acceptsNewAppointments,
-        supportsDigitalPrescriptions: doctor.supportsDigitalPrescriptions,
       },
     });
   } catch (error) {
@@ -917,7 +1096,9 @@ module.exports = {
   getAllDoctors,
   getDoctorById,
   updateDoctor,
+  deleteDoctor,
   getDoctorsForVerification,
+  getDoctorVerificationByAuthUserIdInternal,
   updateDoctorVerification,
   uploadMyDoctorProfileImage,
   removeMyDoctorProfileImage,

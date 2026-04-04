@@ -92,22 +92,6 @@ const normalizeUsername = (username) =>
 const normalizeIdentifier = (identifier) => String(identifier || "").trim();
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 
-const ensureDoctorCanLogin = async (user) => {
-  if (!user || user.role !== "doctor") {
-    return;
-  }
-
-  if (user.doctorApprovalStatus === "approved") {
-    return;
-  }
-
-  if (user.doctorApprovalStatus === "rejected") {
-    throw new Error("Your doctor account was rejected by admin. Please contact support.");
-  }
-
-  throw new Error("Your doctor account is pending admin approval");
-};
-
 const getDoctorProfileId = async (token) => {
   const response = await fetch(`${DOCTOR_SERVICE_URL}/api/doctors/me`, {
     headers: {
@@ -207,7 +191,6 @@ const registerUser = async ({ username, email, password, role }) => {
     email: normalizedEmail,
     password: hashedPassword,
     role,
-    doctorApprovalStatus: role === "doctor" ? "pending" : undefined,
     isEmailVerified: false,
   });
 
@@ -329,8 +312,6 @@ const loginUser = async ({ email, password }) => {
     throw new Error("Please verify your email before logging in");
   }
 
-  await ensureDoctorCanLogin(user);
-
   const token = generateToken(user);
   user.tokens.push({ token });
   await user.save();
@@ -358,6 +339,61 @@ const deleteUserByEmail = async (email) => {
   };
 };
 
+const updateUserIdentity = async ({ userId, username, email }) => {
+  const normalizedUserId = String(userId || "").trim();
+  const nextUsername = normalizeUsername(username);
+  const nextEmail = normalizeEmail(email);
+
+  if (!normalizedUserId) {
+    throw new Error("userId is required");
+  }
+
+  if (!nextUsername || !nextEmail) {
+    throw new Error("username and email are required");
+  }
+
+  const user = await User.findById(normalizedUserId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const existingEmailOwner = await User.findOne({
+    email: nextEmail,
+    _id: { $ne: user._id },
+  });
+
+  if (existingEmailOwner) {
+    throw new Error("User already exists with this email");
+  }
+
+  let candidateUsername = nextUsername;
+  let suffix = 1;
+
+  while (
+    await User.exists({
+      username: candidateUsername,
+      _id: { $ne: user._id },
+    })
+  ) {
+    suffix += 1;
+    candidateUsername = `${nextUsername} ${suffix}`;
+  }
+
+  user.username = candidateUsername;
+  user.email = nextEmail;
+  await user.save();
+
+  return {
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+};
+
 const getUserById = async (userId) => {
   const user = await User.findById(userId);
 
@@ -370,40 +406,9 @@ const getUserById = async (userId) => {
     username: user.username,
     email: user.email,
     role: user.role,
+    isEmailVerified: Boolean(user.isEmailVerified),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-  };
-};
-
-const updateDoctorApprovalStatus = async ({ authUserId, doctorApprovalStatus }) => {
-  const normalizedStatus = String(doctorApprovalStatus || "").trim().toLowerCase();
-
-  if (!authUserId) {
-    throw new Error("authUserId is required");
-  }
-
-  if (!["pending", "approved", "rejected"].includes(normalizedStatus)) {
-    throw new Error("doctorApprovalStatus must be pending, approved or rejected");
-  }
-
-  const user = await User.findById(authUserId);
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  if (user.role !== "doctor") {
-    throw new Error("Approval status can only be updated for doctor accounts");
-  }
-
-  user.doctorApprovalStatus = normalizedStatus;
-  await user.save();
-
-  return {
-    id: user._id,
-    email: user.email,
-    role: user.role,
-    doctorApprovalStatus: user.doctorApprovalStatus,
   };
 };
 
@@ -425,8 +430,6 @@ const requestLoginOtp = async ({ identifier, role }) => {
   if (!user.isEmailVerified) {
     throw new Error("Please verify your email before logging in");
   }
-
-  await ensureDoctorCanLogin(user);
 
   const otp = generateOtp();
   setOtp(user, "otpLogin", otp);
@@ -455,7 +458,6 @@ const verifyLoginOtp = async ({ identifier, otp, role }) => {
   }
 
   clearOtp(user, "otpLogin");
-  await ensureDoctorCanLogin(user);
 
   const token = generateToken(user);
   user.tokens.push({ token });
@@ -543,7 +545,7 @@ module.exports = {
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
-  updateDoctorApprovalStatus,
+  updateUserIdentity,
   getUserById,
   requestEmailVerificationOtp,
   verifyEmailOtp,

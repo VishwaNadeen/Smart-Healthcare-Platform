@@ -2,6 +2,7 @@ import type { AdminDashboardStats } from "../types/admin";
 import {
   AUTH_API_URL,
   DOCTOR_API_URL,
+  DOCTOR_SPECIALTY_API_URL,
   TELEMEDICINE_API_URL,
   TELEMEDICINE_FILES_API_URL,
   TELEMEDICINE_PRESCRIPTIONS_API_URL,
@@ -24,27 +25,87 @@ type AuthStatsResponse = {
   message?: string;
 };
 
-export type DoctorVerificationStatus = "pending" | "approved" | "rejected";
+export type DoctorVerificationStatus =
+  | "pending"
+  | "in-review"
+  | "approved"
+  | "rejected";
+
+export type DoctorReviewNote = {
+  note: string;
+  status: DoctorVerificationStatus;
+  createdAt?: string;
+  createdByName?: string;
+  createdByEmail?: string;
+  editableFields?: string[];
+};
 
 export type DoctorVerification = {
   _id: string;
   authUserId: string;
   fullName: string;
   email: string;
+  isEmailVerified?: boolean;
   phone: string;
   specialization: string;
+  specializationId?: string;
   qualification: string;
   experience: number;
   licenseNumber: string;
   consultationFee?: number;
   hospitalName?: string;
+  hospitalAddress?: string;
   city?: string;
+  availableDays?: string[];
+  availableTimeSlots?: string[];
+  availabilitySchedule?: Array<{
+    day: string;
+    startTime: string;
+    endTime: string;
+    mode?: string;
+    maxAppointments?: number;
+  }>;
+  profileImage?: string;
+  profileImagePublicId?: string;
   about?: string;
+  acceptsNewAppointments?: boolean;
   verificationStatus: DoctorVerificationStatus;
   verificationNote?: string;
-  status: "active" | "inactive";
+  reviewNotes?: DoctorReviewNote[];
+  editableFields?: string[];
   createdAt: string;
   verifiedAt?: string | null;
+};
+
+export type DoctorUpdatePayload = {
+  fullName: string;
+  email: string;
+  phone: string;
+  specialization: string;
+  experience: number;
+  qualification: string;
+  licenseNumber: string;
+  hospitalName?: string;
+  hospitalAddress?: string;
+  city?: string;
+  consultationFee?: number;
+  about?: string;
+  acceptsNewAppointments?: boolean;
+};
+
+export type DoctorSpecialty = {
+  _id: string;
+  name: string;
+  description?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type DoctorSpecialtyPayload = {
+  name: string;
+  description?: string;
+  isActive?: boolean;
 };
 
 type AppointmentResourceResponse<T> = {
@@ -201,11 +262,32 @@ export async function getDoctorVerifications(
   );
 }
 
+export async function getDoctorDetails(doctorId: string) {
+  return fetchJson<DoctorVerification>(`${DOCTOR_API_URL}/${doctorId}`);
+}
+
+export async function updateDoctorDetails(
+  doctorId: string,
+  payload: DoctorUpdatePayload
+) {
+  return fetchJsonWithMethod<DoctorVerification>(`${DOCTOR_API_URL}/${doctorId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteDoctor(doctorId: string) {
+  return fetchJsonWithMethod<{ message: string }>(`${DOCTOR_API_URL}/${doctorId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function updateDoctorVerification(
   doctorId: string,
   payload: {
     verificationStatus: DoctorVerificationStatus;
     verificationNote?: string;
+    editableFields?: string[];
   }
 ) {
   return fetchJsonWithMethod<{ message: string; doctor: DoctorVerification }>(
@@ -217,17 +299,36 @@ export async function updateDoctorVerification(
   );
 }
 
-export async function updateDoctorApprovalStatus(
-  authUserId: string,
-  payload: {
-    doctorApprovalStatus: Exclude<DoctorVerificationStatus, "pending">;
-  }
+export async function getDoctorSpecialties() {
+  return fetchJson<DoctorSpecialty[]>(DOCTOR_SPECIALTY_API_URL);
+}
+
+export async function createDoctorSpecialty(payload: DoctorSpecialtyPayload) {
+  return fetchJsonWithMethod<DoctorSpecialty>(DOCTOR_SPECIALTY_API_URL, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateDoctorSpecialty(
+  specialtyId: string,
+  payload: DoctorSpecialtyPayload
 ) {
-  return fetchJsonWithMethod<{ message: string; user: { doctorApprovalStatus: DoctorVerificationStatus } }>(
-    `${AUTH_API_URL}/doctor-approval/${authUserId}`,
+  return fetchJsonWithMethod<DoctorSpecialty>(
+    `${DOCTOR_SPECIALTY_API_URL}/${specialtyId}`,
     {
-      method: "PATCH",
+      method: "PUT",
       body: JSON.stringify(payload),
     }
   );
 }
+
+export async function deleteDoctorSpecialty(specialtyId: string) {
+  return fetchJsonWithMethod<{ message: string; doctorsUsingSpecialty?: number }>(
+    `${DOCTOR_SPECIALTY_API_URL}/${specialtyId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+

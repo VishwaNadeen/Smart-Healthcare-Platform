@@ -31,6 +31,40 @@ const availabilitySlotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const reviewNoteSchema = new mongoose.Schema(
+  {
+    note: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "in-review", "approved", "rejected"],
+      required: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    createdByName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    createdByEmail: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    editableFields: {
+      type: [String],
+      default: [],
+    },
+  },
+  { _id: false }
+);
+
 const doctorSchema = new mongoose.Schema(
   {
     authUserId: {
@@ -83,17 +117,9 @@ const doctorSchema = new mongoose.Schema(
     availableTimeSlots: [String],
 
     consultationFee: Number,
-    isAvailableForVideo: {
-      type: Boolean,
-      default: false,
-    },
     availabilitySchedule: {
       type: [availabilitySlotSchema],
       default: [],
-    },
-    supportsDigitalPrescriptions: {
-      type: Boolean,
-      default: true,
     },
     acceptsNewAppointments: {
       type: Boolean,
@@ -108,11 +134,6 @@ const doctorSchema = new mongoose.Schema(
     },
     about: String,
 
-    status: {
-      type: String,
-      enum: ["active", "inactive"],
-      default: "active",
-    },
     verificationStatus: {
       type: String,
       enum: ["pending", "in-review","approved", "rejected"],
@@ -122,6 +143,14 @@ const doctorSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
+    },
+    reviewNotes: {
+      type: [reviewNoteSchema],
+      default: [],
+    },
+    editableFields: {
+      type: [String],
+      default: [],
     },
     verifiedAt: {
       type: Date,

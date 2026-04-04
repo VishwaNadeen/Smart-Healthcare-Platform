@@ -8,6 +8,15 @@ export type DoctorAvailabilityScheduleItem = {
   maxAppointments: number;
 };
 
+export type DoctorReviewNote = {
+  note: string;
+  status: string;
+  createdAt?: string;
+  createdByName?: string;
+  createdByEmail?: string;
+  editableFields?: string[];
+};
+
 export type DoctorProfile = {
   _id: string;
   fullName: string;
@@ -23,16 +32,15 @@ export type DoctorProfile = {
   availableDays?: string[];
   availableTimeSlots?: string[];
   consultationFee?: number;
-  isAvailableForVideo?: boolean;
   profileImage?: string;
   profileImagePublicId?: string;
   about?: string;
-  status?: "active" | "inactive" | string;
-  supportsDigitalPrescriptions?: boolean;
   acceptsNewAppointments?: boolean;
   availabilitySchedule?: DoctorAvailabilityScheduleItem[];
   verificationStatus?: string;
   verificationNote?: string;
+  reviewNotes?: DoctorReviewNote[];
+  editableFields?: string[];
   verifiedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -52,10 +60,8 @@ export type DoctorProfileUpdatePayload = {
   hospitalAddress: string;
   city: string;
   consultationFee: number;
-  isAvailableForVideo: boolean;
   profileImage: string;
   about: string;
-  supportsDigitalPrescriptions: boolean;
   acceptsNewAppointments: boolean;
   availableDays: string[];
   availableTimeSlots: string[];

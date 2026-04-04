@@ -7,7 +7,7 @@ const {
   logout,
   deleteMe,
   deleteByEmailInternal,
-  updateDoctorApprovalStatusInternal,
+  updateUserIdentityInternal,
   getUserByIdInternal,
   me,
   stats,
@@ -69,12 +69,6 @@ router.get("/stats", stats);
 router.post("/logout", authMiddleware, logout);
 router.get("/me", authMiddleware, me);
 router.delete("/me", authMiddleware, deleteMe);
-router.patch(
-  "/doctor-approval/:authUserId",
-  authMiddleware,
-  roleMiddleware("admin"),
-  updateDoctorApprovalStatusInternal
-);
 
 // internal route for cross-service rollback/cleanup
 router.delete(
@@ -82,8 +76,7 @@ router.delete(
   validate(deleteByEmailInternalSchema),
   deleteByEmailInternal
 );
-router.get("/internal/users/:id", getUserByIdInternal);
-
+router.patch("/internal/users/:userId/identity", updateUserIdentityInternal);
 router.get("/internal/users/:id", getUserByIdInternal);
 
 router.get(

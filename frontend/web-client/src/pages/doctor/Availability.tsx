@@ -13,8 +13,6 @@ import {
 } from "../../utils/telemedicineAuth";
 
 type AvailabilityFormState = {
-  isAvailableForVideo: boolean;
-  supportsDigitalPrescriptions: boolean;
   acceptsNewAppointments: boolean;
   availabilitySchedule: DoctorAvailabilityScheduleItem[];
 };
@@ -237,8 +235,6 @@ function mapProfileToAvailabilityForm(
     : [];
 
   return {
-    isAvailableForVideo: true,
-    supportsDigitalPrescriptions: true,
     acceptsNewAppointments: true,
     availabilitySchedule:
       availabilitySchedule.length > 0
@@ -284,8 +280,6 @@ function buildAvailabilityPayload(
     consultationFee: Number(profile.consultationFee) || 0,
     profileImage: profile.profileImage || "",
     about: profile.about || "",
-    isAvailableForVideo: true,
-    supportsDigitalPrescriptions: true,
     acceptsNewAppointments: true,
     availableDays: summary.availableDays,
     availableTimeSlots: summary.availableTimeSlots,
@@ -301,8 +295,6 @@ export default function DoctorAvailabilityPage() {
 
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [formData, setFormData] = useState<AvailabilityFormState>({
-    isAvailableForVideo: true,
-    supportsDigitalPrescriptions: true,
     acceptsNewAppointments: true,
     availabilitySchedule: [],
   });
@@ -896,51 +888,7 @@ export default function DoctorAvailabilityPage() {
                   Service Features
                 </h2>
 
-                <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                        <svg
-                          className="h-4 w-4"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.704 5.29a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0l-3.1-3.1a.75.75 0 111.06-1.06l2.57 2.569 6.72-6.72a.75.75 0 011.06 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </span>
-                      <p className="text-sm font-semibold text-slate-800">
-                        Available for video sessions
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                        <svg
-                          className="h-4 w-4"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.704 5.29a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0l-3.1-3.1a.75.75 0 111.06-1.06l2.57 2.569 6.72-6.72a.75.75 0 011.06 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </span>
-                      <p className="text-sm font-semibold text-slate-800">
-                        Support digital prescriptions
-                      </p>
-                    </div>
-                  </div>
-
+                <div className="mt-6 grid grid-cols-1 gap-3">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                     <div className="flex items-center gap-3">
                       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">

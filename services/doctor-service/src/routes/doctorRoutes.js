@@ -8,7 +8,9 @@ const {
   getAllDoctors,
   getDoctorById,
   updateDoctor,
+  deleteDoctor,
   getDoctorsForVerification,
+  getDoctorVerificationByAuthUserIdInternal,
   updateDoctorVerification,
   uploadMyDoctorProfileImage,
   removeMyDoctorProfileImage,
@@ -58,10 +60,15 @@ router.get(
   getDoctorsForVerification
 );
 router.put("/:id", authMiddleware.requireAdminAuth, updateDoctor);
+router.delete("/:id", authMiddleware.requireAdminAuth, deleteDoctor);
 router.patch(
   "/:id/verification",
   authMiddleware.requireAdminAuth,
   updateDoctorVerification
+);
+router.get(
+  "/internal/auth-users/:authUserId/verification",
+  getDoctorVerificationByAuthUserIdInternal
 );
 
 /*
