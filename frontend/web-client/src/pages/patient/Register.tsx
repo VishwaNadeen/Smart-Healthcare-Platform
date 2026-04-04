@@ -8,14 +8,16 @@ import PhoneNumberInput from "../../components/common/PhoneNumberInput";
 import { PatientApiError, registerPatient } from "../../services/patientApi";
 
 type PatientFormData = {
+  title: "" | "Mr" | "Miss" | "Mrs";
   firstName: string;
   lastName: string;
+  nic: string;
   email: string;
   password: string;
+  confirmPassword: string;
   countryCode: string;
   phone: string;
   birthday: string;
-  gender: "" | "male" | "female" | "other";
   address: string;
   country: string;
 };
@@ -27,6 +29,7 @@ const COUNTRY_PATTERN = /^[A-Za-z]+(?:[ .'-][A-Za-z]+)*$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_PATTERN =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
+const NIC_PATTERN = /^(?:\d{9}[VvXx]|\d{12})$/;
 const COUNTRY_CODE_PATTERN = /^\+[1-9]\d{0,3}$/;
 const PHONE_PATTERN = /^\+[1-9]\d{7,15}$/;
 const COUNTRY_OPTIONS = Array.from(
@@ -43,6 +46,10 @@ function validateField(
   const trimmedValue = value.trim();
 
   switch (field) {
+    case "title":
+      if (!data.title) return "Title is required.";
+      return "";
+
     case "firstName":
       if (!trimmedValue) return "First name is required.";
       if (trimmedValue.length < 2) {
@@ -76,14 +83,28 @@ function validateField(
       }
       return "";
 
+    case "nic":
+      if (!trimmedValue) return "NIC is required.";
+      if (!NIC_PATTERN.test(trimmedValue)) {
+        return "Enter a valid NIC. Use 12 digits or 9 digits with V/X.";
+      }
+      return "";
+
     case "password":
       if (!value) return "Password is required.";
-      if (value.length < 8) return "Password must be at least 8 characters.";
+      if (value.length < 6) return "Password must be at least 6 characters.";
       if (value.length > 100) {
         return "Password must be 100 characters or fewer.";
       }
       if (!PASSWORD_PATTERN.test(value)) {
         return "Password must include uppercase, lowercase, number, and special character.";
+      }
+      return "";
+
+    case "confirmPassword":
+      if (!value) return "Confirm password is required.";
+      if (value !== data.password) {
+        return "Passwords do not match.";
       }
       return "";
 
@@ -113,10 +134,6 @@ function validateField(
       return "";
     }
 
-    case "gender":
-      if (!data.gender) return "Please select a gender.";
-      return "";
-
     case "address":
       if (trimmedValue.length > 255) {
         return "Address must be 255 characters or fewer.";
@@ -143,14 +160,20 @@ function validateField(
 
 function validatePatientForm(data: PatientFormData): FormErrors {
   return {
+    title: validateField("title", data.title, data),
     firstName: validateField("firstName", data.firstName, data),
     lastName: validateField("lastName", data.lastName, data),
+    nic: validateField("nic", data.nic, data),
     email: validateField("email", data.email, data),
     password: validateField("password", data.password, data),
+    confirmPassword: validateField(
+      "confirmPassword",
+      data.confirmPassword,
+      data
+    ),
     countryCode: validateField("countryCode", data.countryCode, data),
     phone: validateField("phone", data.phone, data),
     birthday: validateField("birthday", data.birthday, data),
-    gender: validateField("gender", data.gender, data),
     address: validateField("address", data.address, data),
     country: validateField("country", data.country, data),
   };
@@ -176,14 +199,16 @@ export default function PatientRegister() {
   useLocationToast();
 
   const [formData, setFormData] = useState<PatientFormData>({
+    title: "",
     firstName: "",
     lastName: "",
+    nic: "",
     email: "",
     password: "",
+    confirmPassword: "",
     countryCode: "+94",
     phone: "",
     birthday: "",
-    gender: "",
     address: "",
     country: "Sri Lanka",
   });
@@ -208,6 +233,16 @@ export default function PatientRegister() {
     setErrors((prev) => ({
       ...prev,
       [fieldName]: validateField(fieldName, value, nextFormData),
+      ...(fieldName === "password" || fieldName === "confirmPassword"
+        ? {
+            password: validateField("password", nextFormData.password, nextFormData),
+            confirmPassword: validateField(
+              "confirmPassword",
+              nextFormData.confirmPassword,
+              nextFormData
+            ),
+          }
+        : {}),
     }));
   };
 
@@ -263,9 +298,10 @@ export default function PatientRegister() {
     setErrors({});
 
     try {
+      const { confirmPassword: _confirmPassword, ...restFormData } = formData;
       const normalizedPhone = formData.phone.replace(formData.countryCode, "");
       const registrationPayload = {
-        ...formData,
+        ...restFormData,
         phone: normalizedPhone,
       };
 
@@ -351,6 +387,28 @@ export default function PatientRegister() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Title
+                </label>
+                <select
+                  name="title"
+                  value={formData.title}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  required
+                  className={getFieldClass(Boolean(errors.title))}
+                >
+                  <option value="">Select title</option>
+                  <option value="Mr">Mr</option>
+                  <option value="Miss">Miss</option>
+                  <option value="Mrs">Mrs</option>
+                </select>
+                {errors.title && (
+                  <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
                   First Name
                 </label>
                 <input
@@ -396,6 +454,29 @@ export default function PatientRegister() {
 
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
+                NIC Number
+              </label>
+              <input
+                type="text"
+                name="nic"
+                value={formData.nic}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                required
+                placeholder="200012345678 or 123456789V"
+                maxLength={12}
+                className={getFieldClass(Boolean(errors.nic))}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Use 12 digits for new NIC or 9 digits with V/X for old NIC.
+              </p>
+              {errors.nic && (
+                <p className="mt-1 text-sm text-red-600">{errors.nic}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
                 Email
               </label>
               <input
@@ -427,15 +508,38 @@ export default function PatientRegister() {
                 required
                 placeholder="Enter password"
                 autoComplete="new-password"
-                minLength={8}
+                minLength={6}
                 className={getFieldClass(Boolean(errors.password))}
               />
               <p className="mt-1 text-xs text-slate-500">
-                Use at least 8 characters with uppercase, lowercase, number, and
+                Use at least 6 characters with uppercase, lowercase, number, and
                 special character.
               </p>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                required
+                placeholder="Confirm password"
+                autoComplete="new-password"
+                minLength={6}
+                className={getFieldClass(Boolean(errors.confirmPassword))}
+              />
+              {errors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.confirmPassword}
+                </p>
               )}
             </div>
 
@@ -468,28 +572,6 @@ export default function PatientRegister() {
                 />
                 {errors.birthday && (
                   <p className="mt-1 text-sm text-red-600">{errors.birthday}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Gender
-                </label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  required
-                  className={getFieldClass(Boolean(errors.gender))}
-                >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-                {errors.gender && (
-                  <p className="mt-1 text-sm text-red-600">{errors.gender}</p>
                 )}
               </div>
             </div>

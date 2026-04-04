@@ -24,6 +24,7 @@ const PROFILE_UPDATED_EVENT = "patient-profile-updated";
 type FormErrors = Partial<Record<keyof PatientUpdatePayload, string>>;
 
 const NAME_PATTERN = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
+const NIC_PATTERN = /^(?:\d{9}[VvXx]|\d{12})$/;
 const COUNTRY_CODE_PATTERN = /^\+[1-9]\d{0,3}$/;
 const PHONE_PATTERN = /^\d{7,15}$/;
 const COUNTRY_PATTERN = /^[A-Za-z]+(?:[ .'-][A-Za-z]+)*$/;
@@ -41,6 +42,9 @@ function validateProfileField(
   const trimmedValue = value.trim();
 
   switch (field) {
+    case "title":
+      if (!data.title) return "Title is required.";
+      return "";
     case "firstName":
       if (!trimmedValue) return "First name is required.";
       if (trimmedValue.length < 2) return "First name must be at least 2 characters.";
@@ -55,6 +59,12 @@ function validateProfileField(
       if (trimmedValue.length > 50) return "Last name must be 50 characters or fewer.";
       if (!NAME_PATTERN.test(trimmedValue)) {
         return "Last name can contain only letters, spaces, apostrophes, and hyphens.";
+      }
+      return "";
+    case "nic":
+      if (!trimmedValue) return "NIC is required.";
+      if (!NIC_PATTERN.test(trimmedValue)) {
+        return "Enter a valid NIC. Use 12 digits or 9 digits with V/X.";
       }
       return "";
     case "countryCode":
@@ -76,9 +86,6 @@ function validateProfileField(
       if (birthday > today) return "Birthday cannot be in the future.";
       return "";
     }
-    case "gender":
-      if (!data.gender) return "Please select a gender.";
-      return "";
     case "address":
       if (trimmedValue.length > 255) return "Address must be 255 characters or fewer.";
       return "";
@@ -99,13 +106,14 @@ function validateProfileField(
 
 function validateProfileForm(data: PatientUpdatePayload): FormErrors {
   return {
+    title: validateProfileField("title", data.title || "", data),
     firstName: validateProfileField("firstName", data.firstName, data),
     lastName: validateProfileField("lastName", data.lastName, data),
+    nic: validateProfileField("nic", data.nic || "", data),
     email: "",
     countryCode: validateProfileField("countryCode", data.countryCode, data),
     phone: validateProfileField("phone", data.phone, data),
     birthday: validateProfileField("birthday", data.birthday, data),
-    gender: validateProfileField("gender", data.gender, data),
     address: validateProfileField("address", data.address, data),
     country: validateProfileField("country", data.country, data),
   };
@@ -133,8 +141,10 @@ const PatientProfile = () => {
   const { showToast } = useToast();
 
   const [formData, setFormData] = useState<PatientUpdatePayload>({
+    title: "",
     firstName: "",
     lastName: "",
+    nic: "",
     email: "",
     countryCode: "+94",
     phone: "",
@@ -163,16 +173,17 @@ const PatientProfile = () => {
 
       const data = await getCurrentPatientProfile(token);
 
-      const nextForm = {
+      const nextForm: PatientUpdatePayload = {
+        title: (data.title || "") as PatientUpdatePayload["title"],
         firstName: data.firstName || "",
         lastName: data.lastName || "",
+        nic: data.nic || "",
         email: data.email || "",
         countryCode: data.countryCode || "+94",
         phone: data.phone || "",
         birthday: data.birthday
           ? new Date(data.birthday).toISOString().split("T")[0]
           : "",
-        gender: data.gender || "",
         address: data.address || "",
         country: data.country || "",
       };
@@ -349,7 +360,13 @@ const PatientProfile = () => {
     try {
       setErrors({});
 
-      const response = await updateCurrentPatientProfile(token, formData);
+      const payload: PatientUpdatePayload = {
+        ...formData,
+        title: formData.title || undefined,
+        nic: formData.nic?.trim().toUpperCase() || undefined,
+      };
+
+      const response = await updateCurrentPatientProfile(token, payload);
 
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
       localStorage.setItem(PROFILE_NAME_KEY, fullName);
@@ -571,20 +588,43 @@ const PatientProfile = () => {
             <div>
               {!editing ? (
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <ProfileItem label="Title" value={formData.title || ""} />
                   <ProfileItem label="First Name" value={formData.firstName} />
                   <ProfileItem label="Last Name" value={formData.lastName} />
+                  <ProfileItem label="NIC Number" value={formData.nic || ""} />
                   <ProfileItem label="Email" value={formData.email} />
                   <ProfileItem
                     label="Phone"
                     value={`${formData.countryCode} ${formData.phone}`}
                   />
                   <ProfileItem label="Birthday" value={formData.birthday} />
-                  <ProfileItem label="Gender" value={formData.gender} />
                   <ProfileItem label="Country" value={formData.country} />
                   <ProfileItem label="Address" value={formData.address} full />
                 </div>
               ) : (
                 <form onSubmit={handleSave} className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Title
+                    </label>
+                    <select
+                      name="title"
+                      value={formData.title || ""}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      className={getFieldClass(Boolean(errors.title))}
+                      required
+                    >
+                      <option value="">Select title</option>
+                      <option value="Mr">Mr</option>
+                      <option value="Miss">Miss</option>
+                      <option value="Mrs">Mrs</option>
+                    </select>
+                    {errors.title && (
+                      <p className="mt-2 text-sm text-red-600">{errors.title}</p>
+                    )}
+                  </div>
+
                   <InputField
                     label="First Name"
                     name="firstName"
@@ -605,6 +645,17 @@ const PatientProfile = () => {
                     error={errors.lastName}
                     autoComplete="family-name"
                     maxLength={50}
+                  />
+
+                  <InputField
+                    label="NIC Number"
+                    name="nic"
+                    value={formData.nic || ""}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    error={errors.nic}
+                    maxLength={12}
+                    helperText="Use 12 digits for new NIC or 9 digits with V/X for old NIC."
                   />
 
                   <InputField
@@ -640,28 +691,6 @@ const PatientProfile = () => {
                     onBlur={handleBlur}
                     error={errors.birthday}
                   />
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Gender
-                    </label>
-                    <select
-                      name="gender"
-                      value={formData.gender}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      className={getFieldClass(Boolean(errors.gender))}
-                      required
-                    >
-                      <option value="">Select gender</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                    {errors.gender && (
-                      <p className="mt-2 text-sm text-red-600">{errors.gender}</p>
-                    )}
-                  </div>
 
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-slate-700">
