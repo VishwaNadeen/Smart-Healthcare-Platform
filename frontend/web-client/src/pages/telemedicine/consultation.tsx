@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import FullScreenPageLoading from "../../components/common/FullScreenPageLoading";
 import PrescriptionForm, {
   type PrescriptionFormHandle,
 } from "../../components/telemedicine/PrescriptionForm";
@@ -239,13 +240,7 @@ export default function Consultation() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <p className="text-lg font-medium text-slate-700">
-          Loading consultation...
-        </p>
-      </div>
-    );
+    return <FullScreenPageLoading message="Loading consultation..." />;
   }
 
   if (!session) {
