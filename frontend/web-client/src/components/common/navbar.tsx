@@ -18,6 +18,7 @@ const PATIENT_PROFILE_IMAGE_KEY = "patientProfileImage";
 const DOCTOR_PROFILE_NAME_KEY = "doctorProfileName";
 const DOCTOR_PROFILE_IMAGE_KEY = "doctorProfileImage";
 const PROFILE_UPDATED_EVENT = "patient-profile-updated";
+const LOGOUT_PROMPT_ANIMATION_MS = 220;
 
 const navLinks = [
   { name: "Home", path: "/" },
@@ -109,6 +110,8 @@ export default function Navbar() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
+  const [isLogoutPromptMounted, setIsLogoutPromptMounted] = useState(false);
+  const [isLogoutPromptVisible, setIsLogoutPromptVisible] = useState(false);
   const [actionError, setActionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -256,6 +259,32 @@ export default function Navbar() {
     };
   }, [isSidebarOpen]);
 
+  useEffect(() => {
+    let animationFrameId: number | undefined;
+    let timeoutId: number | undefined;
+
+    if (showLogoutPrompt) {
+      setIsLogoutPromptMounted(true);
+      animationFrameId = window.requestAnimationFrame(() => {
+        setIsLogoutPromptVisible(true);
+      });
+    } else if (isLogoutPromptMounted) {
+      setIsLogoutPromptVisible(false);
+      timeoutId = window.setTimeout(() => {
+        setIsLogoutPromptMounted(false);
+      }, LOGOUT_PROMPT_ANIMATION_MS);
+    }
+
+    return () => {
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [isLogoutPromptMounted, showLogoutPrompt]);
+
   async function handleLogout() {
     setActionError("");
     setIsSubmitting(true);
@@ -285,9 +314,21 @@ export default function Navbar() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-blue-200/40 bg-white/80 backdrop-blur-md shadow-sm">
-        {showLogoutPrompt && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/40 px-4">
-            <div className="w-full max-w-md rounded-3xl border border-blue-200 bg-white p-8 shadow-2xl">
+        {isLogoutPromptMounted && (
+          <div
+            className={`fixed inset-0 z-[80] flex items-center justify-center px-4 transition-all duration-200 ${
+              isLogoutPromptVisible
+                ? "bg-slate-900/40 opacity-100"
+                : "pointer-events-none bg-slate-900/0 opacity-0"
+            }`}
+          >
+            <div
+              className={`w-full max-w-md rounded-3xl border border-blue-200 bg-white p-8 shadow-2xl transition-all duration-200 ${
+                isLogoutPromptVisible
+                  ? "translate-y-0 scale-100 opacity-100"
+                  : "translate-y-3 scale-95 opacity-0"
+              }`}
+            >
               <h2 className="text-center text-xl font-semibold text-slate-900">
                 Confirm Logout
               </h2>

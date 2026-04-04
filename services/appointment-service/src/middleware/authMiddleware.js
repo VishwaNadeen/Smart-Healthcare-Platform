@@ -130,23 +130,22 @@ const requireDoctorAuth = async (req, res, next) => {
 };
 
 const requireAdminAuth = async (req, res, next) => {
-  const authContext = await getAuthContext(req);
+  try {
+    const user = await getAuthUser(req);
 
-  if (authContext.errorStatus) {
-    return res.status(authContext.errorStatus).json({
-      message: authContext.message,
+    if (user.role !== "admin") {
+      return res.status(403).json({
+        message: "Only admins can access this endpoint",
+      });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(error.status || 401).json({
+      message: error.message || "Unauthorized",
     });
   }
-
-  const role = authContext.user.role;
-  if (role !== "admin") {
-    return res.status(403).json({
-      message: "Only admins can access this endpoint",
-    });
-  }
-
-  req.user = authContext.user;
-  return next();
 };
 
 const enforceDoctorParamOwnership = (req, res, next) => {

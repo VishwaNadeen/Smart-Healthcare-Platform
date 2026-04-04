@@ -106,7 +106,7 @@ const login = async (req, res) => {
     });
   } catch (error) {
     const isInvalidCredentials =
-      error.message === "Invalid email or password" ||
+      error.message === "Incorrect email or password" ||
       error.message === "Please verify your email before logging in" ||
       error.message === "Your doctor account is pending admin approval" ||
       error.message === "Your doctor account was rejected by admin. Please contact support." ||
