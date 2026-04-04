@@ -1,13 +1,10 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
 } from "react";
-
-type ToastVariant = "success" | "error" | "info";
+import { ToastContext, type ToastVariant } from "./toastContext";
 
 type ToastItem = {
   id: number;
@@ -15,12 +12,6 @@ type ToastItem = {
   variant: ToastVariant;
   duration: number;
 };
-
-type ToastContextValue = {
-  showToast: (message: string, variant?: ToastVariant, duration?: number) => void;
-};
-
-const ToastContext = createContext<ToastContextValue | null>(null);
 
 const toastStyles: Record<ToastVariant, string> = {
   success: "border-green-200 bg-green-50 text-green-800",
@@ -36,7 +27,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    (message: string, variant: ToastVariant = "info", duration = 3500) => {
+    (message: string, variant: ToastVariant = "info", duration = 5000) => {
       const id = Date.now() + Math.floor(Math.random() * 1000);
 
       setToasts((current) => [
@@ -105,14 +96,4 @@ function ToastCard({
       </div>
     </div>
   );
-}
-
-export function useToast() {
-  const context = useContext(ToastContext);
-
-  if (!context) {
-    throw new Error("useToast must be used within ToastProvider");
-  }
-
-  return context;
 }

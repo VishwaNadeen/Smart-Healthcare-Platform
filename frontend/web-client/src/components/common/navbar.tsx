@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useToast } from "./ToastProvider";
+import { useToast } from "./toastContext";
 import { logoutUser } from "../../services/authApi";
 import { getCurrentDoctorProfile } from "../../services/doctorApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
@@ -297,7 +297,7 @@ export default function Navbar() {
       const message =
         error instanceof Error ? error.message : "Failed to log out cleanly.";
       setActionError(message);
-      showToast(message, "error");
+      showToast("Logout failed.", "error");
     } finally {
       clearStoredProfiles();
       clearTelemedicineAuth();

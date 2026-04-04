@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useToast } from "../../components/common/ToastProvider";
+import PasswordField from "../../components/common/PasswordField";
+import { useToast } from "../../components/common/toastContext";
 import { AUTH_API_URL } from "../../config/api";
 import {
   requestPasswordResetOtp,
@@ -60,9 +61,9 @@ export default function ForgotPasswordPage() {
 
     setError("");
     try {
-      const result = await requestPasswordResetOtp({ email: trimmedEmail });
+      await requestPasswordResetOtp({ email: trimmedEmail });
       setStep(nextStep);
-      showToast(result.message || "OTP sent to your account.", "success");
+      showToast("OTP sent.", "success");
       return true;
     } catch (err: unknown) {
       const message =
@@ -202,7 +203,7 @@ export default function ForgotPasswordPage() {
         replace: true,
         state: {
           registeredEmail: trimmedEmail,
-          successMessage: "Password reset successful. You can login now.",
+          successMessage: "Password reset. Sign in now.",
         },
       });
     } catch (err: unknown) {
@@ -282,8 +283,7 @@ export default function ForgotPasswordPage() {
             <>
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">New Password</label>
-                <input
-                  type="password"
+                <PasswordField
                   name="newPassword"
                   placeholder="Enter new password"
                   value={newPassword}
@@ -294,7 +294,8 @@ export default function ForgotPasswordPage() {
                     }
                   }}
                   required
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                  autoComplete="new-password"
+                  inputClassName="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   Use at least 6 characters with uppercase, lowercase, number, and
@@ -304,8 +305,7 @@ export default function ForgotPasswordPage() {
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">Confirm Password</label>
-                <input
-                  type="password"
+                <PasswordField
                   name="confirmPassword"
                   placeholder="Confirm new password"
                   value={confirmPassword}
@@ -316,7 +316,8 @@ export default function ForgotPasswordPage() {
                     }
                   }}
                   required
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                  autoComplete="new-password"
+                  inputClassName="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </>

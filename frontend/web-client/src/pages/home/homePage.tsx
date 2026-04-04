@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
+import { useLocationToast } from "../../hooks/useLocationToast";
 
 export default function HomePage() {
+  useLocationToast();
+
   return (
     <div className="w-full">
       {/* Hero Section */}

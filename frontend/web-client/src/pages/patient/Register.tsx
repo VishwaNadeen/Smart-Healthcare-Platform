@@ -2,7 +2,8 @@ import { useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { defaultCountries } from "react-international-phone";
 import { Link, useNavigate } from "react-router-dom";
-import { useToast } from "../../components/common/ToastProvider";
+import PasswordField from "../../components/common/PasswordField";
+import { useToast } from "../../components/common/toastContext";
 import { useLocationToast } from "../../hooks/useLocationToast";
 import PhoneNumberInput from "../../components/common/PhoneNumberInput";
 import { PatientApiError, registerPatient } from "../../services/patientApi";
@@ -298,23 +299,28 @@ export default function PatientRegister() {
     setErrors({});
 
     try {
-      const { confirmPassword: _confirmPassword, ...restFormData } = formData;
       const normalizedPhone = formData.phone.replace(formData.countryCode, "");
       const registrationPayload = {
-        ...restFormData,
+        title: formData.title,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        nic: formData.nic,
+        email: formData.email,
+        password: formData.password,
+        countryCode: formData.countryCode,
+        birthday: formData.birthday,
+        address: formData.address,
+        country: formData.country,
         phone: normalizedPhone,
       };
 
-      const data = await registerPatient(registrationPayload);
-
-      showToast(data.message || "Patient registered successfully.", "success");
+      await registerPatient(registrationPayload);
 
       navigate("/verify-email", {
         replace: true,
         state: {
           registeredEmail: formData.email,
-          successMessage:
-            "Patient account created successfully. Please verify your email to continue.",
+          successMessage: "Account created. Verify your email.",
         },
       });
     } catch (error: unknown) {
@@ -499,8 +505,7 @@ export default function PatientRegister() {
               <label className="mb-1 block text-sm font-medium text-slate-700">
                 Password
               </label>
-              <input
-                type="password"
+              <PasswordField
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
@@ -509,7 +514,7 @@ export default function PatientRegister() {
                 placeholder="Enter password"
                 autoComplete="new-password"
                 minLength={6}
-                className={getFieldClass(Boolean(errors.password))}
+                inputClassName={getFieldClass(Boolean(errors.password))}
               />
               <p className="mt-1 text-xs text-slate-500">
                 Use at least 6 characters with uppercase, lowercase, number, and
@@ -524,8 +529,7 @@ export default function PatientRegister() {
               <label className="mb-1 block text-sm font-medium text-slate-700">
                 Confirm Password
               </label>
-              <input
-                type="password"
+              <PasswordField
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleChange}
@@ -534,7 +538,7 @@ export default function PatientRegister() {
                 placeholder="Confirm password"
                 autoComplete="new-password"
                 minLength={6}
-                className={getFieldClass(Boolean(errors.confirmPassword))}
+                inputClassName={getFieldClass(Boolean(errors.confirmPassword))}
               />
               {errors.confirmPassword && (
                 <p className="mt-1 text-sm text-red-600">
@@ -625,7 +629,7 @@ export default function PatientRegister() {
               disabled={loading}
               className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-70"
             >
-              {loading ? "Registering..." : "Register Patient"}
+              {loading ? "Registering..." : "Register"}
             </button>
           </form>
         </div>
