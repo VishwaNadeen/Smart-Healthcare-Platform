@@ -7,9 +7,9 @@ import { getStoredTelemedicineAuth } from "../utils/telemedicineAuth";
 
 import Consultation from "../pages/telemedicine/consultation";
 import DoctorSessions from "../pages/telemedicine/doctorsessions";
-import PatientSessions from "../pages/telemedicine/patientsessions";
-import DoctorWaitingRoom from "../pages/telemedicine/doctorWaitingRoom";
-import PatientWaitingRoom from "../pages/telemedicine/patientWaitingRoom";
+import PatientSessions from "../pages/telemedicine/Patientsessions";
+import DoctorWaitingRoom from "../pages/telemedicine/DoctorWaitingRoom";
+import PatientWaitingRoom from "../pages/telemedicine/PatientWaitingRoom";
 import DoctorSessionSummary from "../pages/telemedicine/doctorSessionSummary";
 import SessionSummary from "../pages/telemedicine/sessionsummary";
 import SessionHistory from "../pages/telemedicine/sessionHistory";
