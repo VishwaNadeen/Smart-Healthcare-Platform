@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import DoctorAppointmentRequestCard from "../../components/appointments/AppointmentRequestCard";
-import { useToast } from "../../components/common/toastContext";
+import { useToast } from "../../components/common/ToastProvider";
+import PageLoading from "../../components/common/PageLoading";
 import {
   getDoctorAppointments,
   updateDoctorAppointmentStatus,
@@ -12,15 +13,16 @@ import {
   type PatientSummaryResponse,
 } from "../../services/patientApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
+import NoDocAppointments from "./noDocAppointments";
 
 export default function DoctorAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
   const { showToast } = useToast();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [patientsById, setPatientsById] = useState<Record<string, PatientSummaryResponse>>(
-    {}
-  );
+  const [patientsById, setPatientsById] = useState<
+    Record<string, PatientSummaryResponse>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -55,7 +57,10 @@ export default function DoctorAppointmentsPage() {
         const patientEntries = await Promise.all(
           patientIds.map(async (patientId) => {
             try {
-              const patient = await getPatientSummaryByAuthUserId(token, patientId);
+              const patient = await getPatientSummaryByAuthUserId(
+                token,
+                patientId
+              );
               return [patientId, patient] as const;
             } catch {
               return [patientId, null] as const;
@@ -64,15 +69,18 @@ export default function DoctorAppointmentsPage() {
         );
 
         setPatientsById(
-          patientEntries.reduce<Record<string, PatientSummaryResponse>>((accumulator, entry) => {
-            const [patientId, patient] = entry;
+          patientEntries.reduce<Record<string, PatientSummaryResponse>>(
+            (accumulator, entry) => {
+              const [patientId, patient] = entry;
 
-            if (patient) {
-              accumulator[patientId] = patient;
-            }
+              if (patient) {
+                accumulator[patientId] = patient;
+              }
 
-            return accumulator;
-          }, {})
+              return accumulator;
+            },
+            {}
+          )
         );
       } catch (error: unknown) {
         setErrorMessage(
@@ -92,8 +100,12 @@ export default function DoctorAppointmentsPage() {
     return appointments
       .filter((appointment) => appointment.status === "pending")
       .sort((a, b) => {
-        const aDate = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
-        const bDate = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
+        const aDate = new Date(
+          `${a.appointmentDate}T${a.appointmentTime}`
+        ).getTime();
+        const bDate = new Date(
+          `${b.appointmentDate}T${b.appointmentTime}`
+        ).getTime();
         return aDate - bDate;
       });
   }, [appointments]);
@@ -110,7 +122,11 @@ export default function DoctorAppointmentsPage() {
     try {
       setErrorMessage("");
 
-      const data = await updateDoctorAppointmentStatus(auth.token, appointmentId, status);
+      const data = await updateDoctorAppointmentStatus(
+        auth.token,
+        appointmentId,
+        status
+      );
 
       setAppointments((currentAppointments) =>
         currentAppointments.map((appointment) =>
@@ -140,21 +156,41 @@ export default function DoctorAppointmentsPage() {
     }
   }
 
+  if (isLoading) {
+    return <PageLoading message="Loading appointment requests..." />;
+  }
+
+  if (pendingAppointments.length === 0) {
+    return (
+      <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          {errorMessage && (
+            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {errorMessage}
+            </div>
+          )}
+
+          <NoDocAppointments
+            viewScheduleLink="/doctor-sessions"
+            editAvailabilityLink="/doctor-availability"
+          />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
-          <div className="flex flex-col items-center gap-5 text-center">
-            <div className="flex flex-col items-center">
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                Appointment Requests
-              </h1>
+        <div className="flex flex-col items-center text-center">
+          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+            Appointment Requests
+          </h1>
 
-              <p className="mt-2 text-sm leading-6 text-slate-500 whitespace-nowrap sm:text-base">
-                View only patient appointment requests here. Approved sessions will appear under the consultation tab.
-              </p>
-            </div>
-          </div>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 sm:text-base">
+            View only patient appointment requests here. Approved sessions will
+            appear under the consultation tab.
+          </p>
         </div>
 
         {errorMessage && (
@@ -163,41 +199,21 @@ export default function DoctorAppointmentsPage() {
           </div>
         )}
 
-        {isLoading ? (
-          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
-            Loading appointment requests...
-          </div>
-        ) : pendingAppointments.length === 0 ? (
-          <div className="mt-16 flex min-h-[40vh] items-center justify-center px-6 text-center">
-            <div className="max-w-md">
-              <h3 className="text-xl font-bold text-slate-900">
-                No pending requests
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                You do not have any pending appointment requests right now.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {pendingAppointments.map((appointment) => {
-              return (
-                <DoctorAppointmentRequestCard
-                  key={appointment._id}
-                  appointment={appointment}
-                  patient={patientsById[appointment.patientId]}
-                  onAccept={() =>
-                    handleUpdateAppointmentStatus(appointment._id, "confirmed")
-                  }
-                  onReject={() =>
-                    handleUpdateAppointmentStatus(appointment._id, "cancelled")
-                  }
-                />
-              );
-            })}
-          </div>
-        )}
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {pendingAppointments.map((appointment) => (
+            <DoctorAppointmentRequestCard
+              key={appointment._id}
+              appointment={appointment}
+              patient={patientsById[appointment.patientId]}
+              onAccept={() =>
+                handleUpdateAppointmentStatus(appointment._id, "confirmed")
+              }
+              onReject={() =>
+                handleUpdateAppointmentStatus(appointment._id, "cancelled")
+              }
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
