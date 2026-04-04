@@ -115,7 +115,7 @@ const doctorSchema = new mongoose.Schema(
     },
     verificationStatus: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "in-review","approved", "rejected"],
       default: "pending",
     },
     verificationNote: {

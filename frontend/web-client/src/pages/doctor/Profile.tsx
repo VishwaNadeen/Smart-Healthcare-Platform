@@ -124,6 +124,9 @@ export default function DoctorProfilePage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imagePreview, setImagePreview] = useState("");
 
+  const verificationStatus = doctorProfile?.verificationStatus || "pending";
+  const isProfileLocked = verificationStatus !== "approved";
+
   const initials = useMemo(() => {
     const fullName = formData.fullName.trim();
     if (!fullName) return "D";
@@ -214,6 +217,12 @@ export default function DoctorProfilePage() {
     };
   }, [imagePreview]);
 
+  useEffect(() => {
+    if (isProfileLocked && editing) {
+      setEditing(false);
+    }
+  }, [isProfileLocked, editing]);
+
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
@@ -230,6 +239,9 @@ export default function DoctorProfilePage() {
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isProfileLocked) {
+      return;
+    }
     try {
       setSuccessMessage("");
       setErrorMessage("");
@@ -257,6 +269,10 @@ export default function DoctorProfilePage() {
   const handleProfileImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
+    if (isProfileLocked) {
+      event.target.value = "";
+      return;
+    }
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -284,6 +300,9 @@ export default function DoctorProfilePage() {
   };
 
   const handleRemoveProfileImage = async () => {
+    if (isProfileLocked) {
+      return;
+    }
     try {
       setUploadingImage(true);
       const doctor = await removeDoctorProfileImage(token);
@@ -302,6 +321,9 @@ export default function DoctorProfilePage() {
   };
 
   const handleDeleteAccount = async () => {
+    if (isProfileLocked) {
+      return;
+    }
     try {
       setDeleting(true);
       const response = await deleteCurrentDoctor(token);
@@ -329,8 +351,35 @@ export default function DoctorProfilePage() {
     );
   }
 
+  const noticeClassName =
+    verificationStatus === "rejected"
+      ? "mx-auto mb-6 max-w-3xl rounded-2xl border border-red-200 bg-red-50 px-6 py-4 text-center text-red-800"
+      : "mx-auto mb-6 max-w-3xl rounded-2xl border border-yellow-200 bg-yellow-50 px-6 py-4 text-center text-yellow-800";
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#dbeafe,_#f8fafc_42%,_#eef2ff)] px-4 py-10">
+      {isProfileLocked && (
+        <div className={noticeClassName}>
+          {verificationStatus === "pending" && (
+            <span>
+              Your profile is <b>pending</b> admin approval. You cannot edit or delete
+              your profile until it is approved.
+            </span>
+          )}
+          {verificationStatus === "in-review" && (
+            <span>
+              Your profile is <b>under review</b> by admin. You cannot edit or delete
+              your profile until it is approved.
+            </span>
+          )}
+          {verificationStatus === "rejected" && (
+            <span>
+              Your profile was <b>rejected</b>. Please contact admin for more
+              information. You cannot edit or delete your profile.
+            </span>
+          )}
+        </div>
+      )}
       {showDeletePrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4">
           <div className="w-full max-w-lg rounded-[28px] border border-red-200 bg-white p-6 shadow-2xl">
@@ -387,7 +436,7 @@ export default function DoctorProfilePage() {
                 </div>
               </div>
 
-              {!editing && (
+              {!editing && !isProfileLocked && (
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
@@ -429,13 +478,19 @@ export default function DoctorProfilePage() {
                 )}
 
                 <div className="mt-5 flex w-full flex-col gap-3">
-                  <label className="cursor-pointer rounded-xl bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-700">
+                  <label
+                    className={`cursor-pointer rounded-xl px-4 py-3 text-center text-sm font-semibold text-white transition ${
+                      isProfileLocked || uploadingImage
+                        ? "bg-blue-400"
+                        : "bg-blue-600 hover:bg-blue-700"
+                    }`}
+                  >
                     {formData.profileImage ? "Change Picture" : "Upload Picture"}
                     <input
                       type="file"
                       accept="image/*"
                       onChange={handleProfileImageUpload}
-                      disabled={uploadingImage}
+                      disabled={uploadingImage || isProfileLocked}
                       className="hidden"
                     />
                   </label>
@@ -444,7 +499,7 @@ export default function DoctorProfilePage() {
                     <button
                       type="button"
                       onClick={handleRemoveProfileImage}
-                      disabled={uploadingImage}
+                      disabled={uploadingImage || isProfileLocked}
                       className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Remove Picture
@@ -630,7 +685,8 @@ export default function DoctorProfilePage() {
                   <div className="md:col-span-2 flex gap-3 pt-2">
                   <button
                     type="submit"
-                    className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700"
+                    disabled={isProfileLocked}
+                    className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Save Changes
                   </button>
