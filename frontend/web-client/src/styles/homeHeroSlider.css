@@ -1,0 +1,12 @@
+@keyframes slideDownIn {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down-in {
+  animation: slideDownIn 0.8s ease forwards;
+}

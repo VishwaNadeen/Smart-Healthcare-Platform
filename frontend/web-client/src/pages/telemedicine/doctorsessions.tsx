@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import DoctorSessionCard from "../../components/telemedicine/DoctorSessionCard";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
+import PageLoading from "../../components/common/PageLoading";
+import NoApprovedSessions from "./noApprovedSessions";
 import {
   getSessionsByDoctorId,
   type TelemedicineSession,
@@ -32,7 +34,9 @@ export default function DoctorSessions() {
       } catch (error: unknown) {
         console.error("Failed to load doctor sessions:", error);
         setError(
-          error instanceof Error ? error.message : "Failed to load doctor sessions."
+          error instanceof Error
+            ? error.message
+            : "Failed to load doctor sessions."
         );
       } finally {
         setLoading(false);
@@ -45,11 +49,16 @@ export default function DoctorSessions() {
   const approvedSessions = useMemo(() => {
     return sessions
       .filter(
-        (session) => session.status === "scheduled" || session.status === "active"
+        (session) =>
+          session.status === "scheduled" || session.status === "active"
       )
       .sort((a, b) => {
-        const aDate = new Date(`${a.scheduledDate}T${a.scheduledTime}`).getTime();
-        const bDate = new Date(`${b.scheduledDate}T${b.scheduledTime}`).getTime();
+        const aDate = new Date(
+          `${a.scheduledDate}T${a.scheduledTime}`
+        ).getTime();
+        const bDate = new Date(
+          `${b.scheduledDate}T${b.scheduledTime}`
+        ).getTime();
         return aDate - bDate;
       });
   }, [sessions]);
@@ -61,6 +70,32 @@ export default function DoctorSessions() {
         description="Your login session is missing the doctor id returned by the backend. Please sign in again."
         actionLabel="Go to Login"
       />
+    );
+  }
+
+  if (loading) {
+    return <PageLoading message="Loading approved sessions..." />;
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="rounded-2xl bg-red-50 p-8 text-center text-red-600 shadow-sm">
+            {error}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (approvedSessions.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <NoApprovedSessions appointmentLink="/appointments/doctor" />
+        </div>
+      </div>
     );
   }
 
@@ -76,25 +111,11 @@ export default function DoctorSessions() {
           </p>
         </div>
 
-        {loading ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-gray-600 shadow-sm">
-            Loading approved sessions...
-          </div>
-        ) : error ? (
-          <div className="rounded-2xl bg-red-50 p-8 text-center text-red-600 shadow-sm">
-            {error}
-          </div>
-        ) : approvedSessions.length === 0 ? (
-          <div className="flex min-h-[12rem] items-center justify-center text-center text-gray-600">
-            No approved sessions found.
-          </div>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {approvedSessions.map((session) => (
-              <DoctorSessionCard key={session._id} session={session} />
-            ))}
-          </div>
-        )}
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {approvedSessions.map((session) => (
+            <DoctorSessionCard key={session._id} session={session} />
+          ))}
+        </div>
       </div>
     </div>
   );

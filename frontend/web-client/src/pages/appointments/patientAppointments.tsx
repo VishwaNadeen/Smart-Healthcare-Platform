@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PatientAppointmentCard from "../../components/appointments/PatientAppointmentCard";
+import PageLoading from "../../components/common/PageLoading";
+import NoPendingAppointments from "./noPatAppointments";
 import {
   cancelAppointment,
   getPatientAppointments,
@@ -95,35 +97,13 @@ export default function PatientAppointmentsPage() {
     }
   }
 
+  if (isLoading) {
+    return <PageLoading message="Loading appointments..." />;
+  }
+
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                My Appointments
-              </h1>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Link
-                to="/appointments/create"
-                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-              >
-                + Create Appointment
-              </Link>
-
-              <Link
-                to="/appointments/history"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Canceled Appointments
-              </Link>
-            </div>
-          </div>
-        </div>
-
         {errorMessage && (
           <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errorMessage}
@@ -136,32 +116,47 @@ export default function PatientAppointmentsPage() {
           </div>
         )}
 
-        {isLoading ? (
-          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
-            Loading appointments...
-          </div>
-        ) : pendingAppointments.length === 0 ? (
-          <div className="mt-16 flex min-h-[40vh] items-center justify-center px-6 text-center">
-            <div className="max-w-md">
-              <h3 className="text-xl font-bold text-slate-900">
-                No pending appointments found
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                You do not have any pending appointment requests right now.
-              </p>
-            </div>
-          </div>
+        {pendingAppointments.length === 0 ? (
+          <NoPendingAppointments />
         ) : (
-          <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {pendingAppointments.map((appointment) => (
-              <PatientAppointmentCard
-                key={appointment._id}
-                appointment={appointment}
-                onCancel={handleCancelAppointment}
-                isCancelling={cancellingId === appointment._id}
-              />
-            ))}
-          </div>
+          <>
+            <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                    My Appointments
+                  </h1>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Link
+                    to="/appointments/create"
+                    className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    + Create Appointment
+                  </Link>
+
+                  <Link
+                    to="/appointments/history"
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Canceled Appointments
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {pendingAppointments.map((appointment) => (
+                <PatientAppointmentCard
+                  key={appointment._id}
+                  appointment={appointment}
+                  onCancel={handleCancelAppointment}
+                  isCancelling={cancellingId === appointment._id}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </section>
