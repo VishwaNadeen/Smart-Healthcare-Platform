@@ -453,9 +453,16 @@ export default function Consultation() {
       <HangupConfirmModal
         open={isHangupConfirmOpen}
         busy={isEndingSession}
+        title={
+          confirmMode === "leave" && !isDoctor
+            ? "Leave Consultation?"
+            : undefined
+        }
         description={
           confirmMode === "leave"
-            ? "Leaving this page will disconnect the consultation. Do you want to continue?"
+            ? isDoctor
+              ? "Leaving this page will disconnect the consultation. Do you want to continue?"
+              : "Are you sure you want to leave this consultation? You will be disconnected from the meeting, and you may not be able to rejoin."
             : undefined
         }
         confirmLabel={
