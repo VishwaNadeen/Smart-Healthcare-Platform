@@ -4,7 +4,7 @@ const chatMessageSchema = new mongoose.Schema(
   {
     role: {
       type: String,
-      enum: ["patient"],
+      enum: ["user", "assistant"],
       required: true,
     },
     message: {

@@ -22,10 +22,59 @@ Write a short patient-friendly response with:
 
   const response = await ai.models.generateContent({
     model: GEMINI_MODEL,
-    contents: prompt
+    contents: prompt,
   });
 
   return response.text;
 }
 
-module.exports = { generatePatientFriendlyExplanation };
+async function chatWithPatient({ symptomCheck, message }) {
+  const previousChat = (symptomCheck.chatHistory || [])
+    .map((item) => `${item.role === "user" ? "Patient" : "Assistant"}: ${item.message}`)
+    .join("\n");
+
+  const prompt = `
+You are a healthcare assistant for a student project.
+
+Important safety rules:
+- You are not a doctor
+- Do not provide a final diagnosis
+- Do not prescribe medication
+- Keep answers short, clear, and safe
+- If urgency is high, strongly advise urgent medical care
+- Base your answer on the stored symptom analysis below
+- Be conversational and helpful
+
+Stored symptom check:
+${JSON.stringify(
+  {
+    symptoms: symptomCheck.symptoms,
+    analysis: symptomCheck.analysis,
+    recommendation: symptomCheck.recommendation,
+    aiExplanation: symptomCheck.aiExplanation,
+  },
+  null,
+  2
+)}
+
+Previous chat:
+${previousChat || "No previous chat"}
+
+New patient message:
+${message}
+
+Reply as a helpful healthcare assistant.
+`;
+
+  const response = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: prompt,
+  });
+
+  return response.text;
+}
+
+module.exports = {
+  generatePatientFriendlyExplanation,
+  chatWithPatient,
+};
