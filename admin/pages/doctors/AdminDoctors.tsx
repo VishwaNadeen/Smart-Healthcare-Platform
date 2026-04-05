@@ -6,7 +6,6 @@ import {
   updateDoctorDetails,
   updateDoctorVerification,
   type DoctorReviewNote,
-  type DoctorUpdatePayload,
   type DoctorVerification,
   type DoctorVerificationStatus,
 } from "../../services/adminApi";
@@ -32,9 +31,20 @@ const REVIEW_UNLOCKABLE_FIELDS = [
   "about",
 ] as const;
 type PanelTab = "overview" | "edit" | "review";
-type EditState = Omit<DoctorUpdatePayload, "experience" | "consultationFee"> & {
+type EditState = {
+  fullName: string;
+  email: string;
+  phone: string;
+  specialization: string;
   experience: string;
+  qualification: string;
+  licenseNumber: string;
+  hospitalName: string;
+  hospitalAddress: string;
+  city: string;
   consultationFee: string;
+  about: string;
+  acceptsNewAppointments: boolean;
 };
 
 const badgeClass = (status: DoctorVerificationStatus) =>
@@ -248,7 +258,6 @@ const exportRowsToPdf = (rows: ExportRow[], fileName: string) => {
     objects[catalogId - 1],
   ];
 
-  const normalizedIds = reorderedObjects.map((_, index) => index + 1);
   const normalizedFontId = 1;
   const normalizedPagePairs = pages.map((_, index) => ({
     contentId: 2 + index * 2,
@@ -405,7 +414,7 @@ function ReviewTimeline({ notes }: { notes: DoctorReviewNote[] }) {
   );
 }
 
-export default function AdminDoctorVerifications() {
+export default function AdminDoctors() {
   const [doctors, setDoctors] = useState<DoctorVerification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -532,10 +541,10 @@ export default function AdminDoctorVerifications() {
         qualification: editState.qualification.trim(),
         licenseNumber: editState.licenseNumber.trim(),
         consultationFee: Number(editState.consultationFee) || 0,
-        hospitalName: editState.hospitalName.trim(),
-        hospitalAddress: editState.hospitalAddress.trim(),
-        city: editState.city.trim(),
-        about: editState.about.trim(),
+        hospitalName: (editState.hospitalName || "").trim(),
+        hospitalAddress: (editState.hospitalAddress || "").trim(),
+        city: (editState.city || "").trim(),
+        about: (editState.about || "").trim(),
       });
       syncDoctor(updated);
       setPanelTab("overview");

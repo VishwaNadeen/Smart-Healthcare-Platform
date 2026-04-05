@@ -40,17 +40,16 @@ export default function AppRoutes() {
 
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      
+
         {aboutRoutes}
         {contactRoutes}
-        
+
         {telemedicineRoutes}
         {patientRoutes}
         {doctorRoutes}
         {appointmentRoutes}
         {profileRoutes}
         {prescriptionRoutes}
-        
       </Routes>
     </AnimatePresence>
   );

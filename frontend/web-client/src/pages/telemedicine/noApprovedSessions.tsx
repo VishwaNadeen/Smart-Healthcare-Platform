@@ -1,53 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import lottie from "lottie-web";
-import emptySessionAnimation from "../../assets/animations/doctor-empty-state.json";
 
 type Props = {
   appointmentLink?: string;
 };
 
-function cloneAnimationData<T>(data: T): T {
-  if (typeof structuredClone === "function") {
-    return structuredClone(data);
-  }
-
-  return JSON.parse(JSON.stringify(data)) as T;
-}
-
 function EmptyStateVisual() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const [hasAnimationError, setHasAnimationError] = useState(false);
-
-  useEffect(() => {
-    if (!containerRef.current) {
-      return;
-    }
-
-    const animation = lottie.loadAnimation({
-      container: containerRef.current,
-      renderer: "svg",
-      loop: true,
-      autoplay: true,
-      animationData: cloneAnimationData(emptySessionAnimation),
-      rendererSettings: {
-        preserveAspectRatio: "xMidYMid meet",
-      },
-    });
-
-    const handleAnimationError = () => {
-      setHasAnimationError(true);
-    };
-
-    animation.addEventListener("data_failed", handleAnimationError);
-    animation.addEventListener("error", handleAnimationError);
-
-    return () => {
-      animation.removeEventListener("data_failed", handleAnimationError);
-      animation.removeEventListener("error", handleAnimationError);
-      animation.destroy();
-    };
-  }, []);
 
   return (
     <div className="flex h-[180px] w-full max-w-[300px] items-center justify-center sm:h-[220px] sm:max-w-[360px]">
@@ -62,10 +21,25 @@ function EmptyStateVisual() {
         </div>
       ) : (
         <div
-          ref={containerRef}
-          className="h-full w-full"
+          className="flex h-full w-full items-center justify-center rounded-[24px] bg-gradient-to-br from-blue-50 via-white to-slate-100 shadow-inner"
           aria-label="No approved sessions animation"
-        />
+        >
+          <div className="text-center">
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-blue-100 text-4xl font-bold text-blue-600 shadow-sm">
+              DR
+            </div>
+            <p className="mt-5 px-4 text-sm font-medium text-slate-500 sm:text-base">
+              No approved doctor sessions yet.
+            </p>
+            <button
+              type="button"
+              onClick={() => setHasAnimationError(true)}
+              className="sr-only"
+            >
+              Hide illustration
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

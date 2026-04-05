@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useToast } from "../../components/common/ToastProvider";
+import { useToast } from "../../components/common/toastContext";
 import PhoneNumberInput from "../../components/common/PhoneNumberInput";
 import { useLocationToast } from "../../hooks/useLocationToast";
 import { DOCTOR_API_URL, SPECIALTY_API_URL } from "../../config/api";

@@ -4,7 +4,7 @@ import RequireAdminAuth from "../src/components/auth/RequireAdminAuth";
 import AdminDashboard from "../pages/dashboard/AdminDashboard";
 import AdminDoctorAnalytics from "../pages/analytics/AdminDoctorAnalytics";
 import AdminAppointments from "../pages/appointments/AdminAppointments";
-import AdminDoctorVerifications from "../pages/doctor-verifications/AdminDoctorVerifications";
+import AdminDoctors from "../pages/doctors/AdminDoctors";
 import AdminPayments from "../pages/payments/AdminPayments";
 import AdminOperations from "../pages/operations/AdminOperations";
 import AdminDoctorSpecialties from "../pages/specialties/AdminDoctorSpecialties";
@@ -37,7 +37,7 @@ export const adminRoutes = (
       element={
         <RequireAdminAuth>
           <AdminLayout>
-            <AdminDoctorVerifications />
+            <AdminDoctors />
           </AdminLayout>
         </RequireAdminAuth>
       }
