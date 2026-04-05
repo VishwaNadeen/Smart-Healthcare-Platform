@@ -1,5 +1,3 @@
-const fetch = require('node-fetch');
-
 const requireAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];

@@ -4,6 +4,8 @@ export type PatientFieldErrors = Partial<
   Record<
     | "firstName"
     | "lastName"
+    | "title"
+    | "nic"
     | "email"
     | "password"
     | "countryCode"
@@ -34,27 +36,30 @@ export class PatientApiError extends Error {
 }
 
 export type PatientRegisterPayload = {
+  title: "Mr" | "Miss" | "Mrs" | "";
   firstName: string;
   lastName: string;
+  nic: string;
   email: string;
   password: string;
   countryCode: string;
   phone: string;
   birthday: string;
-  gender: "male" | "female" | "other" | "";
   address: string;
   country: string;
 };
 
 export type PatientData = {
   _id: string;
+  title?: "Mr" | "Miss" | "Mrs" | "";
   firstName: string;
   lastName: string;
+  nic?: string;
   email: string;
   countryCode: string;
   phone: string;
   birthday: string;
-  gender: "male" | "female" | "other";
+  gender?: "male" | "female" | "other";
   address: string;
   country: string;
   profileImage?: string;
@@ -71,14 +76,25 @@ export type PatientRegisterResponse = {
 
 export type PatientProfileResponse = PatientData;
 
-export type PatientUpdatePayload = {
+export type PatientSummaryResponse = {
+  _id: string;
+  authUserId: string;
   firstName: string;
   lastName: string;
+  age: number | null;
+  profileImage?: string;
+};
+
+export type PatientUpdatePayload = {
+  title?: "Mr" | "Miss" | "Mrs" | "";
+  firstName: string;
+  lastName: string;
+  nic?: string;
   email: string;
   countryCode: string;
   phone: string;
   birthday: string;
-  gender: "male" | "female" | "other" | "";
+  gender?: "male" | "female" | "other" | "";
   address: string;
   country: string;
 };
@@ -193,6 +209,28 @@ export async function getCurrentPatientProfile(
   }
 
   return handlePatientResponse<PatientProfileResponse>(response);
+}
+
+export async function getPatientSummaryByAuthUserId(
+  token: string,
+  authUserId: string
+): Promise<PatientSummaryResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${PATIENT_API_URL}/lookup/auth/${authUserId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the patient service. Please check that it is running."
+    );
+  }
+
+  return handlePatientResponse<PatientSummaryResponse>(response);
 }
 
 export async function updateCurrentPatientProfile(

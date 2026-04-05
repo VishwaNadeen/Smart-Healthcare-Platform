@@ -14,9 +14,6 @@ export default function DoctorSessionCard({ session }: Props) {
   const isScheduled = session.status === "scheduled";
   const isActive = session.status === "active";
 
-  const doctorName =
-    session.doctor?.fullName || (session as any).doctorName || "Doctor";
-
   const patientName =
     session.patient?.fullName || (session as any).patientName || "Patient";
 
@@ -24,7 +21,7 @@ export default function DoctorSessionCard({ session }: Props) {
     if (isCompleted) {
       return (
         <Link
-          to={`/session-summary/${session.appointmentId}`}
+          to={`/doctor-session-summary/${session.appointmentId}`}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-5 py-2.5 text-sm font-semibold text-green-700 transition-all duration-150 hover:bg-green-100"
         >
           <svg
@@ -75,7 +72,7 @@ export default function DoctorSessionCard({ session }: Props) {
     if (isScheduled) {
       return (
         <Link
-          to={`/waiting-room/${session.appointmentId}`}
+          to={`/doctor-waiting-room/${session.appointmentId}`}
           className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-semibold text-sky-700 transition-all duration-150 hover:border-sky-300 hover:bg-sky-100"
         >
           <svg
@@ -172,17 +169,10 @@ export default function DoctorSessionCard({ session }: Props) {
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="truncate text-base font-bold tracking-tight text-slate-900">
-                {patientName}
-              </h3>
-              <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-700">
-                Patient
-              </span>
-            </div>
-            <p className="mt-0.5 text-xs text-slate-500">
-              <span className="font-semibold text-sky-800">{doctorName}</span>
-            </p>
+            <h3 className="truncate text-base tracking-tight text-slate-900">
+              <span className="font-normal text-slate-500">Patient - </span>
+              <span className="font-bold text-slate-900">{patientName}</span>
+            </h3>
           </div>
         </div>
 
@@ -200,7 +190,7 @@ export default function DoctorSessionCard({ session }: Props) {
               <p className="text-[10px] font-semibold uppercase tracking-widest text-sky-500">
                 {label}
               </p>
-              <p className="mt-0.5 font-mono text-sm font-semibold text-slate-800">
+              <p className="mt-0.5 text-sm font-semibold text-slate-800">
                 {value}
               </p>
             </div>

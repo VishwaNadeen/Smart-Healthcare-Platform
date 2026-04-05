@@ -16,9 +16,32 @@ const deleteCloudinaryImage = async (publicId) => {
 const normalizeEmail = (email) =>
   typeof email === "string" ? email.trim().toLowerCase() : "";
 
+const getAgeFromBirthday = (birthday) => {
+  const date = new Date(birthday);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - date.getFullYear();
+  const monthDifference = today.getMonth() - date.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (monthDifference === 0 && today.getDate() < date.getDate())
+  ) {
+    age -= 1;
+  }
+
+  return age >= 0 ? age : null;
+};
+
 const buildPatientPayload = (body = {}) => ({
+  title: body.title,
   firstName: body.firstName,
   lastName: body.lastName,
+  nic: typeof body.nic === "string" ? body.nic.trim().toUpperCase() : "",
   email: normalizeEmail(body.email),
   countryCode: body.countryCode,
   phone: body.phone,
@@ -28,13 +51,23 @@ const buildPatientPayload = (body = {}) => ({
   country: body.country,
 });
 
+const ensureAdmin = (req) => {
+  if (req.authUser?.role !== "admin") {
+    const error = new Error("Admin access required");
+    error.statusCode = 403;
+    throw error;
+  }
+};
+
 const findPatientForAuthUser = async (authUser) => {
   if (!authUser) {
     return null;
   }
 
-  if (authUser.id) {
-    const patientByAuthId = await Patient.findOne({ authUserId: authUser.id });
+  const authUserId = authUser.userId || authUser.id;
+
+  if (authUserId) {
+    const patientByAuthId = await Patient.findOne({ authUserId });
     if (patientByAuthId) {
       return patientByAuthId;
     }
@@ -47,6 +80,15 @@ const findPatientForAuthUser = async (authUser) => {
   return null;
 };
 
+const buildPatientSummary = (patient) => ({
+  _id: patient._id,
+  authUserId: patient.authUserId || "",
+  firstName: patient.firstName,
+  lastName: patient.lastName,
+  age: getAgeFromBirthday(patient.birthday),
+  profileImage: patient.profileImage || "",
+});
+
 // Create patient with auth-service registration
 const createPatient = async (req, res) => {
   let authRegistration = null;
@@ -54,8 +96,10 @@ const createPatient = async (req, res) => {
 
   try {
     const {
+      title,
       firstName,
       lastName,
+      nic,
       email,
       password,
       countryCode,
@@ -67,14 +111,15 @@ const createPatient = async (req, res) => {
     } = req.body;
 
     if (
+      !title ||
       !firstName ||
       !lastName ||
+      !nic ||
       !email ||
       !password ||
       !countryCode ||
       !phone ||
       !birthday ||
-      !gender ||
       !country
     ) {
       return res.status(400).json({
@@ -83,11 +128,20 @@ const createPatient = async (req, res) => {
     }
 
     const normalizedEmail = normalizeEmail(email);
+    const normalizedNic =
+      typeof nic === "string" ? nic.trim().toUpperCase() : "";
 
     const existingPatient = await Patient.findOne({ email: normalizedEmail });
     if (existingPatient) {
       return res.status(409).json({
         message: "Patient already exists with this email",
+      });
+    }
+
+    const existingPatientByNic = await Patient.findOne({ nic: normalizedNic });
+    if (existingPatientByNic) {
+      return res.status(409).json({
+        message: "Patient already exists with this NIC",
       });
     }
 
@@ -99,8 +153,10 @@ const createPatient = async (req, res) => {
     });
 
     const patientPayload = buildPatientPayload({
+      title,
       firstName,
       lastName,
+      nic: normalizedNic,
       email: normalizedEmail,
       countryCode,
       phone,
@@ -161,6 +217,37 @@ const getAllPatients = async (_req, res) => {
   }
 };
 
+const getAllPatientsAdmin = async (req, res) => {
+  try {
+    ensureAdmin(req);
+
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const filter = search
+      ? {
+          $or: [
+            { firstName: { $regex: search, $options: "i" } },
+            { lastName: { $regex: search, $options: "i" } },
+            { email: { $regex: search, $options: "i" } },
+            { phone: { $regex: search, $options: "i" } },
+            { country: { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
+
+    const patients = await Patient.find(filter).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      patients,
+      total: patients.length,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      message: error.message || "Failed to fetch patients",
+      error: error.message,
+    });
+  }
+};
+
 const getCurrentPatient = async (req, res) => {
   try {
     const patient = await findPatientForAuthUser(req.authUser);
@@ -169,8 +256,8 @@ const getCurrentPatient = async (req, res) => {
       return res.status(404).json({ message: "Patient profile not found" });
     }
 
-    if (!patient.authUserId && req.authUser?.id) {
-      patient.authUserId = req.authUser.id;
+    if (!patient.authUserId && req.authUser?.userId) {
+      patient.authUserId = req.authUser.userId;
       await patient.save();
     }
 
@@ -200,9 +287,67 @@ const getPatientById = async (req, res) => {
   }
 };
 
+const getPatientByIdAdmin = async (req, res) => {
+  try {
+    ensureAdmin(req);
+
+    const patient = await Patient.findById(req.params.id);
+
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    return res.status(200).json(patient);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      message: error.message || "Failed to fetch patient",
+      error: error.message,
+    });
+  }
+};
+
+const getPatientSummaryByAuthUserId = async (req, res) => {
+  try {
+    const requestedAuthUserId = String(req.params.authUserId || "").trim();
+    const requesterUserId = String(req.authUser?.userId || "").trim();
+    const requesterRole = String(req.authUser?.role || "").toLowerCase();
+
+    if (!requestedAuthUserId) {
+      return res.status(400).json({ message: "authUserId is required" });
+    }
+
+    const isSamePatient = requesterRole === "patient" && requesterUserId === requestedAuthUserId;
+    const canReadSummary =
+      requesterRole === "doctor" || requesterRole === "admin" || isSamePatient;
+
+    if (!canReadSummary) {
+      return res.status(403).json({
+        message: "You are not allowed to access this patient summary",
+      });
+    }
+
+    const patient = await Patient.findOne({ authUserId: requestedAuthUserId }).select(
+      "_id authUserId firstName lastName birthday profileImage"
+    );
+
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    return res.status(200).json(buildPatientSummary(patient));
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch patient summary",
+      error: error.message,
+    });
+  }
+};
+
 const updateCurrentPatient = async (req, res) => {
   try {
     const requestedEmail = normalizeEmail(req.body.email);
+    const requestedNic =
+      typeof req.body.nic === "string" ? req.body.nic.trim().toUpperCase() : "";
 
     const patient = await findPatientForAuthUser(req.authUser);
 
@@ -210,8 +355,8 @@ const updateCurrentPatient = async (req, res) => {
       return res.status(404).json({ message: "Patient profile not found" });
     }
 
-    if (!patient.authUserId && req.authUser?.id) {
-      patient.authUserId = req.authUser.id;
+    if (!patient.authUserId && req.authUser?.userId) {
+      patient.authUserId = req.authUser.userId;
     }
 
     if (requestedEmail && requestedEmail !== patient.email) {
@@ -220,8 +365,19 @@ const updateCurrentPatient = async (req, res) => {
       });
     }
 
+    if (requestedNic && requestedNic !== patient.nic) {
+      const existingPatientByNic = await Patient.findOne({ nic: requestedNic });
+      if (existingPatientByNic) {
+        return res.status(409).json({
+          message: "Patient already exists with this NIC",
+        });
+      }
+    }
+
+    patient.title = req.body.title ?? patient.title;
     patient.firstName = req.body.firstName ?? patient.firstName;
     patient.lastName = req.body.lastName ?? patient.lastName;
+    patient.nic = requestedNic || patient.nic;
     patient.countryCode = req.body.countryCode ?? patient.countryCode;
     patient.phone = req.body.phone ?? patient.phone;
     patient.birthday = req.body.birthday ?? patient.birthday;
@@ -243,6 +399,91 @@ const updateCurrentPatient = async (req, res) => {
   }
 };
 
+const updatePatientAdmin = async (req, res) => {
+  try {
+    ensureAdmin(req);
+
+    const patient = await Patient.findById(req.params.id);
+
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    const requestedEmail = normalizeEmail(req.body.email);
+    const requestedNic =
+      typeof req.body.nic === "string" ? req.body.nic.trim().toUpperCase() : "";
+
+    if (requestedEmail && requestedEmail !== patient.email) {
+      return res.status(400).json({
+        message: "Email address cannot be changed from admin patient management.",
+      });
+    }
+
+    if (requestedNic && requestedNic !== patient.nic) {
+      const existingPatientByNic = await Patient.findOne({ nic: requestedNic });
+      if (existingPatientByNic) {
+        return res.status(409).json({
+          message: "Patient already exists with this NIC",
+        });
+      }
+    }
+
+    patient.title = req.body.title ?? patient.title;
+    patient.firstName = req.body.firstName ?? patient.firstName;
+    patient.lastName = req.body.lastName ?? patient.lastName;
+    patient.nic = requestedNic || patient.nic;
+    patient.countryCode = req.body.countryCode ?? patient.countryCode;
+    patient.phone = req.body.phone ?? patient.phone;
+    patient.birthday = req.body.birthday ?? patient.birthday;
+    patient.gender = req.body.gender ?? patient.gender;
+    patient.address = req.body.address ?? patient.address;
+    patient.country = req.body.country ?? patient.country;
+
+    const updatedPatient = await patient.save();
+
+    res.status(200).json({
+      message: "Patient updated successfully",
+      patient: updatedPatient,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      message: error.message || "Failed to update patient",
+      error: error.message,
+    });
+  }
+};
+
+const updatePatientStatusAdmin = async (req, res) => {
+  try {
+    ensureAdmin(req);
+
+    const { status } = req.body;
+
+    if (!["active", "inactive"].includes(status)) {
+      return res.status(400).json({ message: "Status must be active or inactive" });
+    }
+
+    const patient = await Patient.findById(req.params.id);
+
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    patient.status = status;
+    const updatedPatient = await patient.save();
+
+    res.status(200).json({
+      message: "Patient status updated successfully",
+      patient: updatedPatient,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      message: error.message || "Failed to update patient status",
+      error: error.message,
+    });
+  }
+};
+
 const uploadCurrentPatientProfileImage = async (req, res) => {
   try {
     if (!req.file) {
@@ -255,8 +496,8 @@ const uploadCurrentPatientProfileImage = async (req, res) => {
       return res.status(404).json({ message: "Patient profile not found" });
     }
 
-    if (!patient.authUserId && req.authUser?.id) {
-      patient.authUserId = req.authUser.id;
+    if (!patient.authUserId && req.authUser?.userId) {
+      patient.authUserId = req.authUser.userId;
     }
 
     const oldPublicId = patient.profileImagePublicId;
@@ -370,13 +611,47 @@ const deleteCurrentPatient = async (req, res) => {
   }
 };
 
+const deletePatientAdmin = async (req, res) => {
+  try {
+    ensureAdmin(req);
+
+    const patient = await Patient.findById(req.params.id);
+
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    if (patient.profileImagePublicId) {
+      await deleteCloudinaryImage(patient.profileImagePublicId);
+    }
+
+    await deleteAuthAccountByEmail(patient.email);
+    await patient.deleteOne();
+
+    res.status(200).json({
+      message: "Patient deleted successfully",
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({
+      message: error.message || "Failed to delete patient",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createPatient,
   getAllPatients,
+  getAllPatientsAdmin,
   getCurrentPatient,
   getPatientById,
+  getPatientByIdAdmin,
+  getPatientSummaryByAuthUserId,
   updateCurrentPatient,
+  updatePatientAdmin,
+  updatePatientStatusAdmin,
   uploadCurrentPatientProfileImage,
   removeCurrentPatientProfileImage,
   deleteCurrentPatient,
+  deletePatientAdmin,
 };

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import PatientSessionCard from "../../components/telemedicine/PatientSessionCard";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
+import PageLoading from "../../components/common/PageLoading";
+import NoApprovedSessions from "./noPatApprovedSessions";
 import {
   getSessionsByPatientId,
   type TelemedicineSession,
@@ -32,7 +34,9 @@ export default function PatientSessions() {
       } catch (err: unknown) {
         console.error("Failed to load patient sessions:", err);
         setError(
-          err instanceof Error ? err.message : "Failed to load patient sessions."
+          err instanceof Error
+            ? err.message
+            : "Failed to load patient sessions."
         );
       } finally {
         setLoading(false);
@@ -64,36 +68,36 @@ export default function PatientSessions() {
     );
   }
 
+  if (loading) {
+    return <PageLoading message="Loading approved sessions..." />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8 rounded-3xl bg-white p-6 shadow-sm">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Approved Sessions
-          </h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Only approved consultation sessions are shown here.
-          </p>
-        </div>
-
-        {loading ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-gray-600 shadow-sm">
-            Loading approved sessions...
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="rounded-2xl bg-red-50 p-8 text-center text-red-600 shadow-sm">
             {error}
           </div>
         ) : approvedSessions.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-gray-600 shadow-sm">
-            No approved sessions found.
-          </div>
+          <NoApprovedSessions />
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {approvedSessions.map((session) => (
-              <PatientSessionCard key={session._id} session={session} />
-            ))}
-          </div>
+          <>
+            <div className="mb-8 rounded-3xl bg-white p-6 text-center shadow-sm">
+              <h1 className="text-3xl font-bold text-gray-900">
+                Approved Sessions
+              </h1>
+              <p className="mt-2 text-sm text-gray-600">
+                Only approved consultation sessions are shown here.
+              </p>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              {approvedSessions.map((session) => (
+                <PatientSessionCard key={session._id} session={session} />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

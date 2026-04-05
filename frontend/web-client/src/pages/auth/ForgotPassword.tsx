@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../../components/common/ToastProvider";
 import { AUTH_API_URL } from "../../config/api";
@@ -12,11 +12,22 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [step, setStep] = useState<"request" | "reset">("request");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [step, setStep] = useState<"request" | "otp" | "reset">("request");
   const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!error) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setError("");
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [error]);
 
   function isValidEmail(value: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -26,37 +37,37 @@ export default function ForgotPasswordPage() {
     return /^[0-9]{4,8}$/.test(value.trim());
   }
 
-  const requestOtp = async (nextStep: "request" | "reset") => {
+  function isValidPassword(value: string) {
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{6,100}$/.test(
+      value
+    );
+  }
+
+  const requestOtp = async (nextStep: "otp" | "reset") => {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail) {
       const message = "Email is required.";
       setError(message);
-      showToast(message, "error");
       return;
     }
 
     if (!isValidEmail(trimmedEmail)) {
       const message = "Enter a valid email address.";
       setError(message);
-      showToast(message, "error");
       return;
     }
 
     setError("");
-    setMessage("");
-
     try {
       const result = await requestPasswordResetOtp({ email: trimmedEmail });
       setStep(nextStep);
-      setMessage(result.message || "OTP sent to your account.");
       showToast(result.message || "OTP sent to your account.", "success");
       return true;
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Something went wrong";
       setError(message);
-      showToast(message, "error");
       return false;
     }
   };
@@ -66,77 +77,104 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
     setError("");
-    setMessage("");
 
     try {
-      await requestOtp("reset");
+      await requestOtp("otp");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendOtp = async () => {
-    setResending(true);
-    setError("");
-
-    try {
-      await requestOtp("reset");
-    } finally {
-      setResending(false);
-    }
-  };
-
-  const handleResetPassword = async (e: React.FormEvent) => {
+  const handleOtpContinue = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedEmail = email.trim();
     const trimmedOtp = otp.trim();
-    const trimmedNewPassword = newPassword.trim();
-
-    if (!trimmedEmail) {
-      const message = "Email is required.";
-      setError(message);
-      showToast(message, "error");
-      return;
-    }
-
-    if (!isValidEmail(trimmedEmail)) {
-      const message = "Enter a valid email address.";
-      setError(message);
-      showToast(message, "error");
-      return;
-    }
 
     if (!trimmedOtp) {
       const message = "OTP is required.";
       setError(message);
-      showToast(message, "error");
       return;
     }
 
     if (!isValidOtp(trimmedOtp)) {
       const message = "OTP must contain only digits and be 4 to 8 characters long.";
       setError(message);
-      showToast(message, "error");
+      return;
+    }
+
+    setError("");
+    setStep("reset");
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedEmail = email.trim();
+    const trimmedOtp = otp.trim();
+    const trimmedNewPassword = newPassword;
+    const trimmedConfirmPassword = confirmPassword;
+
+    if (!trimmedEmail) {
+      const message = "Email is required.";
+      setError(message);
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      const message = "Enter a valid email address.";
+      setError(message);
+      return;
+    }
+
+    if (!trimmedOtp) {
+      const message = "OTP is required.";
+      setError(message);
+      return;
+    }
+
+    if (!isValidOtp(trimmedOtp)) {
+      const message = "OTP must contain only digits and be 4 to 8 characters long.";
+      setError(message);
       return;
     }
 
     if (!trimmedNewPassword) {
       const message = "New password is required.";
       setError(message);
-      showToast(message, "error");
       return;
     }
 
-    if (trimmedNewPassword.length < 6 || trimmedNewPassword.length > 100) {
-      const message = "New password must be between 6 and 100 characters.";
+    if (trimmedNewPassword.length < 6) {
+      const message = "New password must be at least 6 characters.";
       setError(message);
-      showToast(message, "error");
+      return;
+    }
+
+    if (trimmedNewPassword.length > 100) {
+      const message = "New password must be 100 characters or fewer.";
+      setError(message);
+      return;
+    }
+
+    if (!isValidPassword(trimmedNewPassword)) {
+      const message =
+        "New password must include uppercase, lowercase, number, and special character.";
+      setError(message);
+      return;
+    }
+
+    if (!trimmedConfirmPassword) {
+      const message = "Confirm password is required.";
+      setError(message);
+      return;
+    }
+
+    if (trimmedNewPassword !== trimmedConfirmPassword) {
+      const message = "Passwords do not match.";
+      setError(message);
       return;
     }
 
     setLoading(true);
     setError("");
-    setMessage("");
 
     try {
       const response = await fetch(`${AUTH_API_URL}/reset-password`, {
@@ -157,9 +195,9 @@ export default function ForgotPasswordPage() {
         throw new Error(data.message || "Failed to reset password");
       }
 
-      showToast("Password reset successful. You can login now.", "success");
       setOtp("");
       setNewPassword("");
+      setConfirmPassword("");
       navigate("/login", {
         replace: true,
         state: {
@@ -171,7 +209,6 @@ export default function ForgotPasswordPage() {
       const message =
         err instanceof Error ? err.message : "Something went wrong";
       setError(message);
-      showToast(message, "error");
     } finally {
       setLoading(false);
     }
@@ -185,39 +222,64 @@ export default function ForgotPasswordPage() {
           <p className="mt-2 text-slate-500">
             {step === "request"
               ? "Enter your auth account email to receive an OTP"
-              : "Enter your OTP and set a new password"}
+              : step === "otp"
+                ? "Enter the OTP sent to your email"
+                : "Set your new password"}
           </p>
         </div>
 
-        <form onSubmit={step === "request" ? handleRequestOtp : handleResetPassword} className="space-y-5">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">Email</label>
-            <input
-              type="email"
-              name="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        <form
+          onSubmit={
+            step === "request"
+              ? handleRequestOtp
+              : step === "otp"
+                ? handleOtpContinue
+                : handleResetPassword
+          }
+          className="space-y-5"
+        >
+          {step !== "reset" && (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">Email</label>
+              <input
+                type="email"
+                name="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) {
+                    setError("");
+                  }
+                }}
+                required
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
+
+          {step === "otp" && (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-700">OTP</label>
+              <input
+                type="text"
+                name="otp"
+                placeholder="Enter OTP"
+                value={otp}
+                onChange={(e) => {
+                  setOtp(e.target.value);
+                  if (error) {
+                    setError("");
+                  }
+                }}
+                required
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
 
           {step === "reset" && (
             <>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">OTP</label>
-                <input
-                  type="text"
-                  name="otp"
-                  placeholder="Enter OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  required
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">New Password</label>
                 <input
@@ -225,7 +287,34 @@ export default function ForgotPasswordPage() {
                   name="newPassword"
                   placeholder="Enter new password"
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    if (error) {
+                      setError("");
+                    }
+                  }}
+                  required
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Use at least 6 characters with uppercase, lowercase, number, and
+                  special character.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Confirm Password</label>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (error) {
+                      setError("");
+                    }
+                  }}
                   required
                   className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -234,14 +323,18 @@ export default function ForgotPasswordPage() {
           )}
 
           {error && <div className="rounded-lg bg-red-100 px-4 py-3 text-sm text-red-700">{error}</div>}
-          {message && <div className="rounded-lg bg-green-100 px-4 py-3 text-sm text-green-700">{message}</div>}
-
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
           >
-            {loading ? "Please wait..." : step === "request" ? "Send OTP" : "Reset Password"}
+            {loading
+              ? "Please wait..."
+              : step === "request"
+                ? "Send OTP"
+                : step === "otp"
+                  ? "Continue"
+                  : "Reset Password"}
           </button>
 
           <p className="text-center text-sm text-slate-500">
@@ -252,21 +345,6 @@ export default function ForgotPasswordPage() {
           </p>
         </form>
 
-        {step === "reset" && (
-          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-center">
-            <p className="text-sm text-slate-600">
-              Didn&apos;t receive the OTP?
-            </p>
-            <button
-              type="button"
-              onClick={handleResendOtp}
-              disabled={resending || !email.trim()}
-              className="mt-3 w-full rounded-xl border border-blue-200 bg-white py-3 font-semibold text-blue-700 transition hover:bg-blue-50 disabled:opacity-60"
-            >
-              {resending ? "Sending..." : "Resend OTP"}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

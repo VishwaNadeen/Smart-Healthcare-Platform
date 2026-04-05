@@ -21,7 +21,7 @@ const navItems: NavItem[] = [
 
 export default function AdminSidebar() {
   return (
-    <aside className="min-h-[calc(100vh-64px)] w-64 border-r border-slate-200 bg-white p-4">
+    <aside className="sticky top-16 h-[calc(100vh-64px)] w-64 border-r border-slate-200 bg-white p-4">
       <nav className="space-y-2">
         {navItems.map((item) => (
           <NavLink

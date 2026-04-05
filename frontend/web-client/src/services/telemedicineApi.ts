@@ -13,6 +13,8 @@ export type TelemedicineParticipantDetails = {
   email?: string;
   phone?: string;
   specialization?: string;
+  licenseNumber?: string;
+  hospitalName?: string;
   profileImage?: string;
 };
 
@@ -191,23 +193,6 @@ export async function updateSessionStatus(
   return handleResponse<SessionResponse>(response);
 }
 
-// Update session notes by appointmentId
-export async function updateSessionNotes(
-  appointmentId: string,
-  notes: string
-): Promise<SessionResponse> {
-  const response = await fetch(
-    `${TELEMEDICINE_API_URL}/appointment/${appointmentId}/notes`,
-    {
-      method: "PATCH",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ notes }),
-    }
-  );
-
-  return handleResponse<SessionResponse>(response);
-}
-
 export type TelemedicineMessage = {
   _id: string;
   appointmentId: string;
@@ -227,6 +212,16 @@ export type MessagesResponse = {
 export type MessageResponse = {
   success: boolean;
   data: TelemedicineMessage;
+  message?: string;
+};
+
+export type PresenceResponse = {
+  success: boolean;
+  data: {
+    doctorConnected: boolean;
+    patientConnected: boolean;
+    bothConnected: boolean;
+  };
   message?: string;
 };
 
@@ -266,35 +261,13 @@ export async function sendTelemedicineMessage(payload: {
   return response.json();
 }
 
-export type TelemedicineFile = {
-  _id: string;
-  appointmentId: string;
-  originalName: string;
-  fileName: string;
-  filePath: string;
-  uploadedByRole: "doctor" | "patient";
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type FilesResponse = {
-  success: boolean;
-  data: TelemedicineFile[];
-  message?: string;
-};
-
-export type FileResponse = {
-  success: boolean;
-  data: TelemedicineFile;
-  message?: string;
-};
-
-export async function getFilesByAppointmentId(
+export async function heartbeatTelemedicinePresence(
   appointmentId: string
-): Promise<FilesResponse> {
+): Promise<PresenceResponse> {
   const response = await fetch(
-    `${TELEMEDICINE_API_URL}/files/${appointmentId}`,
+    `${TELEMEDICINE_API_URL}/chat/${appointmentId}/presence/heartbeat`,
     {
+      method: "POST",
       headers: getAuthHeaders(),
     }
   );
@@ -306,33 +279,17 @@ export async function getFilesByAppointmentId(
   return response.json();
 }
 
-export async function uploadTelemedicineFile(payload: {
-  appointmentId: string;
-  uploadedByRole: "doctor" | "patient";
-  file: File;
-}): Promise<FileResponse> {
-  const rawAuth = localStorage.getItem("telemedicine_auth");
-  let token = "";
-
-  try {
-    const parsedAuth = rawAuth ? JSON.parse(rawAuth) : null;
-    token = typeof parsedAuth?.token === "string" ? parsedAuth.token : "";
-  } catch {
-    token = "";
-  }
-
-  const formData = new FormData();
-  formData.append("appointmentId", payload.appointmentId);
-  formData.append("uploadedByRole", payload.uploadedByRole);
-  formData.append("file", payload.file);
-
-  const response = await fetch(`${TELEMEDICINE_API_URL}/files`, {
-    method: "POST",
-    headers: {
-      Authorization: token ? `Bearer ${token}` : "",
-    },
-    body: formData,
-  });
+export async function disconnectTelemedicinePresence(
+  appointmentId: string
+): Promise<PresenceResponse> {
+  const response = await fetch(
+    `${TELEMEDICINE_API_URL}/chat/${appointmentId}/presence/disconnect`,
+    {
+      method: "POST",
+      headers: getAuthHeaders(),
+      keepalive: true,
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
@@ -362,6 +319,12 @@ export type PrescriptionsResponse = {
 export type PrescriptionResponse = {
   success: boolean;
   data: TelemedicinePrescription;
+  message?: string;
+};
+
+export type ConsultationNotesResponse = {
+  success: boolean;
+  data: TelemedicineSession;
   message?: string;
 };
 
@@ -395,6 +358,52 @@ export async function createPrescription(payload: {
     headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function updatePrescription(payload: {
+  prescriptionId: string;
+  medicineName: string;
+  dosage: string;
+  instructions: string;
+}): Promise<PrescriptionResponse> {
+  const response = await fetch(
+    `${TELEMEDICINE_API_URL}/prescriptions/${payload.prescriptionId}`,
+    {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        medicineName: payload.medicineName,
+        dosage: payload.dosage,
+        instructions: payload.instructions,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function updateConsultationNotes(payload: {
+  appointmentId: string;
+  notes: string;
+}): Promise<ConsultationNotesResponse> {
+  const response = await fetch(
+    `${TELEMEDICINE_API_URL}/prescriptions/${payload.appointmentId}/notes`,
+    {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ notes: payload.notes }),
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);

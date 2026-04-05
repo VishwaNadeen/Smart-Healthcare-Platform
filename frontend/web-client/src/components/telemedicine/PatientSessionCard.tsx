@@ -17,9 +17,10 @@ export default function PatientSessionCard({ session }: Props) {
 
   const doctorName =
     session.doctor?.fullName || (session as any).doctorName || "Doctor";
-
-  const patientName =
-    session.patient?.fullName || (session as any).patientName || "Patient";
+  const statusText =
+    session.status === "active"
+      ? "Active"
+      : session.status.charAt(0).toUpperCase() + session.status.slice(1);
 
   function renderPrimaryAction() {
     if (isCompleted) {
@@ -77,7 +78,7 @@ export default function PatientSessionCard({ session }: Props) {
     if (isScheduled) {
       return (
         <Link
-          to={`/waiting-room/${session.appointmentId}`}
+          to={`/patient-waiting-room/${session.appointmentId}`}
           className="inline-flex w-full items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-[#bfdbfe] bg-[#eff6ff] px-5 py-[11px] text-[14px] font-semibold tracking-[-0.01em] text-[#1d4ed8] no-underline transition-all duration-200 ease-in-out box-border hover:border-[#93c5fd] hover:bg-[#dbeafe]"
         >
           <svg
@@ -146,6 +147,8 @@ export default function PatientSessionCard({ session }: Props) {
     );
   }
 
+  const primaryAction = renderPrimaryAction();
+
   return (
     <div
       className="relative overflow-hidden rounded-[20px] border border-[#dbeafe] bg-white p-0 font-sans shadow-[0_2px_8px_rgba(37,99,235,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-all duration-200 ease-in-out hover:-translate-y-[1px] hover:shadow-[0_8px_28px_rgba(37,99,235,0.12),0_2px_8px_rgba(0,0,0,0.06)]"
@@ -153,8 +156,8 @@ export default function PatientSessionCard({ session }: Props) {
     >
       <div className="h-1 w-full bg-[linear-gradient(90deg,#1d4ed8_0%,#3b82f6_50%,#93c5fd_100%)]" />
 
-      <div className="flex flex-col gap-[18px] px-5 pb-5 pt-5">
-        <div className="flex items-center gap-[14px]">
+      <div className="flex flex-col gap-[20px] px-5 pb-6 pt-6">
+        <div className="flex items-center gap-[16px]">
           <div className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-[14px] bg-[linear-gradient(135deg,#1d4ed8_0%,#3b82f6_100%)]">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.15)_0%,transparent_60%)]" />
             <svg
@@ -174,15 +177,21 @@ export default function PatientSessionCard({ session }: Props) {
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center justify-between gap-3">
               <h3 className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[16px] font-bold tracking-[-0.02em] text-[#0f172a]">
                 {doctorName}
               </h3>
-              {!isScheduled && <StatusBadge status={session.status} />}
+              <div className="ml-auto flex shrink-0 items-center">
+                {isActive ? (
+                  <span
+                    className="inline-flex h-2.5 w-2.5 animate-pulse rounded-full bg-[#22c55e] shadow-[0_0_0_4px_rgba(34,197,94,0.16)]"
+                    aria-label="Active session"
+                    title="Active session"
+                  />
+                ) : null}
+                {!isScheduled && !isActive && <StatusBadge status={session.status} />}
+              </div>
             </div>
-            <p className="mt-[3px] text-[12.5px] font-normal text-[#64748b]">
-              Patient: <span className="font-semibold text-[#1e40af]">{patientName}</span>
-            </p>
           </div>
         </div>
 
@@ -191,10 +200,7 @@ export default function PatientSessionCard({ session }: Props) {
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#3b82f6]">
               Date
             </span>
-            <span
-              className="text-[13px] font-semibold text-[#0f172a]"
-              style={{ fontFamily: "'DM Mono', monospace" }}
-            >
+            <span className="text-[13px] font-semibold text-[#0f172a]">
               {session.scheduledDate}
             </span>
           </div>
@@ -203,10 +209,7 @@ export default function PatientSessionCard({ session }: Props) {
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#3b82f6]">
               Time
             </span>
-            <span
-              className="text-[13px] font-semibold text-[#0f172a]"
-              style={{ fontFamily: "'DM Mono', monospace" }}
-            >
+            <span className="text-[13px] font-semibold text-[#0f172a]">
               {session.scheduledTime}
             </span>
           </div>
@@ -215,10 +218,7 @@ export default function PatientSessionCard({ session }: Props) {
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#3b82f6]">
               Room
             </span>
-            <span
-              className="text-[13px] font-semibold text-[#0f172a]"
-              style={{ fontFamily: "'DM Mono', monospace" }}
-            >
+            <span className="text-[13px] font-semibold text-[#0f172a]">
               {session.roomName}
             </span>
           </div>
@@ -228,17 +228,22 @@ export default function PatientSessionCard({ session }: Props) {
               Status
             </span>
             <span
-              className="text-[13px] font-semibold text-[#0f172a]"
-              style={{ fontFamily: "'DM Mono', monospace" }}
+              className={`text-[13px] font-semibold ${
+                session.status === "active" ? "text-[#16a34a]" : "text-[#0f172a]"
+              }`}
             >
-              {session.status}
+              {statusText}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="mx-[-20px] h-px bg-[#dbeafe]" />
-      <div className="px-5 pb-5 pt-4">{renderPrimaryAction()}</div>
+      {primaryAction ? (
+        <>
+          <div className="mx-[-20px] h-px bg-[#dbeafe]" />
+          <div className="px-5 pb-5 pt-4">{primaryAction}</div>
+        </>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PatientAppointmentCard from "../../components/appointments/PatientAppointmentCard";
+import PageLoading from "../../components/common/PageLoading";
+import NoPendingAppointments from "./noPatAppointments";
 import {
   cancelAppointment,
   getPatientAppointments,
@@ -12,7 +14,6 @@ export default function PatientAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -45,28 +46,18 @@ export default function PatientAppointmentsPage() {
   }, [auth.token]);
 
   const pendingAppointments = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
     return appointments
       .filter((appointment) => appointment.status === "pending")
-      .filter((appointment) => {
-        if (!query) {
-          return true;
-        }
-
-        return (
-          appointment.doctorName.toLowerCase().includes(query) ||
-          appointment.specialization.toLowerCase().includes(query) ||
-          (appointment.reason || "").toLowerCase().includes(query) ||
-          appointment._id.toLowerCase().includes(query)
-        );
-      })
       .sort((a, b) => {
-        const aDate = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
-        const bDate = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
+        const aDate = new Date(
+          `${a.appointmentDate}T${a.appointmentTime}`
+        ).getTime();
+        const bDate = new Date(
+          `${b.appointmentDate}T${b.appointmentTime}`
+        ).getTime();
         return aDate - bDate;
       });
-  }, [appointments, search]);
+  }, [appointments]);
 
   async function handleCancelAppointment(appointmentId: string) {
     if (!auth.token) {
@@ -92,7 +83,9 @@ export default function PatientAppointmentsPage() {
         )
       );
 
-      setSuccessMessage(response.message || "Appointment cancelled successfully.");
+      setSuccessMessage(
+        response.message || "Appointment cancelled successfully."
+      );
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
@@ -104,51 +97,13 @@ export default function PatientAppointmentsPage() {
     }
   }
 
+  if (isLoading) {
+    return <PageLoading message="Loading appointments..." />;
+  }
+
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                My Appointments
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-                This page shows only pending appointment requests. Approved sessions
-                will appear in the consultation tab.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Link
-                to="/appointments/create"
-                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-              >
-                + Create Appointment
-              </Link>
-
-              <Link
-                to="/appointments/history"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancelled & Completed
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-5 border-t border-slate-100 pt-5">
-            <div className="w-full lg:w-96">
-              <input
-                type="text"
-                placeholder="Search doctor, specialization, reason, ID..."
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white"
-              />
-            </div>
-          </div>
-        </div>
-
         {errorMessage && (
           <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errorMessage}
@@ -161,39 +116,37 @@ export default function PatientAppointmentsPage() {
           </div>
         )}
 
-        {isLoading ? (
-          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
-            Loading appointments...
-          </div>
-        ) : pendingAppointments.length === 0 ? (
-          <div className="mt-6 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-slate-100">
-            <div className="mx-auto max-w-md">
-              <h3 className="text-xl font-bold text-slate-900">
-                No pending appointments found
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                You do not have any pending appointment requests right now.
-              </p>
-              <Link
-                to="/appointments/create"
-                className="mt-6 inline-flex rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-              >
-                Create Appointment
-              </Link>
-            </div>
-          </div>
+        {pendingAppointments.length === 0 ? (
+          <NoPendingAppointments />
         ) : (
-          <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6">
-            <div className="mb-5">
-              <h2 className="text-xl font-bold text-slate-900">
-                Pending Appointments
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Requests waiting for doctor approval.
-              </p>
+          <>
+            <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                    My Appointments
+                  </h1>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Link
+                    to="/appointments/create"
+                    className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    + Create Appointment
+                  </Link>
+
+                  <Link
+                    to="/appointments/history"
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Canceled Appointments
+                  </Link>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               {pendingAppointments.map((appointment) => (
                 <PatientAppointmentCard
                   key={appointment._id}
@@ -203,7 +156,7 @@ export default function PatientAppointmentsPage() {
                 />
               ))}
             </div>
-          </div>
+          </>
         )}
       </div>
     </section>

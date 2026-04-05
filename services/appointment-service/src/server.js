@@ -1,10 +1,10 @@
-const dotenv = require("dotenv");
+process.env.DOTENV_CONFIG_QUIET = "true";
+require("dotenv").config();
+
 const connectDB = require("./config/db");
 const appointmentRoutes = require("./routes/appointmentRoutes");
 const express = require("express");
 const cors = require("cors");
-
-dotenv.config();
 
 const app = express();
 

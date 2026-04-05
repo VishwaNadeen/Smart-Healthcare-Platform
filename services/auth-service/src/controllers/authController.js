@@ -105,7 +105,7 @@ const login = async (req, res) => {
     });
   } catch (error) {
     const isInvalidCredentials =
-      error.message === "Invalid email or password" ||
+      error.message === "Incorrect email or password" ||
       error.message === "Please verify your email before logging in";
 
     res.status(isInvalidCredentials ? 401 : 500).json({

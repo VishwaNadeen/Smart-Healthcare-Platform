@@ -11,12 +11,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     <div className="min-h-screen bg-slate-50">
       <AdminNavbar />
 
-      <div className="flex">
-        <div className="hidden md:block">
+      <div className="flex min-h-[calc(100vh-64px)]">
+        <div className="hidden shrink-0 md:block">
           <AdminSidebar />
         </div>
 
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="min-w-0 flex-1 p-4 md:p-6">{children}</main>
       </div>
     </div>
   );

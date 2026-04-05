@@ -1,8 +1,8 @@
-const dotenv = require("dotenv");
+process.env.DOTENV_CONFIG_QUIET = "true";
+require("dotenv").config();
+
 const connectDB = require("./config/db");
 const app = require("./app");
-
-dotenv.config();
 
 const PORT = process.env.PORT || 5003;
 

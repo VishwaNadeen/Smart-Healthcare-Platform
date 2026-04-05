@@ -12,8 +12,6 @@ const {
   downloadReceipt
 } = require('../controllers/payment.controller');
 
-const {requireAuth} = require('../middleware/auth.middleware');
-
 
 
 router.post('/initiate', initiatePayment);
