@@ -14,9 +14,9 @@ type ToastItem = {
 };
 
 const toastStyles: Record<ToastVariant, string> = {
-  success: "border-green-200 bg-green-50 text-green-800",
-  error: "border-red-200 bg-red-50 text-red-800",
-  info: "border-blue-200 bg-blue-50 text-blue-800",
+  success: "border-emerald-600 bg-emerald-600 text-white",
+  error: "border-rose-600 bg-rose-600 text-white",
+  info: "border-blue-600 bg-blue-600 text-white",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -27,7 +27,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    (message: string, variant: ToastVariant = "info", duration = 5000) => {
+    (message: string, variant: ToastVariant = "info", duration = 2000) => {
       const id = Date.now() + Math.floor(Math.random() * 1000);
 
       setToasts((current) => [
@@ -54,7 +54,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
 
-      <div className="pointer-events-none fixed left-1/2 top-4 z-[9999] flex w-full max-w-md -translate-x-1/2 flex-col gap-3 px-4">
+      <div className="pointer-events-none fixed left-1/2 top-20 z-[9999] flex w-auto max-w-full -translate-x-1/2 flex-col items-center gap-3 px-4">
         {toasts.map((toast) => (
           <ToastCard key={toast.id} toast={toast} onClose={removeToast} />
         ))}
@@ -82,17 +82,10 @@ function ToastCard({
 
   return (
     <div
-      className={`pointer-events-auto rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-sm ${toastStyles[toast.variant]}`}
+      className={`pointer-events-auto w-fit max-w-[90vw] rounded-2xl border px-4 py-3 shadow-lg ${toastStyles[toast.variant]} sm:max-w-sm`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium">{toast.message}</p>
-        <button
-          type="button"
-          onClick={() => onClose(toast.id)}
-          className="text-xs font-semibold opacity-70 transition hover:opacity-100"
-        >
-          Close
-        </button>
+      <div className="flex items-start gap-3">
+        <p className="text-sm font-medium leading-5">{toast.message}</p>
       </div>
     </div>
   );
