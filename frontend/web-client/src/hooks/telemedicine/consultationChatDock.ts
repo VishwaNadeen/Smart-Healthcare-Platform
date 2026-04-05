@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { getMessagesByAppointmentId } from "../../services/telemedicineApi";
 import type { TelemedicineActorRole } from "../../utils/telemedicineAuth";
 
-function playIncomingChatSound() {
+const CUSTOM_CHAT_SOUND_PATH = "/sounds/chat-notification.mp3";
+let cachedChatSound: HTMLAudioElement | null = null;
+
+function playFallbackIncomingChatSound() {
   if (typeof window === "undefined") {
     return;
   }
@@ -49,6 +52,29 @@ function playIncomingChatSound() {
     }, 300);
   } catch (error) {
     console.error("Failed to play incoming chat sound:", error);
+  }
+}
+
+function playIncomingChatSound() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    if (!cachedChatSound) {
+      cachedChatSound = new Audio(CUSTOM_CHAT_SOUND_PATH);
+      cachedChatSound.preload = "auto";
+    }
+
+    const nextSound = cachedChatSound.cloneNode(true) as HTMLAudioElement;
+    nextSound.volume = 0.75;
+
+    void nextSound.play().catch(() => {
+      playFallbackIncomingChatSound();
+    });
+  } catch (error) {
+    console.error("Failed to play custom chat sound:", error);
+    playFallbackIncomingChatSound();
   }
 }
 
@@ -131,7 +157,7 @@ export function consultationChatDock({
             setUnreadChatCount((current) => (isChatOpen ? 0 : current + addedCount));
           }
 
-          if (incomingMessages.length > 0) {
+          if (!isChatOpen && incomingMessages.length > 0) {
             playIncomingChatSound();
           }
         } else if (nextCount < previousCount && !isCancelled) {
