@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useToast } from "./ToastProvider";
+import { useToast } from "./toastContext";
 import SideNavBar from "./sideNavBar";
 import { logoutUser } from "../../services/authApi";
 import { getCurrentDoctorProfile } from "../../services/doctorApi";
@@ -279,7 +279,7 @@ export default function Navbar() {
     } finally {
       clearStoredProfiles();
       clearTelemedicineAuth();
-      showToast("Logged out successfully.", "success");
+      showToast("Logged out.", "success");
       setShowLogoutPrompt(false);
       setIsSubmitting(false);
       setIsOpen(false);
