@@ -10,7 +10,8 @@ const {
 } = require("../services/authService");
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const APPOINTMENT_DURATION_MINUTES = 10;
+const DEFAULT_APPOINTMENT_DURATION_MINUTES = 15;
+const ALLOWED_APPOINTMENT_DURATIONS = [10, 15, 20, 30];
 const MIN_SLOT_DURATION_MINUTES = 120;
 const MAX_SLOT_DURATION_MINUTES = 360;
 const ADMIN_UNLOCKABLE_FIELDS = [
@@ -57,10 +58,12 @@ const doctorAllowedFields = [
   "availableDays",
   "availableTimeSlots",
   "consultationFee",
+  "appointmentDurationMinutes",
   "profileImage",
   "about",
   "acceptsNewAppointments",
   "availabilitySchedule",
+  "availabilityExceptions",
 ];
 
 const adminDoctorAllowedFields = [
@@ -94,6 +97,38 @@ const sanitizeAvailabilitySchedule = (slots) => {
         Number(slot?.maxAppointments) > 0 ? Number(slot.maxAppointments) : 1,
     }))
     .filter((slot) => slot.day && slot.startTime && slot.endTime);
+};
+
+const sanitizeAvailabilityExceptions = (exceptions) => {
+  if (!Array.isArray(exceptions)) return undefined;
+
+  return exceptions
+    .map((exception) => ({
+      date: String(exception?.date || "").trim(),
+      isBlocked: Boolean(exception?.isBlocked),
+      blockedTimeRanges: Array.isArray(exception?.blockedTimeRanges)
+        ? exception.blockedTimeRanges
+            .map((range) => ({
+              startTime: String(range?.startTime || "").trim(),
+              endTime: String(range?.endTime || "").trim(),
+            }))
+            .filter((range) => range.startTime && range.endTime)
+        : [],
+      note: String(exception?.note || "").trim(),
+    }))
+    .filter(
+      (exception) =>
+        exception.date &&
+        (exception.isBlocked || exception.blockedTimeRanges.length > 0)
+    );
+};
+
+const normalizeAppointmentDuration = (value) => {
+  const duration = Number(value);
+
+  return ALLOWED_APPOINTMENT_DURATIONS.includes(duration)
+    ? duration
+    : DEFAULT_APPOINTMENT_DURATION_MINUTES;
 };
 
 const toMinutes = (time) => {
@@ -150,14 +185,67 @@ const getAvailabilityOverlapMessage = (slots = []) => {
   return "";
 };
 
-const withCalculatedSlotCapacities = (slots = []) =>
+const getAvailabilityExceptionsMessage = (exceptions = []) => {
+  const dateSet = new Set();
+
+  for (const exception of exceptions) {
+    const date = String(exception?.date || "").trim();
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return "Each blocked date must use the YYYY-MM-DD format.";
+    }
+
+    if (dateSet.has(date)) {
+      return `Duplicate blocked date found for ${date}. Please keep only one override per date.`;
+    }
+
+    dateSet.add(date);
+
+    const blockedTimeRanges = Array.isArray(exception?.blockedTimeRanges)
+      ? exception.blockedTimeRanges
+      : [];
+
+    if (!exception?.isBlocked && blockedTimeRanges.length === 0) {
+      return `Add at least one blocked time range or mark ${date} as fully unavailable.`;
+    }
+
+    if (exception?.isBlocked && blockedTimeRanges.length > 0) {
+      return `Choose either a full-day block or time-specific blocks for ${date}, not both.`;
+    }
+
+    const sortedRanges = [...blockedTimeRanges].sort(
+      (left, right) => toMinutes(left.startTime) - toMinutes(right.startTime)
+    );
+
+    for (let index = 0; index < sortedRanges.length; index += 1) {
+      const range = sortedRanges[index];
+      const start = toMinutes(range.startTime);
+      const end = toMinutes(range.endTime);
+
+      if (Number.isNaN(start) || Number.isNaN(end) || start >= end) {
+        return `Invalid blocked time range for ${date}. End time must be later than start time.`;
+      }
+
+      if (index > 0 && start < toMinutes(sortedRanges[index - 1].endTime)) {
+        return `Blocked time ranges overlap on ${date}. Please adjust them so they do not overlap.`;
+      }
+    }
+  }
+
+  return "";
+};
+
+const withCalculatedSlotCapacities = (
+  slots = [],
+  appointmentDurationMinutes = DEFAULT_APPOINTMENT_DURATION_MINUTES
+) =>
   slots.map((slot) => ({
     ...slot,
     maxAppointments: Math.max(
       1,
       Math.floor(
         (toMinutes(slot.endTime) - toMinutes(slot.startTime)) /
-          APPOINTMENT_DURATION_MINUTES
+          normalizeAppointmentDuration(appointmentDurationMinutes)
       )
     ),
   }));
@@ -215,6 +303,14 @@ const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
   ) {
     sanitized.consultationFee = Number(sanitized.consultationFee);
   }
+  if (
+    sanitized.appointmentDurationMinutes !== undefined &&
+    sanitized.appointmentDurationMinutes !== ""
+  ) {
+    sanitized.appointmentDurationMinutes = normalizeAppointmentDuration(
+      sanitized.appointmentDurationMinutes
+    );
+  }
   if (sanitized.availableDays !== undefined) {
     sanitized.availableDays = sanitizeStringArray(sanitized.availableDays);
   }
@@ -226,6 +322,11 @@ const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
   if (sanitized.availabilitySchedule !== undefined) {
     sanitized.availabilitySchedule = sanitizeAvailabilitySchedule(
       sanitized.availabilitySchedule
+    );
+  }
+  if (sanitized.availabilityExceptions !== undefined) {
+    sanitized.availabilityExceptions = sanitizeAvailabilityExceptions(
+      sanitized.availabilityExceptions
     );
   }
 
@@ -406,8 +507,19 @@ const createDoctor = async (req, res) => {
       }
 
       doctorPayload.availabilitySchedule = withCalculatedSlotCapacities(
-        doctorPayload.availabilitySchedule
+        doctorPayload.availabilitySchedule,
+        doctorPayload.appointmentDurationMinutes
       );
+    }
+
+    if (doctorPayload.availabilityExceptions !== undefined) {
+      const exceptionsMessage = getAvailabilityExceptionsMessage(
+        doctorPayload.availabilityExceptions
+      );
+
+      if (exceptionsMessage) {
+        return res.status(400).json({ message: exceptionsMessage });
+      }
     }
 
     if (!doctorPayload.fullName || !doctorPayload.email || !password) {
@@ -618,7 +730,8 @@ const updateDoctor = async (req, res) => {
       }
 
       updatePayload.availabilitySchedule = withCalculatedSlotCapacities(
-        updatePayload.availabilitySchedule
+        updatePayload.availabilitySchedule,
+        updatePayload.appointmentDurationMinutes
       );
     }
 
@@ -966,8 +1079,20 @@ const updateMyDoctorProfile = async (req, res) => {
       }
 
       updatePayload.availabilitySchedule = withCalculatedSlotCapacities(
-        updatePayload.availabilitySchedule
+        updatePayload.availabilitySchedule,
+        updatePayload.appointmentDurationMinutes ??
+          doctor.appointmentDurationMinutes
       );
+    }
+
+    if (updatePayload.availabilityExceptions !== undefined) {
+      const exceptionsMessage = getAvailabilityExceptionsMessage(
+        updatePayload.availabilityExceptions
+      );
+
+      if (exceptionsMessage) {
+        return res.status(400).json({ message: exceptionsMessage });
+      }
     }
 
     if (updatePayload.specialization !== undefined) {
@@ -1034,7 +1159,10 @@ const getMyAvailability = async (req, res) => {
       availableDays: doctor.availableDays || [],
       availableTimeSlots: doctor.availableTimeSlots || [],
       availabilitySchedule: doctor.availabilitySchedule || [],
+      availabilityExceptions: doctor.availabilityExceptions || [],
       acceptsNewAppointments: doctor.acceptsNewAppointments,
+      appointmentDurationMinutes:
+        doctor.appointmentDurationMinutes || DEFAULT_APPOINTMENT_DURATION_MINUTES,
     });
   } catch (error) {
     return res.status(500).json({
@@ -1053,7 +1181,9 @@ const updateMyAvailability = async (req, res) => {
       availableDays: req.body.availableDays,
       availableTimeSlots: req.body.availableTimeSlots,
       availabilitySchedule: req.body.availabilitySchedule,
+      availabilityExceptions: req.body.availabilityExceptions,
       acceptsNewAppointments: req.body.acceptsNewAppointments,
+      appointmentDurationMinutes: req.body.appointmentDurationMinutes,
     });
 
     if (updatePayload.availabilitySchedule !== undefined) {
@@ -1066,8 +1196,20 @@ const updateMyAvailability = async (req, res) => {
       }
 
       updatePayload.availabilitySchedule = withCalculatedSlotCapacities(
-        updatePayload.availabilitySchedule
+        updatePayload.availabilitySchedule,
+        updatePayload.appointmentDurationMinutes ??
+          doctor.appointmentDurationMinutes
       );
+    }
+
+    if (updatePayload.availabilityExceptions !== undefined) {
+      const exceptionsMessage = getAvailabilityExceptionsMessage(
+        updatePayload.availabilityExceptions
+      );
+
+      if (exceptionsMessage) {
+        return res.status(400).json({ message: exceptionsMessage });
+      }
     }
 
     Object.assign(doctor, updatePayload);
@@ -1080,7 +1222,10 @@ const updateMyAvailability = async (req, res) => {
         availableDays: doctor.availableDays || [],
         availableTimeSlots: doctor.availableTimeSlots || [],
         availabilitySchedule: doctor.availabilitySchedule || [],
+        availabilityExceptions: doctor.availabilityExceptions || [],
         acceptsNewAppointments: doctor.acceptsNewAppointments,
+        appointmentDurationMinutes:
+          doctor.appointmentDurationMinutes || DEFAULT_APPOINTMENT_DURATION_MINUTES,
       },
     });
   } catch (error) {

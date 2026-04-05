@@ -2,6 +2,7 @@ import { Route } from "react-router-dom";
 import AdminLayout from "../components/layout/AdminLayout";
 import RequireAdminAuth from "../src/components/auth/RequireAdminAuth";
 import AdminDashboard from "../pages/dashboard/AdminDashboard";
+import AdminDoctorAnalytics from "../pages/analytics/AdminDoctorAnalytics";
 import AdminAppointments from "../pages/appointments/AdminAppointments";
 import AdminDoctorVerifications from "../pages/doctor-verifications/AdminDoctorVerifications";
 import AdminPayments from "../pages/payments/AdminPayments";
@@ -37,6 +38,16 @@ export const adminRoutes = (
         <RequireAdminAuth>
           <AdminLayout>
             <AdminDoctorVerifications />
+          </AdminLayout>
+        </RequireAdminAuth>
+      }
+    />
+    <Route
+      path="/doctor-analytics"
+      element={
+        <RequireAdminAuth>
+          <AdminLayout>
+            <AdminDoctorAnalytics />
           </AdminLayout>
         </RequireAdminAuth>
       }

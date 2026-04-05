@@ -4,6 +4,7 @@ import { useToast } from "../../components/common/ToastProvider";
 import {
   getCurrentDoctorProfile,
   updateCurrentDoctorProfile,
+  type DoctorAvailabilityException,
   type DoctorAvailabilityScheduleItem,
   type DoctorProfile,
 } from "../../services/doctorApi";
@@ -14,7 +15,9 @@ import {
 
 type AvailabilityFormState = {
   acceptsNewAppointments: boolean;
+  appointmentDurationMinutes: number;
   availabilitySchedule: DoctorAvailabilityScheduleItem[];
+  availabilityExceptions: DoctorAvailabilityException[];
 };
 
 const DAY_OPTIONS = [
@@ -26,7 +29,8 @@ const DAY_OPTIONS = [
   "Saturday",
   "Sunday",
 ];
-const CONSULTATION_DURATION_MINUTES = 10;
+const DEFAULT_APPOINTMENT_DURATION_MINUTES = 15;
+const APPOINTMENT_DURATION_OPTIONS = [10, 15, 20, 30];
 const MIN_SLOT_DURATION_MINUTES = 120;
 const MAX_SLOT_DURATION_MINUTES = 360;
 const LAST_TIME_OPTION_MINUTES = 23 * 60 + 50;
@@ -41,6 +45,28 @@ function createEmptyScheduleSlot(): DoctorAvailabilityScheduleItem {
     mode: "video",
     maxAppointments: 1,
   };
+}
+
+function createEmptyAvailabilityException(): DoctorAvailabilityException {
+  return {
+    date: "",
+    isBlocked: true,
+    blockedTimeRanges: [],
+    note: "",
+  };
+}
+
+function createEmptyBlockedTimeRange() {
+  return {
+    startTime: "",
+    endTime: "",
+  };
+}
+
+function normalizeAppointmentDuration(value?: number) {
+  return APPOINTMENT_DURATION_OPTIONS.includes(Number(value))
+    ? Number(value)
+    : DEFAULT_APPOINTMENT_DURATION_MINUTES;
 }
 
 function toMinutes(time: string) {
@@ -84,7 +110,7 @@ function buildTimeOptions(startMinutes: number, endMinutes: number) {
   for (
     let minutes = startMinutes;
     minutes <= endMinutes;
-    minutes += CONSULTATION_DURATION_MINUTES
+    minutes += 10
   ) {
     options.push(toTimeValue(minutes));
   }
@@ -152,7 +178,11 @@ function fieldClass(readOnly = false) {
   }`;
 }
 
-function getCalculatedMaxAppointments(startTime: string, endTime: string) {
+function getCalculatedMaxAppointments(
+  startTime: string,
+  endTime: string,
+  appointmentDurationMinutes: number
+) {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
 
@@ -162,7 +192,7 @@ function getCalculatedMaxAppointments(startTime: string, endTime: string) {
 
   return Math.max(
     1,
-    Math.floor((end - start) / CONSULTATION_DURATION_MINUTES)
+    Math.floor((end - start) / appointmentDurationMinutes)
   );
 }
 
@@ -227,22 +257,102 @@ function getScheduleOverlapMessage(schedule: DoctorAvailabilityScheduleItem[]) {
   return "";
 }
 
+function getAvailabilityExceptionsMessage(
+  availabilityExceptions: DoctorAvailabilityException[]
+) {
+  const dateSet = new Set<string>();
+
+  for (const exception of availabilityExceptions) {
+    const date = String(exception.date || "").trim();
+
+    if (!date) {
+      return "Please choose a date for each blocked availability override.";
+    }
+
+    if (dateSet.has(date)) {
+      return `You already added an override for ${date}. Keep one override per date.`;
+    }
+
+    dateSet.add(date);
+
+    if (exception.isBlocked && exception.blockedTimeRanges.length > 0) {
+      return `Choose either a full-day block or time-specific blocks for ${date}.`;
+    }
+
+    if (!exception.isBlocked && exception.blockedTimeRanges.length === 0) {
+      return `Add at least one blocked time range for ${date}, or mark the whole day as unavailable.`;
+    }
+
+    const sortedRanges = [...exception.blockedTimeRanges].sort(
+      (left, right) => toMinutes(left.startTime) - toMinutes(right.startTime)
+    );
+
+    for (let index = 0; index < sortedRanges.length; index += 1) {
+      const range = sortedRanges[index];
+      const start = toMinutes(range.startTime);
+      const end = toMinutes(range.endTime);
+
+      if (Number.isNaN(start) || Number.isNaN(end) || start >= end) {
+        return `Invalid blocked time range for ${date}. End time must be later than start time.`;
+      }
+
+      if (index > 0 && start < toMinutes(sortedRanges[index - 1].endTime)) {
+        return `Blocked time ranges overlap on ${date}. Please adjust them so they do not overlap.`;
+      }
+    }
+  }
+
+  return "";
+}
+
+function formatBlockedDate(value: string) {
+  if (!value) {
+    return "Select date";
+  }
+
+  return new Date(`${value}T00:00:00`).toLocaleDateString("en-LK", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function mapProfileToAvailabilityForm(
-  profile: DoctorProfile
+  profile: DoctorProfile,
+  fallbackAppointmentDurationMinutes?: number
 ): AvailabilityFormState {
   const availabilitySchedule = Array.isArray(profile.availabilitySchedule)
     ? profile.availabilitySchedule
     : [];
+  const appointmentDurationMinutes = normalizeAppointmentDuration(
+    profile.appointmentDurationMinutes ?? fallbackAppointmentDurationMinutes
+  );
 
   return {
     acceptsNewAppointments: true,
+    appointmentDurationMinutes,
+    availabilityExceptions: Array.isArray(profile.availabilityExceptions)
+      ? profile.availabilityExceptions.map((exception) => ({
+          date: exception.date || "",
+          isBlocked: exception.isBlocked !== false,
+          blockedTimeRanges: Array.isArray(exception.blockedTimeRanges)
+            ? exception.blockedTimeRanges.map((range) => ({
+                startTime: range.startTime || "",
+                endTime: range.endTime || "",
+              }))
+            : [],
+          note: exception.note || "",
+        }))
+      : [],
     availabilitySchedule:
       availabilitySchedule.length > 0
         ? availabilitySchedule.map((slot) => ({
             ...slot,
             maxAppointments: getCalculatedMaxAppointments(
               slot.startTime,
-              slot.endTime
+              slot.endTime,
+              appointmentDurationMinutes
             ),
           }))
         : [],
@@ -261,7 +371,8 @@ function buildAvailabilityPayload(
     mode: "video" as const,
     maxAppointments: getCalculatedMaxAppointments(
       slot.startTime,
-      slot.endTime
+      slot.endTime,
+      formData.appointmentDurationMinutes
     ),
   }));
   const summary = buildAvailabilitySummary(normalizedSchedule);
@@ -278,12 +389,32 @@ function buildAvailabilityPayload(
     hospitalAddress: profile.hospitalAddress || "",
     city: profile.city || "",
     consultationFee: Number(profile.consultationFee) || 0,
+    appointmentDurationMinutes: formData.appointmentDurationMinutes,
     profileImage: profile.profileImage || "",
     about: profile.about || "",
     acceptsNewAppointments: true,
     availableDays: summary.availableDays,
     availableTimeSlots: summary.availableTimeSlots,
     availabilitySchedule: normalizedSchedule,
+    availabilityExceptions: formData.availabilityExceptions
+      .map((exception) => ({
+        date: String(exception.date || "").trim(),
+        isBlocked: exception.isBlocked !== false,
+        blockedTimeRanges: Array.isArray(exception.blockedTimeRanges)
+          ? exception.blockedTimeRanges
+              .map((range) => ({
+                startTime: String(range.startTime || "").trim(),
+                endTime: String(range.endTime || "").trim(),
+              }))
+              .filter((range) => range.startTime && range.endTime)
+          : [],
+        note: String(exception.note || "").trim(),
+      }))
+      .filter(
+        (exception) =>
+          exception.date &&
+          (exception.isBlocked || exception.blockedTimeRanges.length > 0)
+      ),
   };
 }
 
@@ -296,13 +427,18 @@ export default function DoctorAvailabilityPage() {
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [formData, setFormData] = useState<AvailabilityFormState>({
     acceptsNewAppointments: true,
+    appointmentDurationMinutes: DEFAULT_APPOINTMENT_DURATION_MINUTES,
     availabilitySchedule: [],
+    availabilityExceptions: [],
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
+  const savedAppointmentDurationMinutes = normalizeAppointmentDuration(
+    doctorProfile?.appointmentDurationMinutes
+  );
 
   const availabilitySummary = useMemo(
     () => buildAvailabilitySummary(formData.availabilitySchedule),
@@ -407,6 +543,16 @@ export default function DoctorAvailabilityPage() {
       return false;
     }
 
+    const exceptionsMessage = getAvailabilityExceptionsMessage(
+      nextFormData.availabilityExceptions
+    );
+
+    if (exceptionsMessage) {
+      setErrorMessage(exceptionsMessage);
+      showToast(exceptionsMessage, "error");
+      return false;
+    }
+
     try {
       setSaving(true);
       setErrorMessage("");
@@ -418,9 +564,20 @@ export default function DoctorAvailabilityPage() {
           availabilitySchedule: filteredSchedule,
         })
       );
+      const normalizedUpdatedProfile = {
+        ...updatedProfile,
+        appointmentDurationMinutes:
+          updatedProfile.appointmentDurationMinutes ??
+          nextFormData.appointmentDurationMinutes,
+      };
 
-      setDoctorProfile(updatedProfile);
-      setFormData(mapProfileToAvailabilityForm(updatedProfile));
+      setDoctorProfile(normalizedUpdatedProfile);
+      setFormData(
+        mapProfileToAvailabilityForm(
+          normalizedUpdatedProfile,
+          nextFormData.appointmentDurationMinutes
+        )
+      );
 
       if (options?.successMessage) {
         setSuccessMessage(options.successMessage);
@@ -467,7 +624,8 @@ export default function DoctorAvailabilityPage() {
                   ...nextSlot,
                   maxAppointments: getCalculatedMaxAppointments(
                     nextSlot.startTime,
-                    nextSlot.endTime
+                    nextSlot.endTime,
+                    prev.appointmentDurationMinutes
                   ),
                 };
               })()
@@ -488,6 +646,81 @@ export default function DoctorAvailabilityPage() {
     const maximumEnd = toMinutes(getMaximumEndTime(startTime));
 
     return buildTimeOptions(minimumEnd, maximumEnd);
+  };
+
+  const handleAppointmentDurationChange = (value: number) => {
+    const nextDuration = normalizeAppointmentDuration(value);
+    setFormData((prev) => ({
+      ...prev,
+      appointmentDurationMinutes: nextDuration,
+      availabilitySchedule: prev.availabilitySchedule.map((slot) => ({
+        ...slot,
+        maxAppointments: getCalculatedMaxAppointments(
+          slot.startTime,
+          slot.endTime,
+          nextDuration
+        ),
+      })),
+    }));
+    setSuccessMessage("");
+    setErrorMessage("");
+  };
+
+  const handleSaveAppointmentDuration = async () => {
+    if (!doctorProfile) {
+      setErrorMessage("Doctor profile is not loaded yet.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setSuccessMessage("");
+      setErrorMessage("");
+
+      const profileBackedFormData = mapProfileToAvailabilityForm(
+        {
+          ...doctorProfile,
+          appointmentDurationMinutes: formData.appointmentDurationMinutes,
+        },
+        formData.appointmentDurationMinutes
+      );
+
+      const updatedProfile = await updateCurrentDoctorProfile(
+        token,
+        buildAvailabilityPayload(doctorProfile, profileBackedFormData)
+      );
+
+      const normalizedUpdatedProfile = {
+        ...updatedProfile,
+        appointmentDurationMinutes:
+          updatedProfile.appointmentDurationMinutes ??
+          formData.appointmentDurationMinutes,
+      };
+
+      setDoctorProfile(normalizedUpdatedProfile);
+      setFormData((prev) => ({
+        ...prev,
+        appointmentDurationMinutes:
+          normalizedUpdatedProfile.appointmentDurationMinutes,
+        availabilitySchedule: prev.availabilitySchedule.map((slot) => ({
+          ...slot,
+          maxAppointments: getCalculatedMaxAppointments(
+            slot.startTime,
+            slot.endTime,
+            normalizedUpdatedProfile.appointmentDurationMinutes
+          ),
+        })),
+      }));
+      setSuccessMessage("Appointment duration updated successfully.");
+      showToast("Appointment duration updated successfully.", "success");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to update appointment duration";
+      setErrorMessage(message);
+      showToast(message, "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleUpdateRow = (index: number) => {
@@ -532,6 +765,125 @@ export default function DoctorAvailabilityPage() {
     setFormData(nextFormData);
     void persistAvailability(nextFormData, {
       successMessage: "Availability slot deleted successfully.",
+    });
+  };
+
+  const handleAvailabilityExceptionChange = (
+    index: number,
+    field: keyof DoctorAvailabilityException,
+    value: string | boolean
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      availabilityExceptions: prev.availabilityExceptions.map(
+        (exception, exceptionIndex) =>
+          exceptionIndex === index
+            ? {
+                ...exception,
+                [field]: value,
+                blockedTimeRanges:
+                  field === "isBlocked" && value
+                    ? []
+                    : exception.blockedTimeRanges,
+              }
+            : exception
+      ),
+    }));
+  };
+
+  const handleBlockedTimeRangeChange = (
+    exceptionIndex: number,
+    rangeIndex: number,
+    field: "startTime" | "endTime",
+    value: string
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      availabilityExceptions: prev.availabilityExceptions.map(
+        (exception, currentExceptionIndex) =>
+          currentExceptionIndex === exceptionIndex
+            ? {
+                ...exception,
+                blockedTimeRanges: exception.blockedTimeRanges.map((range, currentRangeIndex) =>
+                  currentRangeIndex === rangeIndex
+                    ? {
+                        ...range,
+                        [field]: value,
+                      }
+                    : range
+                ),
+              }
+            : exception
+      ),
+    }));
+  };
+
+  const addAvailabilityException = () => {
+    setSuccessMessage("");
+    setFormData((prev) => ({
+      ...prev,
+      availabilityExceptions: [
+        ...prev.availabilityExceptions,
+        createEmptyAvailabilityException(),
+      ],
+    }));
+  };
+
+  const removeAvailabilityException = (index: number) => {
+    const nextFormData = {
+      ...formData,
+      availabilityExceptions: formData.availabilityExceptions.filter(
+        (_, exceptionIndex) => exceptionIndex !== index
+      ),
+    };
+
+    setFormData(nextFormData);
+    void persistAvailability(nextFormData, {
+      successMessage: "Blocked date override deleted successfully.",
+      closeEditingRow: false,
+    });
+  };
+
+  const addBlockedTimeRange = (exceptionIndex: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      availabilityExceptions: prev.availabilityExceptions.map(
+        (exception, currentExceptionIndex) =>
+          currentExceptionIndex === exceptionIndex
+            ? {
+                ...exception,
+                isBlocked: false,
+                blockedTimeRanges: [
+                  ...exception.blockedTimeRanges,
+                  createEmptyBlockedTimeRange(),
+                ],
+              }
+            : exception
+      ),
+    }));
+  };
+
+  const removeBlockedTimeRange = (exceptionIndex: number, rangeIndex: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      availabilityExceptions: prev.availabilityExceptions.map(
+        (exception, currentExceptionIndex) =>
+          currentExceptionIndex === exceptionIndex
+            ? {
+                ...exception,
+                blockedTimeRanges: exception.blockedTimeRanges.filter(
+                  (_, currentRangeIndex) => currentRangeIndex !== rangeIndex
+                ),
+              }
+            : exception
+      ),
+    }));
+  };
+
+  const handleSaveAvailabilityExceptions = () => {
+    void persistAvailability(formData, {
+      successMessage: "Blocked date overrides updated successfully.",
+      closeEditingRow: false,
     });
   };
 
@@ -587,10 +939,65 @@ export default function DoctorAvailabilityPage() {
                 Time Slots
               </p>
               <p className="mt-3 text-lg font-semibold text-slate-900">
-                            {scheduleSummary.length > 0
+                {scheduleSummary.length > 0
                   ? `${scheduleSummary.length} session${scheduleSummary.length === 1 ? "" : "s"}`
                   : "No sessions yet"}
               </p>
+            </div>
+
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5 md:col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Date Overrides
+              </p>
+              <p className="mt-3 text-lg font-semibold text-slate-900">
+                {formData.availabilityExceptions.length > 0
+                  ? `${formData.availabilityExceptions.length} blocked date override${
+                      formData.availabilityExceptions.length === 1 ? "" : "s"
+                    }`
+                  : "No blocked date overrides yet"}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Use this when one specific Monday or only a few hours on a date should not be bookable.
+              </p>
+            </div>
+
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5 md:col-span-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Appointment Duration
+              </p>
+              <p className="mt-3 text-lg font-semibold text-slate-900">
+                {formData.appointmentDurationMinutes} minutes per patient
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Choose how much time you want to allocate for each booked patient.
+              </p>
+              <div className="mt-4 max-w-sm">
+                <select
+                  value={formData.appointmentDurationMinutes}
+                  onChange={(event) =>
+                    handleAppointmentDurationChange(Number(event.target.value))
+                  }
+                  className={fieldClass()}
+                >
+                  {APPOINTMENT_DURATION_OPTIONS.map((duration) => (
+                    <option key={duration} value={duration}>
+                      {duration} minutes per patient
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveAppointmentDuration()}
+                  disabled={
+                    saving ||
+                    formData.appointmentDurationMinutes ===
+                      savedAppointmentDurationMinutes
+                  }
+                  className="mt-4 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  Save Appointment Duration
+                </button>
+              </div>
             </div>
           </div>
 
@@ -877,6 +1284,221 @@ export default function DoctorAvailabilityPage() {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-slate-200 bg-white p-6 md:p-7">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-600">
+                      Overrides
+                    </p>
+                    <h2 className="mt-2 text-2xl font-bold text-slate-900">
+                      Block Specific Dates Or Times
+                    </h2>
+                    <p className="mt-2 max-w-3xl text-sm text-slate-500">
+                      If you cannot work on one particular Monday or want to close only part of a day, add a one-time override here.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={addAvailabilityException}
+                    className="rounded-2xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                  >
+                    Add blocked date
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  {formData.availabilityExceptions.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                      No blocked dates added yet. Patients can book any date that matches your weekly schedule.
+                    </div>
+                  ) : (
+                    formData.availabilityExceptions.map((exception, exceptionIndex) => (
+                      <div
+                        key={`availability-exception-${exceptionIndex}`}
+                        className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                      >
+                        <div className="grid gap-4 xl:grid-cols-[0.95fr_1.2fr_180px]">
+                          <label className="text-sm text-slate-600">
+                            <span className="mb-2 block font-medium text-slate-700">Date</span>
+                            <input
+                              type="date"
+                              value={exception.date}
+                              onChange={(event) =>
+                                handleAvailabilityExceptionChange(
+                                  exceptionIndex,
+                                  "date",
+                                  event.target.value
+                                )
+                              }
+                              className={fieldClass()}
+                            />
+                            <span className="mt-2 block text-xs text-slate-500">
+                              {formatBlockedDate(exception.date)}
+                            </span>
+                          </label>
+
+                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">
+                                  Booking rule
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Block the whole date or only selected times.
+                                </p>
+                              </div>
+
+                              <label className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  checked={exception.isBlocked}
+                                  onChange={(event) =>
+                                    handleAvailabilityExceptionChange(
+                                      exceptionIndex,
+                                      "isBlocked",
+                                      event.target.checked
+                                    )
+                                  }
+                                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                Block the full day
+                              </label>
+                            </div>
+
+                            {!exception.isBlocked ? (
+                              <div className="mt-4 space-y-3">
+                                {exception.blockedTimeRanges.map((range, rangeIndex) => (
+                                  <div
+                                    key={`blocked-time-range-${exceptionIndex}-${rangeIndex}`}
+                                    className="grid gap-3 md:grid-cols-[1fr_1fr_56px]"
+                                  >
+                                    <select
+                                      value={range.startTime}
+                                      onChange={(event) =>
+                                        handleBlockedTimeRangeChange(
+                                          exceptionIndex,
+                                          rangeIndex,
+                                          "startTime",
+                                          event.target.value
+                                        )
+                                      }
+                                      className={fieldClass()}
+                                    >
+                                      <option value="">Block from</option>
+                                      {startTimeOptions.map((time) => (
+                                        <option key={`${time}-block-start`} value={time}>
+                                          {formatTimeLabel(time)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <select
+                                      value={range.endTime}
+                                      onChange={(event) =>
+                                        handleBlockedTimeRangeChange(
+                                          exceptionIndex,
+                                          rangeIndex,
+                                          "endTime",
+                                          event.target.value
+                                        )
+                                      }
+                                      className={fieldClass()}
+                                    >
+                                      <option value="">Block until</option>
+                                      {buildTimeOptions(10, LAST_TIME_OPTION_MINUTES).map(
+                                        (time) => (
+                                          <option key={`${time}-block-end`} value={time}>
+                                            {formatTimeLabel(time)}
+                                          </option>
+                                        )
+                                      )}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        removeBlockedTimeRange(exceptionIndex, rangeIndex)
+                                      }
+                                      className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100"
+                                      aria-label={`Remove blocked time range ${rangeIndex + 1}`}
+                                      title="Remove blocked range"
+                                    >
+                                      <svg
+                                        className="h-5 w-5"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                        aria-hidden="true"
+                                      >
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M8.75 2.5a1.25 1.25 0 00-1.179.833L7.21 4.25H4.5a.75.75 0 000 1.5h.568l.7 9.092A2.25 2.25 0 008.012 17h3.976a2.25 2.25 0 002.244-2.158l.7-9.092h.568a.75.75 0 000-1.5H12.79l-.361-.917A1.25 1.25 0 0011.25 2.5h-2.5zm2.28 1.75l.296.75H8.674l.296-.75h2.06zM8.5 8a.75.75 0 011.5 0v5a.75.75 0 01-1.5 0V8zm3 .75A.75.75 0 0010.75 8v5a.75.75 0 001.5 0V8.75z"
+                                          clipRule="evenodd"
+                                        />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                ))}
+
+                                <button
+                                  type="button"
+                                  onClick={() => addBlockedTimeRange(exceptionIndex)}
+                                  className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                                >
+                                  Add blocked time range
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                Patients will not be able to book anything on this date.
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="space-y-3">
+                            <label className="block text-sm text-slate-600">
+                              <span className="mb-2 block font-medium text-slate-700">Note</span>
+                              <textarea
+                                value={exception.note || ""}
+                                onChange={(event) =>
+                                  handleAvailabilityExceptionChange(
+                                    exceptionIndex,
+                                    "note",
+                                    event.target.value
+                                  )
+                                }
+                                rows={4}
+                                placeholder="Optional note like conference, surgery, or personal leave"
+                                className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                              />
+                            </label>
+
+                            <button
+                              type="button"
+                              onClick={() => removeAvailabilityException(exceptionIndex)}
+                              className="w-full rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                            >
+                              Remove override
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  {formData.availabilityExceptions.length > 0 ? (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleSaveAvailabilityExceptions}
+                        disabled={saving}
+                        className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        Save blocked dates
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 

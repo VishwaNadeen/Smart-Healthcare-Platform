@@ -8,6 +8,18 @@ export type DoctorAvailabilityScheduleItem = {
   maxAppointments: number;
 };
 
+export type DoctorAvailabilityExceptionTimeRange = {
+  startTime: string;
+  endTime: string;
+};
+
+export type DoctorAvailabilityException = {
+  date: string;
+  isBlocked: boolean;
+  blockedTimeRanges: DoctorAvailabilityExceptionTimeRange[];
+  note?: string;
+};
+
 export type DoctorReviewNote = {
   note: string;
   status: string;
@@ -32,11 +44,13 @@ export type DoctorProfile = {
   availableDays?: string[];
   availableTimeSlots?: string[];
   consultationFee?: number;
+  appointmentDurationMinutes?: number;
   profileImage?: string;
   profileImagePublicId?: string;
   about?: string;
   acceptsNewAppointments?: boolean;
   availabilitySchedule?: DoctorAvailabilityScheduleItem[];
+  availabilityExceptions?: DoctorAvailabilityException[];
   verificationStatus?: string;
   verificationNote?: string;
   reviewNotes?: DoctorReviewNote[];
@@ -60,12 +74,14 @@ export type DoctorProfileUpdatePayload = {
   hospitalAddress: string;
   city: string;
   consultationFee: number;
+  appointmentDurationMinutes: number;
   profileImage: string;
   about: string;
   acceptsNewAppointments: boolean;
   availableDays: string[];
   availableTimeSlots: string[];
   availabilitySchedule: DoctorAvailabilityScheduleItem[];
+  availabilityExceptions: DoctorAvailabilityException[];
 };
 
 export type DoctorDeleteResponse = {

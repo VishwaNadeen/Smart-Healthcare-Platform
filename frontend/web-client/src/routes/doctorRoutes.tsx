@@ -3,6 +3,7 @@ import MainLayout from "../layouts/mainLayout";
 import DoctorRegisterPage from "../pages/doctor/Register";
 import DoctorProfilePage from "../pages/doctor/Profile";
 import DoctorAvailabilityPage from "../pages/doctor/Availability";
+import DoctorEarningsPage from "../pages/doctor/Earnings";
 import RequireTelemedicineRole from "../components/telemedicine/RequireTelemedicineRole";
 
 export const doctorRoutes = (
@@ -33,6 +34,17 @@ export const doctorRoutes = (
         <MainLayout>
           <RequireTelemedicineRole allowedRoles={["doctor"]}>
             <DoctorAvailabilityPage />
+          </RequireTelemedicineRole>
+        </MainLayout>
+      }
+    />
+
+    <Route
+      path="/doctor/earnings"
+      element={
+        <MainLayout>
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorEarningsPage />
           </RequireTelemedicineRole>
         </MainLayout>
       }

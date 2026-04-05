@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/users", label: "Users" },
   { to: "/doctors", label: "Doctors" },
+  { to: "/doctor-analytics", label: "Doctor Analytics" },
   { to: "/doctor-specialties", label: "Specialties" },
   { to: "/appointments", label: "Appointments" },
   { to: "/payments", label: "Payments" },

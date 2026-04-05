@@ -8,7 +8,7 @@ const {
 const ACTIVE_APPOINTMENT_STATUSES = ["pending", "confirmed"];
 const APPOINTMENT_STATUSES = ["pending", "confirmed", "completed", "cancelled"];
 const DOCTOR_SERVICE_URL = process.env.DOCTOR_SERVICE_URL || "http://localhost:5003";
-const CONSULTATION_DURATION_MINUTES = 10;
+const DEFAULT_APPOINTMENT_DURATION_MINUTES = 15;
 const STATUS_TRANSITIONS = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["completed", "cancelled"],
@@ -17,6 +17,16 @@ const STATUS_TRANSITIONS = {
 };
 
 const normalizeString = (value) => String(value || "").trim();
+
+const normalizeAppointmentDuration = (value) => {
+  const duration = Number(value);
+
+  if (Number.isFinite(duration) && duration > 0) {
+    return duration;
+  }
+
+  return DEFAULT_APPOINTMENT_DURATION_MINUTES;
+};
 
 const toMinutes = (time) => {
   const [hours, minutes] = String(time || "")
@@ -30,6 +40,28 @@ const toMinutes = (time) => {
   return hours * 60 + minutes;
 };
 
+const toTimeValue = (totalMinutes) => {
+  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
+  const minutes = String(totalMinutes % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+};
+
+const formatTimeLabel = (time) => {
+  const [rawHours, rawMinutes] = String(time || "")
+    .split(":")
+    .map((value) => Number(value));
+
+  if (Number.isNaN(rawHours) || Number.isNaN(rawMinutes)) {
+    return time;
+  }
+
+  const period = rawHours >= 12 ? "PM" : "AM";
+  const hours12 = rawHours % 12 === 0 ? 12 : rawHours % 12;
+  const minutes = String(rawMinutes).padStart(2, "0");
+
+  return `${hours12}:${minutes} ${period}`;
+};
+
 const getWeekdayFromDate = (appointmentDate) => {
   const date = new Date(`${normalizeString(appointmentDate)}T00:00:00`);
 
@@ -40,7 +72,7 @@ const getWeekdayFromDate = (appointmentDate) => {
   return date.toLocaleDateString("en-US", { weekday: "long" });
 };
 
-const buildLegacyScheduleForDay = (doctor, day) => {
+const buildLegacyScheduleForDay = (doctor, day, appointmentDurationMinutes) => {
   if (
     !Array.isArray(doctor?.availableDays) ||
     !doctor.availableDays.includes(day) ||
@@ -54,7 +86,7 @@ const buildLegacyScheduleForDay = (doctor, day) => {
       const [startTime = "", endTime = ""] = String(slot || "").split("-");
       const duration = toMinutes(endTime) - toMinutes(startTime);
 
-      if (duration < CONSULTATION_DURATION_MINUTES) {
+      if (duration < appointmentDurationMinutes) {
         return null;
       }
 
@@ -64,14 +96,18 @@ const buildLegacyScheduleForDay = (doctor, day) => {
         endTime,
         maxAppointments: Math.max(
           1,
-          Math.floor(duration / CONSULTATION_DURATION_MINUTES)
+          Math.floor(duration / appointmentDurationMinutes)
         ),
       };
     })
     .filter(Boolean);
 };
 
-const getScheduleSlotsForDate = (doctor, appointmentDate) => {
+const getScheduleSlotsForDate = (
+  doctor,
+  appointmentDate,
+  appointmentDurationMinutes
+) => {
   const day = getWeekdayFromDate(appointmentDate);
 
   if (!day) {
@@ -86,29 +122,41 @@ const getScheduleSlotsForDate = (doctor, appointmentDate) => {
     return detailedSchedule;
   }
 
-  return buildLegacyScheduleForDay(doctor, day);
+  return buildLegacyScheduleForDay(doctor, day, appointmentDurationMinutes);
 };
 
-const findMatchingScheduleSlot = (doctor, appointmentDate, appointmentTime) => {
-  const appointmentStart = toMinutes(appointmentTime);
+const getAvailabilityExceptionForDate = (doctor, appointmentDate) => {
+  const normalizedDate = normalizeString(appointmentDate);
 
-  if (Number.isNaN(appointmentStart)) {
-    return null;
+  return Array.isArray(doctor?.availabilityExceptions)
+    ? doctor.availabilityExceptions.find(
+        (exception) => normalizeString(exception?.date) === normalizedDate
+      ) || null
+    : null;
+};
+
+const isTimeBlockedByException = (exception, appointmentTime, appointmentDurationMinutes) => {
+  if (!exception || exception.isBlocked) {
+    return Boolean(exception?.isBlocked);
   }
 
-  return getScheduleSlotsForDate(doctor, appointmentDate).find((slot) => {
-    const start = toMinutes(slot.startTime);
-    const end = toMinutes(slot.endTime);
+  const start = toMinutes(appointmentTime);
+  const end = start + appointmentDurationMinutes;
 
-    if (Number.isNaN(start) || Number.isNaN(end)) {
+  return (exception.blockedTimeRanges || []).some((range) => {
+    const blockedStart = toMinutes(range.startTime);
+    const blockedEnd = toMinutes(range.endTime);
+
+    if (
+      Number.isNaN(start) ||
+      Number.isNaN(end) ||
+      Number.isNaN(blockedStart) ||
+      Number.isNaN(blockedEnd)
+    ) {
       return false;
     }
 
-    return (
-      appointmentStart >= start &&
-      appointmentStart + CONSULTATION_DURATION_MINUTES <= end &&
-      (appointmentStart - start) % CONSULTATION_DURATION_MINUTES === 0
-    );
+    return start < blockedEnd && end > blockedStart;
   });
 };
 
@@ -128,10 +176,9 @@ const fetchDoctorProfile = async (doctorId) => {
   return data;
 };
 
-const countAppointmentsInScheduleSlot = async ({
+const getBookedAppointmentTimes = async ({
   doctorId,
   appointmentDate,
-  scheduleSlot,
   excludeAppointmentId,
 }) => {
   const query = {
@@ -145,18 +192,85 @@ const countAppointmentsInScheduleSlot = async ({
   }
 
   const appointments = await Appointment.find(query).select("appointmentTime");
-  const slotStart = toMinutes(scheduleSlot.startTime);
-  const slotEnd = toMinutes(scheduleSlot.endTime);
 
-  return appointments.filter((appointment) => {
-    const appointmentStart = toMinutes(appointment.appointmentTime);
+  return new Set(
+    appointments
+      .map((appointment) => normalizeString(appointment.appointmentTime))
+      .filter(Boolean)
+  );
+};
 
-    return (
-      !Number.isNaN(appointmentStart) &&
-      appointmentStart >= slotStart &&
-      appointmentStart + CONSULTATION_DURATION_MINUTES <= slotEnd
-    );
-  }).length;
+const buildBookableSlotsForDate = async ({
+  doctor,
+  doctorId,
+  appointmentDate,
+  excludeAppointmentId,
+}) => {
+  const appointmentDurationMinutes = normalizeAppointmentDuration(
+    doctor?.appointmentDurationMinutes
+  );
+  const scheduleSlots = getScheduleSlotsForDate(
+    doctor,
+    appointmentDate,
+    appointmentDurationMinutes
+  );
+  const availabilityException = getAvailabilityExceptionForDate(
+    doctor,
+    appointmentDate
+  );
+
+  if (availabilityException?.isBlocked) {
+    return {
+      appointmentDurationMinutes,
+      scheduleSlots,
+      availableSlots: [],
+    };
+  }
+
+  const bookedTimes = await getBookedAppointmentTimes({
+    doctorId,
+    appointmentDate,
+    excludeAppointmentId,
+  });
+
+  const availableSlots = [];
+
+  scheduleSlots.forEach((slot) => {
+    const start = toMinutes(slot.startTime);
+    const end = toMinutes(slot.endTime);
+
+    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
+      return;
+    }
+
+    for (
+      let current = start;
+      current + appointmentDurationMinutes <= end;
+      current += appointmentDurationMinutes
+    ) {
+      const time = toTimeValue(current);
+
+      if (
+        !bookedTimes.has(time) &&
+        !isTimeBlockedByException(
+          availabilityException,
+          time,
+          appointmentDurationMinutes
+        )
+      ) {
+        availableSlots.push({
+          time,
+          label: formatTimeLabel(time),
+        });
+      }
+    }
+  });
+
+  return {
+    appointmentDurationMinutes,
+    scheduleSlots,
+    availableSlots,
+  };
 };
 
 const validateDoctorScheduleAvailability = async ({
@@ -171,25 +285,38 @@ const validateDoctorScheduleAvailability = async ({
     return "This doctor is not accepting new appointments right now";
   }
 
-  const scheduleSlot = findMatchingScheduleSlot(
+  const bookableSlots = await buildBookableSlotsForDate({
     doctor,
-    appointmentDate,
-    appointmentTime
-  );
-
-  if (!scheduleSlot) {
-    return "Doctor is not available at the selected date and time";
-  }
-
-  const existingAppointments = await countAppointmentsInScheduleSlot({
     doctorId,
     appointmentDate,
-    scheduleSlot,
     excludeAppointmentId,
   });
 
-  if (existingAppointments >= Number(scheduleSlot.maxAppointments || 1)) {
-    return "This schedule is already fully booked";
+  const availabilityException = getAvailabilityExceptionForDate(
+    doctor,
+    appointmentDate
+  );
+
+  if (availabilityException?.isBlocked) {
+    return "Doctor is unavailable on the selected date";
+  }
+
+  if (
+    !bookableSlots.availableSlots.some(
+      (slot) => slot.time === normalizeString(appointmentTime)
+    )
+  ) {
+    if (
+      isTimeBlockedByException(
+        availabilityException,
+        normalizeString(appointmentTime),
+        bookableSlots.appointmentDurationMinutes
+      )
+    ) {
+      return "Doctor is unavailable during the selected time";
+    }
+
+    return "Doctor is not available at the selected date and time";
   }
 
   return null;
@@ -334,6 +461,12 @@ const createAppointment = async (req, res) => {
       appointment,
     });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        message: "Appointment slot already booked for this doctor",
+      });
+    }
+
     res.status(500).json({
       message: "Failed to create appointment",
       error: error.message,
@@ -476,6 +609,12 @@ const updateAppointment = async (req, res) => {
       appointment,
     });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        message: "Appointment slot already booked for this doctor",
+      });
+    }
+
     res.status(500).json({
       message: "Failed to update appointment",
       error: error.message,
@@ -560,6 +699,7 @@ const deleteAppointment = async (req, res) => {
 const updateAppointmentStatus = async (req, res) => {
   try {
     const { status, note } = req.body;
+    const normalizedNote = typeof note === "string" ? note.trim() : "";
 
     if (!APPOINTMENT_STATUSES.includes(status)) {
       return res.status(400).json({
@@ -576,6 +716,12 @@ const updateAppointmentStatus = async (req, res) => {
     if (!enforceDoctorAppointmentOwnership(req, appointment)) {
       return res.status(403).json({
         message: "You can only update status for your own appointments",
+      });
+    }
+
+    if (status === "cancelled" && !normalizedNote) {
+      return res.status(400).json({
+        message: "Please provide a reason when rejecting an appointment",
       });
     }
 
@@ -596,7 +742,7 @@ const updateAppointmentStatus = async (req, res) => {
       appointment.status = status;
       appointment.statusHistory.push({
         status,
-        note: typeof note === "string" ? note : "",
+        note: normalizedNote,
       });
 
       await appointment.save();
@@ -671,6 +817,56 @@ const getAdminAppointments = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch appointments",
+      error: error.message,
+    });
+  }
+};
+
+const getDoctorAvailableSlots = async (req, res) => {
+  try {
+    const doctorId = normalizeString(req.query.doctorId);
+    const appointmentDate = normalizeString(req.query.appointmentDate);
+
+    if (!doctorId || !appointmentDate) {
+      return res.status(400).json({
+        message: "doctorId and appointmentDate are required",
+      });
+    }
+
+    const doctor = await fetchDoctorProfile(doctorId);
+
+    if (doctor?.acceptsNewAppointments === false) {
+      return res.status(200).json({
+        doctorId,
+        appointmentDate,
+        appointmentDurationMinutes: normalizeAppointmentDuration(
+          doctor?.appointmentDurationMinutes
+        ),
+        availableSlots: [],
+        availableWeekdays: Array.isArray(doctor?.availableDays)
+          ? doctor.availableDays
+          : [],
+      });
+    }
+
+    const bookingData = await buildBookableSlotsForDate({
+      doctor,
+      doctorId,
+      appointmentDate,
+    });
+
+    return res.status(200).json({
+      doctorId,
+      appointmentDate,
+      appointmentDurationMinutes: bookingData.appointmentDurationMinutes,
+      availableWeekdays: Array.isArray(doctor?.availableDays)
+        ? doctor.availableDays
+        : [],
+      availableSlots: bookingData.availableSlots,
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      message: "Failed to fetch available appointment slots",
       error: error.message,
     });
   }
@@ -810,6 +1006,7 @@ const updateAppointmentStatusInternal = async (req, res) => {
 module.exports = {
   getSpecialtiesForDropdown,
   searchDoctorsBySpecialty,
+  getDoctorAvailableSlots,
   createAppointment,
   getAllAppointments,
   getAppointmentById,

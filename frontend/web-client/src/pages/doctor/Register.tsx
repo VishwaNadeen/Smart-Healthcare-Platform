@@ -150,6 +150,27 @@ function validateDoctorField(
       }
       return "";
 
+    case "hospitalName":
+      if (!trimmedValue) return "Hospital name is required.";
+      if (trimmedValue.length < 2) {
+        return "Hospital name must be at least 2 characters.";
+      }
+      return "";
+
+    case "city":
+      if (!trimmedValue) return "City is required.";
+      if (trimmedValue.length < 2) {
+        return "City must be at least 2 characters.";
+      }
+      return "";
+
+    case "hospitalAddress":
+      if (!trimmedValue) return "Hospital address is required.";
+      if (trimmedValue.length < 5) {
+        return "Hospital address must be at least 5 characters.";
+      }
+      return "";
+
     default:
       return "";
   }
@@ -171,6 +192,13 @@ function validateDoctorForm(data: DoctorFormData): FormErrors {
     qualification: validateDoctorField("qualification", data.qualification, data),
     licenseNumber: validateDoctorField("licenseNumber", data.licenseNumber, data),
     consultationFee: validateDoctorField("consultationFee", data.consultationFee, data),
+    hospitalName: validateDoctorField("hospitalName", data.hospitalName, data),
+    hospitalAddress: validateDoctorField(
+      "hospitalAddress",
+      data.hospitalAddress,
+      data
+    ),
+    city: validateDoctorField("city", data.city, data),
   };
 }
 
@@ -180,8 +208,86 @@ function getFilledErrors(errors: FormErrors): FormErrors {
   ) as FormErrors;
 }
 
+function getServerFieldError(message: string): {
+  field: keyof DoctorFormData;
+  message: string;
+} | null {
+  const normalizedMessage = message.trim().toLowerCase();
+
+  if (
+    normalizedMessage.includes("email") &&
+    (normalizedMessage.includes("already exists") ||
+      normalizedMessage.includes("already registered") ||
+      normalizedMessage.includes("already in use"))
+  ) {
+    return {
+      field: "email",
+      message: "This email is already registered. Please use a different email.",
+    };
+  }
+
+  if (normalizedMessage.includes("hospital name")) {
+    return {
+      field: "hospitalName",
+      message: message,
+    };
+  }
+
+  if (normalizedMessage.includes("hospital address")) {
+    return {
+      field: "hospitalAddress",
+      message: message,
+    };
+  }
+
+  if (normalizedMessage.includes("city")) {
+    return {
+      field: "city",
+      message: message,
+    };
+  }
+
+  return null;
+}
+
+function getFriendlyDoctorErrorMessage(message: string) {
+  const normalizedMessage = message.trim().toLowerCase();
+
+  if (!normalizedMessage || normalizedMessage === "validation failed") {
+    return "Please check the highlighted fields and correct the information.";
+  }
+
+  if (normalizedMessage.includes("validation failed")) {
+    return "Please review the form details and correct any invalid fields.";
+  }
+
+  return message;
+}
+
 async function readErrorMessage(response: Response, fallback: string) {
   const data = await response.json().catch(() => null);
+
+  if (
+    data &&
+    typeof data === "object" &&
+    "errors" in data &&
+    Array.isArray(data.errors)
+  ) {
+    const firstError = data.errors[0];
+
+    if (typeof firstError === "string" && firstError.trim()) {
+      return firstError;
+    }
+
+    if (
+      firstError &&
+      typeof firstError === "object" &&
+      "message" in firstError &&
+      typeof firstError.message === "string"
+    ) {
+      return firstError.message;
+    }
+  }
 
   if (
     data &&
@@ -287,10 +393,20 @@ export default function DoctorRegisterPage() {
       : value.trim().length > 0;
 
   const shouldShowFieldError = (field: keyof DoctorFormData) =>
-    Boolean(
-      errors[field] &&
-        (showStepErrors || hasFieldValue(field, formData[field]))
-    );
+    Boolean(errors[field] && (showStepErrors || touchedFields[field]));
+
+  const updateFieldError = (
+    field: keyof DoctorFormData,
+    value: string,
+    nextFormData: DoctorFormData,
+    markTouched: boolean
+  ) => {
+    const hasValue = hasFieldValue(field, value);
+
+    return markTouched || hasValue || showStepErrors
+      ? validateDoctorField(field, value, nextFormData)
+      : "";
+  };
 
   const completionCount = useMemo(
     () =>
@@ -309,25 +425,36 @@ export default function DoctorRegisterPage() {
       ...formData,
       [fieldName]: value,
     };
-    const hasValue = hasFieldValue(fieldName, value);
+    const shouldMarkTouched = touchedFields[fieldName] || hasFieldValue(fieldName, value);
 
     setFormData(nextFormData);
     setErrorMessage("");
     setTouchedFields((prev) => ({
       ...prev,
-      [fieldName]: prev[fieldName] || hasValue,
+      [fieldName]: shouldMarkTouched,
     }));
     setErrors((prev) => ({
       ...prev,
-      [fieldName]: touchedFields[fieldName]
-        ? hasValue
-          ? validateDoctorField(fieldName, value, nextFormData)
-          : showStepErrors
-          ? validateDoctorField(fieldName, value, nextFormData)
-          : ""
-        : hasValue
-        ? validateDoctorField(fieldName, value, nextFormData)
-        : "",
+      [fieldName]: updateFieldError(
+        fieldName,
+        value,
+        nextFormData,
+        shouldMarkTouched
+      ),
+      ...(fieldName === "password" || fieldName === "confirmPassword"
+        ? {
+            confirmPassword: updateFieldError(
+              "confirmPassword",
+              nextFormData.confirmPassword,
+              nextFormData,
+              Boolean(
+                touchedFields.confirmPassword ||
+                  fieldName === "confirmPassword" ||
+                  hasFieldValue("confirmPassword", nextFormData.confirmPassword)
+              )
+            ),
+          }
+        : {}),
     }));
   };
 
@@ -339,10 +466,24 @@ export default function DoctorRegisterPage() {
 
     setErrors((prev) => ({
       ...prev,
-      [fieldName]:
-        value.trim().length > 0 || showStepErrors
-          ? validateDoctorField(fieldName, value, formData)
-          : "",
+      [fieldName]: validateDoctorField(fieldName, value, formData),
+      ...(fieldName === "password" || fieldName === "confirmPassword"
+        ? {
+            confirmPassword:
+              touchedFields.confirmPassword || fieldName === "confirmPassword"
+                ? validateDoctorField(
+                    "confirmPassword",
+                    fieldName === "confirmPassword"
+                      ? value
+                      : formData.confirmPassword,
+                    {
+                      ...formData,
+                      [fieldName]: value,
+                    }
+                  )
+                : prev.confirmPassword,
+          }
+        : {}),
     }));
     setTouchedFields((prev) => ({
       ...prev,
@@ -355,25 +496,17 @@ export default function DoctorRegisterPage() {
       ...formData,
       phone,
     };
-    const hasValue = hasMeaningfulPhoneValue(phone);
+    const shouldMarkTouched = touchedFields.phone || hasMeaningfulPhoneValue(phone);
 
     setFormData(nextFormData);
     setErrorMessage("");
     setTouchedFields((prev) => ({
       ...prev,
-      phone: prev.phone || hasValue,
+      phone: shouldMarkTouched,
     }));
     setErrors((prev) => ({
       ...prev,
-      phone: touchedFields.phone
-        ? hasValue
-          ? validateDoctorField("phone", phone, nextFormData)
-          : showStepErrors
-          ? validateDoctorField("phone", phone, nextFormData)
-          : ""
-        : hasValue
-        ? validateDoctorField("phone", phone, nextFormData)
-        : "",
+      phone: updateFieldError("phone", phone, nextFormData, shouldMarkTouched),
     }));
   };
 
@@ -384,10 +517,7 @@ export default function DoctorRegisterPage() {
     }));
     setErrors((prev) => ({
       ...prev,
-      phone:
-        formData.phone.trim().length > 0 || showStepErrors
-          ? validateDoctorField("phone", formData.phone, formData)
-          : "",
+      phone: validateDoctorField("phone", formData.phone, formData),
     }));
   };
 
@@ -487,10 +617,27 @@ export default function DoctorRegisterPage() {
         },
       });
     } catch (error: unknown) {
-      const message =
+      const rawMessage =
         error instanceof Error ? error.message : "Failed to register doctor.";
-      setErrorMessage(message);
-      showToast(message, "error");
+      const message = getFriendlyDoctorErrorMessage(rawMessage);
+      const serverFieldError = getServerFieldError(rawMessage);
+
+      if (serverFieldError) {
+        setCurrentStep(0);
+        setShowStepErrors(false);
+        setErrorMessage("");
+        setTouchedFields((prev) => ({
+          ...prev,
+          [serverFieldError.field]: true,
+        }));
+        setErrors((prev) => ({
+          ...prev,
+          [serverFieldError.field]: serverFieldError.message,
+        }));
+      } else {
+        setErrorMessage(message);
+        showToast(message, "error");
+      }
     } finally {
       setAllowSubmit(false);
       setLoading(false);
@@ -885,9 +1032,15 @@ export default function DoctorRegisterPage() {
                         name="hospitalName"
                         value={formData.hospitalName}
                         onChange={handleChange}
-                        className={getFieldClass(false)}
+                        onBlur={handleBlur}
+                        className={getFieldClass(
+                          shouldShowFieldError("hospitalName")
+                        )}
                         placeholder="City Medical Centre"
                       />
+                      {shouldShowFieldError("hospitalName") && (
+                        <p className="mt-2 text-sm text-red-600">{errors.hospitalName}</p>
+                      )}
                     </div>
 
                     <div>
@@ -899,9 +1052,13 @@ export default function DoctorRegisterPage() {
                         name="city"
                         value={formData.city}
                         onChange={handleChange}
-                        className={getFieldClass(false)}
+                        onBlur={handleBlur}
+                        className={getFieldClass(shouldShowFieldError("city"))}
                         placeholder="Colombo"
                       />
+                      {shouldShowFieldError("city") && (
+                        <p className="mt-2 text-sm text-red-600">{errors.city}</p>
+                      )}
                     </div>
                   </div>
 
@@ -913,10 +1070,18 @@ export default function DoctorRegisterPage() {
                       name="hospitalAddress"
                       value={formData.hospitalAddress}
                       onChange={handleChange}
+                      onBlur={handleBlur}
                       rows={4}
-                      className={getFieldClass(false)}
+                      className={getFieldClass(
+                        shouldShowFieldError("hospitalAddress")
+                      )}
                       placeholder="No 10, Main Street, Colombo"
                     />
+                    {shouldShowFieldError("hospitalAddress") && (
+                      <p className="mt-2 text-sm text-red-600">
+                        {errors.hospitalAddress}
+                      </p>
+                    )}
                   </div>
 
                   <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">

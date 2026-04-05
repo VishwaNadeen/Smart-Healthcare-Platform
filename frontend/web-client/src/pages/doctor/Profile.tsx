@@ -9,6 +9,7 @@ import {
   updateCurrentDoctorProfile,
 } from "../../services/doctorApi";
 import type {
+  DoctorAvailabilityException,
   DoctorAvailabilityScheduleItem,
   DoctorProfile,
   DoctorReviewNote,
@@ -30,12 +31,14 @@ type FormState = {
   hospitalAddress: string;
   city: string;
   consultationFee: string;
+  appointmentDurationMinutes: number;
   profileImage: string;
   about: string;
   availableDays: string[];
   availableTimeSlots: string[];
   acceptsNewAppointments: boolean;
   availabilitySchedule: DoctorAvailabilityScheduleItem[];
+  availabilityExceptions: DoctorAvailabilityException[];
 };
 
 function emptyForm(): FormState {
@@ -51,12 +54,14 @@ function emptyForm(): FormState {
     hospitalAddress: "",
     city: "",
     consultationFee: "",
+    appointmentDurationMinutes: 15,
     profileImage: "",
     about: "",
     availableDays: [],
     availableTimeSlots: [],
     acceptsNewAppointments: true,
     availabilitySchedule: [],
+    availabilityExceptions: [],
   };
 }
 
@@ -182,12 +187,14 @@ export default function DoctorProfilePage() {
       city: profile.city || "",
       consultationFee:
         profile.consultationFee !== undefined ? String(profile.consultationFee) : "",
+      appointmentDurationMinutes: profile.appointmentDurationMinutes || 15,
       profileImage: profile.profileImage || "",
       about: profile.about || "",
       availableDays,
       availableTimeSlots,
       acceptsNewAppointments: profile.acceptsNewAppointments !== false,
       availabilitySchedule: profile.availabilitySchedule || [],
+      availabilityExceptions: profile.availabilityExceptions || [],
     });
   };
 
@@ -266,7 +273,9 @@ export default function DoctorProfilePage() {
         availableTimeSlots: summary.availableTimeSlots,
         experience: Number(formData.experience) || 0,
         consultationFee: Number(formData.consultationFee) || 0,
+        appointmentDurationMinutes: formData.appointmentDurationMinutes || 15,
         availabilitySchedule: formData.availabilitySchedule,
+        availabilityExceptions: formData.availabilityExceptions,
       });
       applyProfile(response);
       setSuccessMessage("Doctor profile updated successfully.");

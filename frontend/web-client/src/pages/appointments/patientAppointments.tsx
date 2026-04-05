@@ -16,6 +16,9 @@ export default function PatientAppointmentsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "pending" | "confirmed" | "completed" | "cancelled"
+  >("all");
 
   useEffect(() => {
     async function loadAppointments() {
@@ -41,9 +44,11 @@ export default function PatientAppointmentsPage() {
     void loadAppointments();
   }, [auth.token]);
 
-  const pendingAppointments = useMemo(() => {
+  const visibleAppointments = useMemo(() => {
     return appointments
-      .filter((appointment) => appointment.status === "pending")
+      .filter((appointment) =>
+        statusFilter === "all" ? true : appointment.status === statusFilter
+      )
       .sort((a, b) => {
         const aDate = new Date(
           `${a.appointmentDate}T${a.appointmentTime}`
@@ -53,7 +58,7 @@ export default function PatientAppointmentsPage() {
         ).getTime();
         return aDate - bDate;
       });
-  }, [appointments]);
+  }, [appointments, statusFilter]);
 
   async function handleCancelAppointment(appointmentId: string) {
     if (!auth.token) {
@@ -73,6 +78,7 @@ export default function PatientAppointmentsPage() {
           appointment._id === appointmentId
             ? {
                 ...appointment,
+                ...(response.appointment || {}),
                 status: "cancelled",
               }
             : appointment
@@ -101,8 +107,8 @@ export default function PatientAppointmentsPage() {
                 My Appointments
               </h1>
               <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-                This page shows only pending appointment requests. Approved
-                sessions will appear in the consultation tab.
+                Track all appointment requests here, including confirmed,
+                completed, and rejected bookings.
               </p>
             </div>
 
@@ -114,12 +120,26 @@ export default function PatientAppointmentsPage() {
                 + Create Appointment
               </Link>
 
-              <Link
-                to="/appointments/history"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              <select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value as
+                      | "all"
+                      | "pending"
+                      | "confirmed"
+                      | "completed"
+                      | "cancelled"
+                  )
+                }
+                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-blue-500"
               >
-                Canceled Appointments
-              </Link>
+                <option value="all">All Appointments</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Rejected / Cancelled</option>
+              </select>
             </div>
           </div>
         </div>
@@ -140,20 +160,20 @@ export default function PatientAppointmentsPage() {
           <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
             Loading appointments...
           </div>
-        ) : pendingAppointments.length === 0 ? (
+        ) : visibleAppointments.length === 0 ? (
           <div className="mt-16 flex min-h-[40vh] items-center justify-center px-6 text-center">
             <div className="max-w-md">
               <h3 className="text-xl font-bold text-slate-900">
-                No pending appointments found
+                No appointments found
               </h3>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                You do not have any pending appointment requests right now.
+                There are no appointments matching the selected status.
               </p>
             </div>
           </div>
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {pendingAppointments.map((appointment) => (
+            {visibleAppointments.map((appointment) => (
               <PatientAppointmentCard
                 key={appointment._id}
                 appointment={appointment}

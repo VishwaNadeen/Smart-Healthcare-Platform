@@ -1,6 +1,7 @@
 import type { AdminDashboardStats } from "../types/admin";
 import {
   AUTH_API_URL,
+  APPOINTMENT_API_URL,
   DOCTOR_API_URL,
   DOCTOR_SPECIALTY_API_URL,
   TELEMEDICINE_API_URL,
@@ -106,6 +107,28 @@ export type DoctorSpecialtyPayload = {
   name: string;
   description?: string;
   isActive?: boolean;
+};
+
+export type AdminAnalyticsAppointment = {
+  _id: string;
+  patientId: string;
+  doctorId: string;
+  doctorName: string;
+  specialization: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  reason?: string;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
+  paymentStatus?: "pending" | "paid" | "failed";
+  createdAt?: string;
+};
+
+export type AdminAppointmentActivity = {
+  totalAppointments: number;
+  pendingAppointments: number;
+  confirmedAppointments: number;
+  completedAppointments: number;
+  cancelledAppointments: number;
 };
 
 type AppointmentResourceResponse<T> = {
@@ -330,5 +353,13 @@ export async function deleteDoctorSpecialty(specialtyId: string) {
       method: "DELETE",
     }
   );
+}
+
+export async function getAdminAppointmentsAnalytics() {
+  return fetchJson<AdminAnalyticsAppointment[]>(`${APPOINTMENT_API_URL}/admin/all`);
+}
+
+export async function getAdminAppointmentActivity() {
+  return fetchJson<AdminAppointmentActivity>(`${APPOINTMENT_API_URL}/admin/activity`);
 }
 

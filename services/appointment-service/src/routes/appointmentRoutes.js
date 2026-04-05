@@ -11,6 +11,7 @@ const {
 const {
   getSpecialtiesForDropdown,
   searchDoctorsBySpecialty,
+  getDoctorAvailableSlots,
   createAppointment,
   getAllAppointments,
   getAppointmentById,
@@ -29,6 +30,7 @@ const {
 
 router.get("/specialties", getSpecialtiesForDropdown);
 router.get("/doctors/search", searchDoctorsBySpecialty);
+router.get("/availability/slots", requirePatientAuth, getDoctorAvailableSlots);
 router.get("/admin/activity", requireAdminAuth, getAdminAppointmentActivity);
 router.get("/admin/all", requireAdminAuth, getAdminAppointments);
 router.post("/", requirePatientAuth, createAppointment);

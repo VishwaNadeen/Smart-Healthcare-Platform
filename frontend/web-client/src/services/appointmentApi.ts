@@ -43,6 +43,35 @@ export type Appointment = {
 
 export type AppointmentRecord = Appointment;
 
+export type AppointmentAvailabilitySlot = {
+  time: string;
+  label: string;
+};
+
+export type DoctorAvailableSlotsResponse = {
+  doctorId: string;
+  appointmentDate: string;
+  appointmentDurationMinutes: number;
+  availableWeekdays: string[];
+  availableSlots: AppointmentAvailabilitySlot[];
+};
+
+export type AppointmentTrackingResponse = {
+  appointmentId: string;
+  status: AppointmentStatus;
+  paymentStatus?: PaymentStatus;
+  updatedAt?: string;
+  statusHistory: AppointmentStatusHistoryItem[];
+};
+
+export type AdminAppointmentActivityResponse = {
+  totalAppointments: number;
+  pendingAppointments: number;
+  confirmedAppointments: number;
+  completedAppointments: number;
+  cancelledAppointments: number;
+};
+
 type SpecialtiesResponse = {
   source: string;
   data: string[];
@@ -193,6 +222,31 @@ export async function createAppointment(
   };
 }
 
+export async function getDoctorAvailableSlots(
+  token: string,
+  params: {
+    doctorId: string;
+    appointmentDate: string;
+  }
+): Promise<DoctorAvailableSlotsResponse> {
+  const searchParams = new URLSearchParams({
+    doctorId: params.doctorId,
+    appointmentDate: params.appointmentDate,
+  });
+
+  const response = await safeFetch(
+    `${APPOINTMENT_API_URL}/availability/slots?${searchParams.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return handleAppointmentResponse<DoctorAvailableSlotsResponse>(response);
+}
+
 export async function deleteAppointment(
   token: string,
   appointmentId: string
@@ -219,6 +273,61 @@ export async function getDoctorAppointments(
   });
 
   return handleAppointmentResponse<Appointment[]>(response);
+}
+
+export async function getAdminAppointments(token: string): Promise<Appointment[]> {
+  const response = await safeFetch(`${APPOINTMENT_API_URL}/admin/all`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return handleAppointmentResponse<Appointment[]>(response);
+}
+
+export async function getAdminAppointmentActivity(
+  token: string
+): Promise<AdminAppointmentActivityResponse> {
+  const response = await safeFetch(`${APPOINTMENT_API_URL}/admin/activity`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return handleAppointmentResponse<AdminAppointmentActivityResponse>(response);
+}
+
+export async function getAppointmentById(
+  token: string,
+  appointmentId: string
+): Promise<Appointment> {
+  const response = await safeFetch(`${APPOINTMENT_API_URL}/${appointmentId}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return handleAppointmentResponse<Appointment>(response);
+}
+
+export async function getAppointmentTracking(
+  token: string,
+  appointmentId: string
+): Promise<AppointmentTrackingResponse> {
+  const response = await safeFetch(
+    `${APPOINTMENT_API_URL}/${appointmentId}/tracking`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return handleAppointmentResponse<AppointmentTrackingResponse>(response);
 }
 
 export async function updateDoctorAppointmentStatus(

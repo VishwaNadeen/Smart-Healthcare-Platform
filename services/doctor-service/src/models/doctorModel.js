@@ -31,6 +31,46 @@ const availabilitySlotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const blockedTimeRangeSchema = new mongoose.Schema(
+  {
+    startTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    endTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
+const availabilityExceptionSchema = new mongoose.Schema(
+  {
+    date: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
+    blockedTimeRanges: {
+      type: [blockedTimeRangeSchema],
+      default: [],
+    },
+    note: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+  },
+  { _id: false }
+);
+
 const reviewNoteSchema = new mongoose.Schema(
   {
     note: {
@@ -117,8 +157,17 @@ const doctorSchema = new mongoose.Schema(
     availableTimeSlots: [String],
 
     consultationFee: Number,
+    appointmentDurationMinutes: {
+      type: Number,
+      default: 15,
+      min: 5,
+    },
     availabilitySchedule: {
       type: [availabilitySlotSchema],
+      default: [],
+    },
+    availabilityExceptions: {
+      type: [availabilityExceptionSchema],
       default: [],
     },
     acceptsNewAppointments: {

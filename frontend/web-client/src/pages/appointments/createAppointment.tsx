@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   createAppointment,
+  getDoctorAvailableSlots,
+  type AppointmentAvailabilitySlot,
   type CreateAppointmentPayload,
 } from "../../services/appointmentApi";
 import {
@@ -32,15 +34,112 @@ const initialFormState: AppointmentFormState = {
   paymentStatus: "pending",
 };
 
-function getTodayDateValue() {
-  return new Date().toISOString().split("T")[0] || "";
-}
-
 function getDoctorLabel(doctor: DoctorProfileResponse) {
   const hospital = doctor.hospitalName?.trim();
   return hospital
     ? `${doctor.fullName} - ${hospital}`
     : doctor.fullName;
+}
+
+function toDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getWeekdayFromDateValue(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleDateString("en-US", { weekday: "long" });
+}
+
+function formatDateLabel(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatDateParts(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return {
+      weekday: value,
+      monthDay: "",
+    };
+  }
+
+  return {
+    weekday: date.toLocaleDateString("en-US", { weekday: "short" }),
+    monthDay: date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    }),
+  };
+}
+
+function getDoctorScheduleWeekdays(doctor: DoctorProfileResponse | null) {
+  if (!doctor) {
+    return [];
+  }
+
+  if (Array.isArray(doctor.availabilitySchedule) && doctor.availabilitySchedule.length > 0) {
+    return [...new Set(doctor.availabilitySchedule.map((slot) => slot.day).filter(Boolean))];
+  }
+
+  return Array.isArray(doctor.availableDays)
+    ? doctor.availableDays.filter(Boolean)
+    : [];
+}
+
+function buildUpcomingAvailableDates(
+  doctor: DoctorProfileResponse | null,
+  lookAheadDays = 30
+) {
+  const availableWeekdays = getDoctorScheduleWeekdays(doctor);
+
+  if (availableWeekdays.length === 0) {
+    return [];
+  }
+
+  const options: Array<{ value: string; label: string }> = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (let offset = 0; offset < lookAheadDays; offset += 1) {
+    const nextDate = new Date(today);
+    nextDate.setDate(today.getDate() + offset);
+    const dateValue = toDateValue(nextDate);
+    const weekday = getWeekdayFromDateValue(dateValue);
+    const blockedDate = Array.isArray(doctor?.availabilityExceptions)
+      ? doctor.availabilityExceptions.find(
+          (exception) => exception.date === dateValue && exception.isBlocked
+        )
+      : null;
+
+    if (availableWeekdays.includes(weekday) && !blockedDate) {
+      options.push({
+        value: dateValue,
+        label: formatDateLabel(dateValue),
+      });
+    }
+  }
+
+  return options;
 }
 
 export default function CreateAppointmentPage() {
@@ -52,9 +151,22 @@ export default function CreateAppointmentPage() {
   const [doctors, setDoctors] = useState<DoctorProfileResponse[]>([]);
   const [loadingSpecialties, setLoadingSpecialties] = useState(true);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [availableSlots, setAvailableSlots] = useState<AppointmentAvailabilitySlot[]>(
+    []
+  );
+  const [slotInfoMessage, setSlotInfoMessage] = useState("");
+  const [showAllAvailableDates, setShowAllAvailableDates] = useState(false);
+
+  const selectedDoctor =
+    doctors.find((doctor) => doctor._id === formData.doctorId) || null;
+  const availableDateOptions = buildUpcomingAvailableDates(selectedDoctor);
+  const visibleDateOptions = showAllAvailableDates
+    ? availableDateOptions
+    : availableDateOptions.slice(0, 8);
 
   useEffect(() => {
     async function loadSpecialties() {
@@ -127,13 +239,18 @@ export default function CreateAppointmentPage() {
   ) {
     const nextSpecialization = event.target.value;
 
-    setSuccessMessage("");
-    setFormData((current) => ({
-      ...current,
-      specialization: nextSpecialization,
-      doctorId: "",
-      doctorName: "",
-    }));
+      setSuccessMessage("");
+      setFormData((current) => ({
+        ...current,
+        specialization: nextSpecialization,
+        doctorId: "",
+        doctorName: "",
+        appointmentDate: "",
+        appointmentTime: "",
+      }));
+      setAvailableSlots([]);
+      setSlotInfoMessage("");
+      setShowAllAvailableDates(false);
   }
 
   function handleDoctorChange(event: React.ChangeEvent<HTMLSelectElement>) {
@@ -145,8 +262,84 @@ export default function CreateAppointmentPage() {
       ...current,
       doctorId: nextDoctorId,
       doctorName: doctor?.fullName || "",
+      appointmentDate: "",
+      appointmentTime: "",
+    }));
+    setAvailableSlots([]);
+    setSlotInfoMessage("");
+    setShowAllAvailableDates(false);
+  }
+
+  function handleAppointmentDateSelect(value: string) {
+    setSuccessMessage("");
+    setFormData((current) => ({
+      ...current,
+      appointmentDate: value,
+      appointmentTime: "",
     }));
   }
+
+  useEffect(() => {
+    async function loadAvailableSlots() {
+      if (!auth.token || !formData.doctorId || !formData.appointmentDate) {
+        setAvailableSlots([]);
+        setSlotInfoMessage("");
+        return;
+      }
+
+      const weekday = getWeekdayFromDateValue(formData.appointmentDate);
+      const allowedWeekdays = getDoctorScheduleWeekdays(selectedDoctor);
+
+      if (!allowedWeekdays.includes(weekday)) {
+        setAvailableSlots([]);
+        setSlotInfoMessage("This doctor is not available on the selected day.");
+        setFormData((current) => ({
+          ...current,
+          appointmentTime: "",
+        }));
+        return;
+      }
+
+      try {
+        setLoadingSlots(true);
+        setErrorMessage("");
+        setSlotInfoMessage("");
+
+        const response = await getDoctorAvailableSlots(auth.token, {
+          doctorId: formData.doctorId,
+          appointmentDate: formData.appointmentDate,
+        });
+
+        setAvailableSlots(response.availableSlots);
+        setFormData((current) => ({
+          ...current,
+          appointmentTime: response.availableSlots.some(
+            (slot) => slot.time === current.appointmentTime
+          )
+            ? current.appointmentTime
+            : "",
+        }));
+
+        if (response.availableSlots.length === 0) {
+          setSlotInfoMessage(
+            "No appointment times are available for the selected date. Please choose another day."
+          );
+        }
+      } catch (error: unknown) {
+        setAvailableSlots([]);
+        setSlotInfoMessage("");
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to load available appointment times."
+        );
+      } finally {
+        setLoadingSlots(false);
+      }
+    }
+
+    void loadAvailableSlots();
+  }, [auth.token, formData.appointmentDate, formData.doctorId, selectedDoctor]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -274,31 +467,125 @@ export default function CreateAppointmentPage() {
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
                     Appointment Date
                   </label>
-                  <input
-                    type="date"
-                    value={formData.appointmentDate}
-                    min={getTodayDateValue()}
-                    onChange={(event) =>
-                      updateField("appointmentDate", event.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500"
-                    required
-                  />
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    {!formData.doctorId ? (
+                      <p className="text-sm text-slate-500">
+                        Select a doctor first to see available dates.
+                      </p>
+                    ) : availableDateOptions.length === 0 ? (
+                      <p className="text-sm text-slate-500">
+                        This doctor has no bookable dates configured yet.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          {visibleDateOptions.map((dateOption) => {
+                          const isSelected =
+                            formData.appointmentDate === dateOption.value;
+                          const parts = formatDateParts(dateOption.value);
+
+                          return (
+                            <button
+                              key={dateOption.value}
+                              type="button"
+                              onClick={() => handleAppointmentDateSelect(dateOption.value)}
+                              className={`rounded-2xl border px-4 py-3 text-left transition ${
+                                isSelected
+                                  ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50"
+                              }`}
+                            >
+                              <p
+                                className={`text-xs font-semibold uppercase tracking-[0.18em] ${
+                                  isSelected ? "text-blue-100" : "text-slate-500"
+                                }`}
+                              >
+                                {parts.weekday}
+                              </p>
+                              <p className="mt-2 text-base font-semibold">
+                                {parts.monthDay}
+                              </p>
+                            </button>
+                          );
+                          })}
+                        </div>
+
+                        {availableDateOptions.length > 8 ? (
+                          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <p className="text-sm text-slate-600">
+                              {showAllAvailableDates
+                                ? `Showing all ${availableDateOptions.length} available dates`
+                                : `Showing the next ${visibleDateOptions.length} available dates`}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowAllAvailableDates((current) => !current)
+                              }
+                              className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                            >
+                              {showAllAvailableDates ? "Show fewer" : "Show more"}
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                  {selectedDoctor && availableDateOptions.length > 0 ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Available on {getDoctorScheduleWeekdays(selectedDoctor).join(", ")}.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
                     Appointment Time
                   </label>
-                  <input
-                    type="time"
-                    value={formData.appointmentTime}
-                    onChange={(event) =>
-                      updateField("appointmentTime", event.target.value)
-                    }
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500"
-                    required
-                  />
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                    {!formData.appointmentDate ? (
+                      <p className="text-sm text-slate-500">
+                        Choose a date first to see available time slots.
+                      </p>
+                    ) : loadingSlots ? (
+                      <p className="text-sm text-slate-500">
+                        Loading available times...
+                      </p>
+                    ) : availableSlots.length === 0 ? (
+                      <p className="text-sm text-slate-500">
+                        No appointment times are available for this date.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        {availableSlots.map((slot) => {
+                          const isSelected =
+                            formData.appointmentTime === slot.time;
+
+                          return (
+                            <button
+                              key={slot.time}
+                              type="button"
+                              onClick={() => updateField("appointmentTime", slot.time)}
+                              className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                                isSelected
+                                  ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50"
+                              }`}
+                            >
+                              {slot.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {slotInfoMessage ? (
+                    <p className="mt-2 text-xs text-amber-600">{slotInfoMessage}</p>
+                  ) : selectedDoctor?.appointmentDurationMinutes ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Each appointment is {selectedDoctor.appointmentDurationMinutes} minutes.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -355,8 +642,11 @@ export default function CreateAppointmentPage() {
                     isSubmitting ||
                     loadingSpecialties ||
                     loadingDoctors ||
+                    loadingSlots ||
                     !formData.specialization ||
-                    !formData.doctorId
+                    !formData.doctorId ||
+                    !formData.appointmentDate ||
+                    !formData.appointmentTime
                   }
                   className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
                 >
