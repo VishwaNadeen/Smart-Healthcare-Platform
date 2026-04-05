@@ -108,11 +108,12 @@ export default function PrescriptionPdfGenerator({
       return;
     }
 
-    const generatedOn = new Intl.DateTimeFormat("en-GB", {
+    const issuedDate = nextPrescriptions[0]?.createdAt;
+    const issuedDateLabel = new Intl.DateTimeFormat("en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",
-    }).format(new Date());
+    }).format(issuedDate ? new Date(issuedDate) : new Date());
 
     const prescriptionsPerPage = 4;
     const prescriptionChunks =
@@ -175,7 +176,7 @@ export default function PrescriptionPdfGenerator({
                 <p class="subtitle">Prescription Summary</p>
                 <div class="meta-row">
                   <span>Appointment ID: ${escapeHtml(getSafeLabel(appointmentId))}</span>
-                  <span>Issued Date: ${escapeHtml(generatedOn)}</span>
+                  <span>Issued Date: ${escapeHtml(issuedDateLabel)}</span>
                 </div>
               </div>
               <div class="content">
