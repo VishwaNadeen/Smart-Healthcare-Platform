@@ -36,7 +36,7 @@ export type Appointment = {
   reason?: string;
   status: AppointmentStatus;
   paymentStatus?: PaymentStatus;
-  statusHistory?: AppointmentStatusHistoryItem[];
+  statusHistory: AppointmentStatusHistoryItem[];
   createdAt?: string;
   updatedAt?: string;
 };
