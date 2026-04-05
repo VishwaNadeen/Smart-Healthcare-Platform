@@ -8,6 +8,7 @@ import { telemedicineRoutes } from "./telemedicineRoutes";
 import { patientRoutes } from "./patientRoutes";
 import { appointmentRoutes } from "./appointmentRoutes";
 import { profileRoutes } from "./profileRoutes";
+import { paymentRoutes } from "./paymentRoutes";
 
 export default function AppRoutes() {
   return (
@@ -31,12 +32,12 @@ export default function AppRoutes() {
       />
 
       <Route path="/verify-email" element={<VerifyEmailPage />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-     
+
       {telemedicineRoutes}
       {patientRoutes}
       {appointmentRoutes}
       {profileRoutes}
+      {paymentRoutes}
     </Routes>
   );
 }

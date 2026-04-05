@@ -1,3 +1,4 @@
+const {requireAuth} = require('../middleware/auth.middleware');
 const express = require('express');
 const router = express.Router();
 const {
@@ -11,13 +12,17 @@ const {
   downloadReceipt
 } = require('../controllers/payment.controller');
 
+const {requireAuth} = require('../middleware/auth.middleware');
+
+
+
 router.post('/initiate', initiatePayment);
 router.post('/notify', handleNotification);
-router.get('/all', getAllPayments);
-router.get('/patient/:patientId', getPatientPaymentHistory);
-router.get('/doctor/:doctorId', getDoctorPaymentHistory);
+router.get('/all', requireAuth, getAllPayments);
+router.get('/patient/:patientId',requireAuth, getPatientPaymentHistory);
+router.get('/doctor/:doctorId',requireAuth, getDoctorPaymentHistory);
 router.get('/:orderId/receipt', downloadReceipt);
-router.put('/:orderId/refund', refundPayment);
+router.put('/:orderId/refund', requireAuth, refundPayment);
 router.get('/:orderId', getPaymentStatus);
 
 module.exports = router;

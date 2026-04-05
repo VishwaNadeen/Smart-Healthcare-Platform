@@ -490,6 +490,8 @@ const updateAppointmentStatusInternal = async (req, res) => {
   }
 };
 
+
+
 module.exports = {
   getSpecialtiesForDropdown,
   searchDoctorsBySpecialty,
