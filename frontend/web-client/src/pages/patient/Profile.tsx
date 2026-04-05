@@ -15,7 +15,8 @@ import {
 import { defaultCountries } from "react-international-phone";
 import { useNavigate } from "react-router-dom";
 import PhoneNumberInput from "../../components/common/PhoneNumberInput";
-import { useToast } from "../../components/common/ToastProvider";
+import PasswordField from "../../components/common/PasswordField";
+import { useToast } from "../../components/common/toastContext";
 
 const PROFILE_NAME_KEY = "patientProfileName";
 const PROFILE_IMAGE_KEY = "patientProfileImage";
@@ -215,8 +216,7 @@ const PatientProfile = () => {
           replace: true,
           state: {
             registeredEmail: auth.email || "",
-            successMessage:
-              "Your patient account was deleted or is no longer available. Please sign in with a valid account.",
+            infoMessage: "Account not available.",
           },
         });
         return;
@@ -230,13 +230,18 @@ const PatientProfile = () => {
 
   useEffect(() => {
     if (!token) {
-      showToast("Please login first.", "error");
       setLoading(false);
+      navigate("/login", {
+        replace: true,
+        state: {
+          infoMessage: "Please log in.",
+        },
+      });
       return;
     }
 
     loadProfile();
-  }, [token]);
+  }, [navigate, token]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -307,7 +312,7 @@ const PatientProfile = () => {
     }
 
     if (!file.type.startsWith("image/")) {
-      showToast("Please choose a valid image file.", "error");
+      showToast("Choose a valid image.", "error");
       return;
     }
 
@@ -318,7 +323,7 @@ const PatientProfile = () => {
       localStorage.setItem(PROFILE_IMAGE_KEY, nextProfileImage);
       setProfileImage(nextProfileImage);
       window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
-      showToast(response.message || "Profile picture updated successfully.", "success");
+      showToast(response.message || "Photo updated.", "success");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to upload profile picture";
@@ -338,7 +343,7 @@ const PatientProfile = () => {
         localStorage.removeItem(PROFILE_IMAGE_KEY);
         setProfileImage("");
         window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
-        showToast(response.message || "Profile picture removed.", "info");
+        showToast(response.message || "Photo removed.", "info");
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to remove profile picture";
@@ -353,7 +358,7 @@ const PatientProfile = () => {
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
-      showToast("Please correct the highlighted fields.", "error");
+      showToast("Fix the highlighted fields.", "error");
       return;
     }
 
@@ -372,7 +377,7 @@ const PatientProfile = () => {
       localStorage.setItem(PROFILE_NAME_KEY, fullName);
       window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
 
-      showToast(response.message || "Profile updated successfully.", "success");
+      showToast(response.message || "Profile updated.", "success");
       setEditing(false);
       await loadProfile();
     } catch (error) {
@@ -389,23 +394,19 @@ const PatientProfile = () => {
 
   const handleDeleteAccount = async () => {
     if (!token) {
-      showToast("Please login first.", "error");
+      showToast("Please log in.", "error");
       return;
     }
 
     if (!deletePassword.trim()) {
-      showToast("Enter your password to delete your profile.", "error");
+      showToast("Enter your password.", "error");
       return;
     }
 
     try {
       setDeleting(true);
 
-      const response = await deleteCurrentPatient(token, deletePassword);
-      showToast(
-        response.message || "Your account was deleted successfully.",
-        "success"
-      );
+      await deleteCurrentPatient(token, deletePassword);
 
       localStorage.removeItem(PROFILE_NAME_KEY);
       localStorage.removeItem(PROFILE_IMAGE_KEY);
@@ -416,8 +417,7 @@ const PatientProfile = () => {
       navigate("/", {
         replace: true,
         state: {
-          successMessage:
-            response.message || "Your account was deleted successfully.",
+          successMessage: "Account deleted.",
         },
       });
     } catch (error) {
@@ -455,12 +455,13 @@ const PatientProfile = () => {
             </p>
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <input
-                type="password"
+              <PasswordField
                 value={deletePassword}
                 onChange={(event) => setDeletePassword(event.target.value)}
                 placeholder="Enter your password"
-                className="flex-1 rounded-xl border border-red-200 bg-white px-4 py-3 outline-none focus:border-red-400"
+                autoComplete="current-password"
+                wrapperClassName="flex-1"
+                inputClassName="w-full rounded-xl border border-red-200 bg-white px-4 py-3 outline-none focus:border-red-400"
               />
 
               <button

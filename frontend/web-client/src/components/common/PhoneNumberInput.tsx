@@ -3,6 +3,7 @@ import {
   defaultCountries,
   PhoneInput,
 } from "react-international-phone";
+import type { CSSProperties } from "react";
 import "react-international-phone/style.css";
 
 const countries = defaultCountries.map((country) =>
@@ -38,6 +39,14 @@ export default function PhoneNumberInput({
   return (
     <div>
       <PhoneInput
+        className="w-full"
+        style={
+          {
+            "--react-international-phone-height": "56px",
+            "--react-international-phone-border-radius": "0.75rem",
+            "--react-international-phone-font-size": "0.875rem",
+          } as CSSProperties
+        }
         countries={countries}
         defaultCountry={defaultCountry}
         defaultMask=".........."
@@ -46,11 +55,11 @@ export default function PhoneNumberInput({
         onBlur={onBlur}
         disabled={disabled}
         forceDialCode
-        inputClassName={`w-full rounded-xl border px-4 py-3 text-sm text-slate-800 focus:outline-none ${
+        inputClassName={`w-full rounded-r-xl border border-l-0 px-4 text-sm text-slate-800 focus:outline-none ${
           error ? "border-red-400" : "border-slate-300"
         } ${disabled ? "cursor-not-allowed bg-slate-100" : "bg-white"}`}
         countrySelectorStyleProps={{
-          buttonClassName: `rounded-l-xl border-y border-l ${
+          buttonClassName: `rounded-l-xl border ${
             error ? "border-red-400" : "border-slate-300"
           } ${disabled ? "bg-slate-100" : "bg-white"}`,
           dropdownStyleProps: {

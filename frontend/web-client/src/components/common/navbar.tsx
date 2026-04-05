@@ -275,7 +275,7 @@ export default function Navbar() {
       const message =
         error instanceof Error ? error.message : "Failed to log out cleanly.";
       setActionError(message);
-      showToast(message, "error");
+      showToast("Logout failed.", "error");
     } finally {
       clearStoredProfiles();
       clearTelemedicineAuth();

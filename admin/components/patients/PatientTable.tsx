@@ -69,23 +69,17 @@ function IconButton({
   title,
   onClick,
   children,
-  tone = "default",
 }: {
   title: string;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
-  tone?: "default" | "danger";
 }) {
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
-      className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${
-        tone === "danger"
-          ? "text-red-500 hover:bg-red-50"
-          : "text-orange-500 hover:bg-slate-100"
-      }`}
+      className="flex h-9 w-9 items-center justify-center rounded-lg text-orange-500 transition hover:bg-slate-100"
     >
       {children}
     </button>
@@ -97,7 +91,6 @@ type PatientTableProps = {
   loading: boolean;
   onView: (patient: Patient) => void;
   onToggleStatus: (patient: Patient) => void;
-  onDelete: (patient: Patient) => void;
 };
 
 export default function PatientTable({
@@ -105,7 +98,6 @@ export default function PatientTable({
   loading,
   onView,
   onToggleStatus,
-  onDelete,
 }: PatientTableProps) {
   if (loading) {
     return (
@@ -262,28 +254,6 @@ export default function PatientTable({
                       >
                         <path d="M18 6 6 18" />
                         <path d="m6 6 12 12" />
-                      </svg>
-                    </IconButton>
-
-                    <IconButton
-                      title="Delete"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDelete(patient);
-                      }}
-                      tone="danger"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="h-4 w-4"
-                      >
-                        <path d="M3 6h18" />
-                        <path d="M8 6V4h8v2" />
-                        <path d="M19 6l-1 14H6L5 6" />
                       </svg>
                     </IconButton>
                   </div>

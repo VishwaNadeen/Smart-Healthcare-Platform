@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import DoctorAppointmentRequestCard from "../../components/appointments/AppointmentRequestCard";
-import { useToast } from "../../components/common/ToastProvider";
+import { useToast } from "../../components/common/toastContext";
 import PageLoading from "../../components/common/PageLoading";
 import {
   getDoctorAppointments,
