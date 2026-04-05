@@ -179,7 +179,7 @@ export default function ChatPanel({
   return (
     <div
       ref={panelRef}
-      className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3"
+      className="pointer-events-none fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3"
     >
       <style>{`
         @keyframes chat-hint-slide {
@@ -314,7 +314,7 @@ export default function ChatPanel({
       <button
         type="button"
         onClick={onToggle}
-        className="relative inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.28)] transition hover:-translate-y-0.5 hover:bg-blue-700"
+        className="pointer-events-auto relative inline-flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.28)] transition hover:-translate-y-0.5 hover:bg-blue-700"
         aria-label={isChatOpen ? "Hide chat" : "Open chat"}
         title={isChatOpen ? "Hide chat" : "Open chat"}
       >

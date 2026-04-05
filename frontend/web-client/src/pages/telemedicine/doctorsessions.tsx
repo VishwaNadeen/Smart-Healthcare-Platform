@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import FullScreenPageLoading from "../../components/common/FullScreenPageLoading";
 import DoctorSessionCard from "../../components/telemedicine/DoctorSessionCard";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
-import PageLoading from "../../components/common/PageLoading";
 import NoApprovedSessions from "./noApprovedSessions";
 import {
   getSessionsByDoctorId,
@@ -74,7 +74,7 @@ export default function DoctorSessions() {
   }
 
   if (loading) {
-    return <PageLoading message="Loading approved sessions..." />;
+    return <FullScreenPageLoading message="Loading approved sessions..." />;
   }
 
   if (error) {

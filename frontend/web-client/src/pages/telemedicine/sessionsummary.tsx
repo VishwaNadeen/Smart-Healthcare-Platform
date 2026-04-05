@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import FullScreenPageLoading from "../../components/common/FullScreenPageLoading";
 import PrescriptionForm from "../../components/telemedicine/PrescriptionForm";
 import PrescriptionPdfGenerator from "../../components/telemedicine/PrescriptionPdfGenerator";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
@@ -188,9 +189,12 @@ export default function SessionSummary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [matchedPanelHeight, setMatchedPanelHeight] = useState<number | null>(null);
+  const [readOnlyNotesHeight, setReadOnlyNotesHeight] = useState<number | null>(null);
   const [patientPdfName, setPatientPdfName] = useState("Not available");
   const [patientPdfAge, setPatientPdfAge] = useState<number | null>(null);
   const leftColumnRef = useRef<HTMLDivElement | null>(null);
+  const rightPanelRef = useRef<HTMLDivElement | null>(null);
+  const rightPanelHeaderRef = useRef<HTMLDivElement | null>(null);
   const auth = getStoredTelemedicineAuth();
   const role = auth.actorRole;
 
@@ -220,14 +224,50 @@ export default function SessionSummary() {
   }, [appointmentId]);
 
   useEffect(() => {
+    if (!appointmentId || role !== "patient" || !session || session.notes?.trim()) {
+      return;
+    }
+
+    let isMounted = true;
+    const intervalId = window.setInterval(async () => {
+      try {
+        const latestSession = await getSessionByAppointmentId(appointmentId);
+
+        if (isMounted) {
+          setSession(latestSession);
+        }
+
+        if (latestSession.notes?.trim()) {
+          window.clearInterval(intervalId);
+        }
+      } catch (pollError) {
+        console.error("Failed to refresh session summary data:", pollError);
+      }
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [appointmentId, role, session]);
+
+  useEffect(() => {
     function syncPanelHeight() {
       if (typeof window === "undefined" || window.innerWidth < 1024) {
         setMatchedPanelHeight(null);
+        setReadOnlyNotesHeight(null);
         return;
       }
 
       const nextHeight = leftColumnRef.current?.getBoundingClientRect().height ?? 0;
       setMatchedPanelHeight(nextHeight > 0 ? Math.ceil(nextHeight) : null);
+
+      const rightPanelTop = rightPanelRef.current?.getBoundingClientRect().top ?? 0;
+      const headerBottom = rightPanelHeaderRef.current?.getBoundingClientRect().bottom ?? 0;
+      const headerGap = 16;
+      const nextNotesHeight = Math.floor(rightPanelTop + nextHeight / 2 - headerBottom - headerGap);
+
+      setReadOnlyNotesHeight(nextNotesHeight > 102 ? nextNotesHeight : 102);
     }
 
     const frameId = window.requestAnimationFrame(syncPanelHeight);
@@ -350,13 +390,7 @@ export default function SessionSummary() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl rounded-3xl bg-white p-8 text-center text-gray-600 shadow-sm">
-          Loading summary...
-        </div>
-      </div>
-    );
+    return <FullScreenPageLoading message="Loading session summary..." />;
   }
 
   if (error) {
@@ -449,10 +483,11 @@ export default function SessionSummary() {
           </div>
 
           <div
+            ref={rightPanelRef}
             className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
             style={matchedPanelHeight ? { height: matchedPanelHeight } : undefined}
           >
-            <div className="mb-4 flex items-center justify-between gap-3">
+            <div ref={rightPanelHeaderRef} className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-slate-900">
                 Prescription & Medical Notes
               </h2>
@@ -464,6 +499,7 @@ export default function SessionSummary() {
                 hospitalName={doctor.hospitalName}
                 patientName={patientPdfName}
                 patientAge={patientPdfAge}
+                autoRefreshWhenEmpty={role === "patient"}
                 buttonClassName="inline-flex rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
@@ -477,6 +513,8 @@ export default function SessionSummary() {
                 readOnly
                 plainReadOnly
                 hideTitle
+                autoRefreshWhenEmpty={role === "patient"}
+                readOnlyNotesHeight={readOnlyNotesHeight}
               />
             </div>
           </div>

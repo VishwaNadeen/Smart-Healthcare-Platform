@@ -13,6 +13,7 @@ import { telemedicineRoutes } from "./telemedicineRoutes";
 import { patientRoutes } from "./patientRoutes";
 import { appointmentRoutes } from "./appointmentRoutes";
 import { profileRoutes } from "./profileRoutes";
+import { prescriptionRoutes } from "./prescriptionRoutes";
 
 export default function AppRoutes() {
   return (
@@ -46,6 +47,7 @@ export default function AppRoutes() {
         {patientRoutes}
         {appointmentRoutes}
         {profileRoutes}
+        {prescriptionRoutes}
         
       </Routes>
     </AnimatePresence>
