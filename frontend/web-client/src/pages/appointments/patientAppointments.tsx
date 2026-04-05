@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+
+// added by nimesh: useNavigate needed to programmatically redirect to payment checkout
+import { Link, useNavigate } from "react-router-dom";
+
+// added by nimesh: fetch doctor details to get consultationFee before navigating to payment
+import { getDoctorById } from "../../services/doctorApi";
+
 import PatientAppointmentCard from "../../components/appointments/PatientAppointmentCard";
 import PageLoading from "../../components/common/PageLoading";
 import NoPendingAppointments from "./noPatAppointments";
@@ -13,11 +19,17 @@ import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 export default function PatientAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
 
+  // added by nimesh: navigate used in handleCompletePayment to redirect to /payment/checkout
+  const navigate = useNavigate();
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  // added by nimesh: tracks which appointment's "Complete Payment" button is loading
+  const [completingPaymentId, setCompletingPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadAppointments() {
@@ -58,6 +70,43 @@ export default function PatientAppointmentsPage() {
         return aDate - bDate;
       });
   }, [appointments]);
+
+  // added by nimesh: handles resume payment flow for appointments with paymentStatus === 'pending'
+  // fetches doctor consultationFee from doctor-service, then navigates to /payment/checkout
+  // with pre-filled appointment data so patient can complete their pending payment
+  async function handleCompletePayment(appointment: Appointment) {
+    try {
+      setCompletingPaymentId(appointment._id);
+      const doctor = await getDoctorById(appointment.doctorId);
+
+      if (!doctor.consultationFee) {
+        setErrorMessage(
+          "This doctor has no consultation fee set. Please contact support."
+        );
+        return;
+      }
+
+      navigate("/payment/checkout", {
+        state: {
+          appointmentId: appointment._id,
+          doctorId: appointment.doctorId,
+          doctorName: appointment.doctorName,
+          specialization: appointment.specialization,
+          amount: doctor.consultationFee,
+          appointmentDate: appointment.appointmentDate,
+          appointmentTime: appointment.appointmentTime,
+        },
+      });
+    } catch (error: unknown) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to load payment details."
+      );
+    } finally {
+      setCompletingPaymentId(null);
+    }
+  }
 
   async function handleCancelAppointment(appointmentId: string) {
     if (!auth.token) {
@@ -147,14 +196,20 @@ export default function PatientAppointmentsPage() {
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {pendingAppointments.map((appointment) => (
-                <PatientAppointmentCard
-                  key={appointment._id}
-                  appointment={appointment}
-                  onCancel={handleCancelAppointment}
-                  isCancelling={cancellingId === appointment._id}
-                />
-              ))}
+              {pendingAppointments.map((appointment) => {
+                // added by nimesh: passes complete payment handler and loading state
+                // to show "Complete Payment" button on cards with pending payment
+                return (
+                  <PatientAppointmentCard
+                    key={appointment._id}
+                    appointment={appointment}
+                    onCancel={handleCancelAppointment}
+                    isCancelling={cancellingId === appointment._id}
+                    onCompletePayment={handleCompletePayment}
+                    isCompletingPayment={completingPaymentId === appointment._id}
+                  />
+                );
+              })}
             </div>
           </>
         )}

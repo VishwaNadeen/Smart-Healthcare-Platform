@@ -5,6 +5,9 @@ type PatientAppointmentCardProps = {
   appointment: Appointment;
   onCancel: (appointmentId: string) => void;
   isCancelling: boolean;
+  // added by nimesh: callback and loading state for completing pending payments
+  onCompletePayment: (appointment: Appointment) => void;
+  isCompletingPayment: boolean;
 };
 
 function formatDate(dateString: string) {
@@ -62,6 +65,8 @@ export default function PatientAppointmentCard({
   appointment,
   onCancel,
   isCancelling,
+  onCompletePayment, // added by nimesh
+  isCompletingPayment, // added by nimesh
 }: PatientAppointmentCardProps) {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
@@ -145,6 +150,20 @@ export default function PatientAppointmentCard({
             className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isCancelling ? "Cancelling..." : "Cancel Appointment"}
+          </button>
+        )}
+
+        {/* added by nimesh: shows amber "Complete Payment" button when payment is pending
+            and appointment is not cancelled — clicking fetches doctor fee and navigates
+            back to /payment/checkout so patient can resume their payment */}
+        {appointment.paymentStatus === "pending" && appointment.status !== "cancelled" && (
+          <button
+            type="button"
+            onClick={() => onCompletePayment(appointment)}
+            disabled={isCompletingPayment}
+            className="inline-flex items-center justify-center rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isCompletingPayment ? "Loading..." : "Complete Payment"}
           </button>
         )}
       </div>

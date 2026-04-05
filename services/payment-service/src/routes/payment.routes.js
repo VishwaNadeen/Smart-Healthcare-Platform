@@ -5,6 +5,7 @@ const {
   initiatePayment,
   handleNotification,
   getPaymentStatus,
+  getPaymentByAppointmentId,
   getPatientPaymentHistory,
   getDoctorPaymentHistory,
   getAllPayments,
@@ -21,6 +22,7 @@ router.get('/patient/:patientId',requireAuth, getPatientPaymentHistory);
 router.get('/doctor/:doctorId',requireAuth, getDoctorPaymentHistory);
 router.get('/:orderId/receipt', downloadReceipt);
 router.put('/:orderId/refund', requireAuth, refundPayment);
+router.get('/appointment/:appointmentId', requireAuth, getPaymentByAppointmentId);
 router.get('/:orderId', getPaymentStatus);
 
 module.exports = router;
