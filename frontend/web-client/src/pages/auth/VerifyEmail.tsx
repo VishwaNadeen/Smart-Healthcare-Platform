@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useToast } from "../../components/common/ToastProvider";
+import { useToast } from "../../components/common/toastContext";
 import { useLocationToast } from "../../hooks/useLocationToast";
 import {
   requestEmailVerification,
@@ -90,17 +90,16 @@ export default function VerifyEmailPage() {
     setError("");
 
     try {
-      const result = await verifyEmail({
+      await verifyEmail({
         email: trimmedEmail,
         otp: trimmedOtp,
       });
-      showToast(result.message, "success");
 
       navigate("/login", {
         replace: true,
         state: {
           registeredEmail: form.email,
-          successMessage: `${result.message}. You can sign in now.`,
+          successMessage: "Email verified. Sign in now.",
         },
       });
     } catch (err: unknown) {
@@ -134,9 +133,9 @@ export default function VerifyEmailPage() {
     setError("");
 
     try {
-      const result = await requestEmailVerification({ email: trimmedEmail });
-      setMessage(result.message);
-      showToast(result.message, "info");
+      await requestEmailVerification({ email: trimmedEmail });
+      setMessage("A new code was sent to your email.");
+      showToast("OTP sent.", "info");
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to resend code";
@@ -192,11 +191,7 @@ export default function VerifyEmailPage() {
             />
           </div>
 
-          {message && (
-            <div className="rounded-2xl bg-blue-50 px-4 py-3 text-sm text-blue-700">
-              {message}
-            </div>
-          )}
+          {message && <p className="text-sm text-blue-700">{message}</p>}
 
           {error && (
             <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">

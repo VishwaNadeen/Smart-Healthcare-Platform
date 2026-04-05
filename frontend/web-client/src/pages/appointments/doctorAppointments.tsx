@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useToast } from "../../components/common/ToastProvider";
+import { useToast } from "../../components/common/toastContext";
+import PageLoading from "../../components/common/PageLoading";
 import {
   getDoctorAppointments,
   updateDoctorAppointmentStatus,
@@ -13,6 +14,7 @@ import {
   type PatientSummaryResponse,
 } from "../../services/patientApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
+import NoDocAppointments from "./noDocAppointments";
 
 type FilterStatus = "all" | AppointmentStatus;
 type ActivityRangePreset = "3d" | "7d" | "14d" | "30d" | "90d" | "custom";
@@ -184,9 +186,9 @@ export default function DoctorAppointmentsPage() {
   const { showToast } = useToast();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [patientsById, setPatientsById] = useState<Record<string, PatientSummaryResponse>>(
-    {}
-  );
+  const [patientsById, setPatientsById] = useState<
+    Record<string, PatientSummaryResponse>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -250,7 +252,10 @@ export default function DoctorAppointmentsPage() {
         const patientEntries = await Promise.all(
           patientIds.map(async (patientId) => {
             try {
-              const patient = await getPatientSummaryByAuthUserId(token, patientId);
+              const patient = await getPatientSummaryByAuthUserId(
+                token,
+                patientId
+              );
               return [patientId, patient] as const;
             } catch {
               return [patientId, null] as const;
@@ -264,7 +269,6 @@ export default function DoctorAppointmentsPage() {
               if (patient) {
                 accumulator[patientId] = patient;
               }
-
               return accumulator;
             },
             {}
@@ -816,6 +820,29 @@ export default function DoctorAppointmentsPage() {
     });
   }
 
+  if (isLoading) {
+    return <PageLoading message="Loading appointment requests..." />;
+  }
+
+  if (appointments.length === 0) {
+    return (
+      <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          {errorMessage && (
+            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {errorMessage}
+            </div>
+          )}
+
+          <NoDocAppointments
+            viewScheduleLink="/doctor-sessions"
+            editAvailabilityLink="/doctor-availability"
+          />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -823,10 +850,10 @@ export default function DoctorAppointmentsPage() {
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
             Doctor Appointments
           </h1>
-          <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-            Review, search, filter, accept, and reject appointment requests from one
-            place. Rejected appointments stay visible for follow-up and audit.
-          </p>
+              <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
+                Review, search, filter, accept, and reject appointment requests from one
+                place. Rejected appointments stay visible for follow-up and audit.
+              </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1314,11 +1341,7 @@ export default function DoctorAppointmentsPage() {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
-            Loading appointments...
-          </div>
-        ) : filteredAppointments.length === 0 ? (
+        {filteredAppointments.length === 0 ? (
           <div className="rounded-3xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-slate-200">
             <h3 className="text-xl font-bold text-slate-900">No matching appointments</h3>
             <p className="mt-2 text-sm leading-6 text-slate-500">

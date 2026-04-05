@@ -3,8 +3,8 @@ import {
   defaultCountries,
   PhoneInput,
 } from "react-international-phone";
-import "react-international-phone/style.css";
 import type { CSSProperties } from "react";
+import "react-international-phone/style.css";
 
 const countries = defaultCountries.map((country) =>
   country[1] === "lk"

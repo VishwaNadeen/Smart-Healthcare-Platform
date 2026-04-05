@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import FullScreenPageLoading from "../../components/common/FullScreenPageLoading";
 import PrescriptionForm, {
   type PrescriptionFormHandle,
 } from "../../components/telemedicine/PrescriptionForm";
@@ -35,7 +36,9 @@ export default function Consultation() {
   const [, setSavingNotes] = useState(false);
   const [isHangupConfirmOpen, setIsHangupConfirmOpen] = useState(false);
   const [isEndingSession, setIsEndingSession] = useState(false);
+  const [confirmMode, setConfirmMode] = useState<"hangup" | "leave">("hangup");
   const prescriptionFormRef = useRef<PrescriptionFormHandle | null>(null);
+  const allowNavigationRef = useRef(false);
   const {
     session,
     setSession,
@@ -155,6 +158,7 @@ export default function Consultation() {
         throw new Error("Meeting could not be ended");
       }
 
+      allowNavigationRef.current = true;
       navigate(`/doctor-session-summary/${updated.session.appointmentId}`);
     } catch (error) {
       console.error("Failed to end call:", error);
@@ -218,12 +222,84 @@ export default function Consultation() {
 
   function handleHangupMeeting() {
     if (isDoctor) {
+      setConfirmMode("hangup");
       setIsHangupConfirmOpen(true);
       return;
     }
 
     proceedHangupMeeting();
     if (session?.appointmentId) {
+      allowNavigationRef.current = true;
+      navigate(`/session-summary/${session.appointmentId}`);
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.history.pushState({ consultationGuard: true }, "", currentUrl);
+
+    function handlePopState() {
+      if (allowNavigationRef.current) {
+        return;
+      }
+
+      setConfirmMode("leave");
+      setIsHangupConfirmOpen(true);
+    }
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  function handleCancelExit() {
+    if (isEndingSession) {
+      return;
+    }
+
+    if (confirmMode === "leave" && typeof window !== "undefined") {
+      const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      window.history.pushState({ consultationGuard: true }, "", currentUrl);
+    }
+
+    allowNavigationRef.current = false;
+    setIsHangupConfirmOpen(false);
+  }
+
+  function handleConfirmExit() {
+    if (confirmMode === "leave") {
+      setIsHangupConfirmOpen(false);
+      allowNavigationRef.current = true;
+
+      if (meetingOpen) {
+        proceedHangupMeeting({
+          skipDoctorEndCall: true,
+          suppressOpenAlert: true,
+        });
+      }
+
+      if (typeof window !== "undefined") {
+        window.history.back();
+      }
+
+      return;
+    }
+
+    if (isDoctor) {
+      void handleEndCall();
+      return;
+    }
+
+    setIsHangupConfirmOpen(false);
+    proceedHangupMeeting();
+    if (session?.appointmentId) {
+      allowNavigationRef.current = true;
       navigate(`/session-summary/${session.appointmentId}`);
     }
   }
@@ -239,13 +315,7 @@ export default function Consultation() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <p className="text-lg font-medium text-slate-700">
-          Loading consultation...
-        </p>
-      </div>
-    );
+    return <FullScreenPageLoading message="Loading consultation..." />;
   }
 
   if (!session) {
@@ -383,15 +453,23 @@ export default function Consultation() {
       <HangupConfirmModal
         open={isHangupConfirmOpen}
         busy={isEndingSession}
-        onCancel={() => {
-          if (isEndingSession) {
-            return;
-          }
-          setIsHangupConfirmOpen(false);
-        }}
-        onConfirm={() => {
-          void handleEndCall();
-        }}
+        title={
+          confirmMode === "leave" && !isDoctor
+            ? "Leave Consultation?"
+            : undefined
+        }
+        description={
+          confirmMode === "leave"
+            ? isDoctor
+              ? "Leaving this page will disconnect the consultation. Do you want to continue?"
+              : "Are you sure you want to leave this consultation? You will be disconnected from the meeting, and you may not be able to rejoin."
+            : undefined
+        }
+        confirmLabel={
+          confirmMode === "leave" ? "Leave Consultation" : undefined
+        }
+        onCancel={handleCancelExit}
+        onConfirm={handleConfirmExit}
       />
 
       {appointmentId && role ? (

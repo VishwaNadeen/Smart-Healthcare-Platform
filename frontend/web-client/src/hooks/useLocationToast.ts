@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { useToast } from "../components/common/ToastProvider";
+import { useToast } from "../components/common/toastContext";
 
 type ToastLocationState = {
   successMessage?: string;

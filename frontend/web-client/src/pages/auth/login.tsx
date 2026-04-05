@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useToast } from "../../components/common/ToastProvider";
+import PasswordField from "../../components/common/PasswordField";
+import { useToast } from "../../components/common/toastContext";
 import { useLocationToast } from "../../hooks/useLocationToast";
 import { loginUser } from "../../services/authApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
@@ -140,20 +141,20 @@ export default function LoginPage() {
         message.toLowerCase().includes("verify your email") &&
         form.email.trim()
       ) {
-        showToast("Please verify your email before logging in.", "info");
         navigate("/verify-email", {
           replace: true,
           state: {
             registeredEmail: form.email.trim(),
-            successMessage:
-              "Your account is registered, but email verification is still pending.",
+            infoMessage: "Verify your email first.",
           },
         });
         return;
       }
 
       setError(
-        message.toLowerCase().includes("incorrect email or password")
+        message.toLowerCase().includes("user not found")
+          ? "No account found for this email."
+          : message.toLowerCase().includes("incorrect password")
           ? "Incorrect password."
           : message
       );
@@ -268,16 +269,16 @@ export default function LoginPage() {
                     Forgot password?
                   </Link>
                 </div>
-                <input
+                <PasswordField
                   id="password"
-                  type="password"
                   value={form.password}
                   onChange={(event) =>
                     updateField("password", event.target.value)
                   }
                   placeholder="Enter your password"
                   required
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  autoComplete="current-password"
+                  inputClassName="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
 
