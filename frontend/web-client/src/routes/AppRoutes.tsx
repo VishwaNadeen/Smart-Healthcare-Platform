@@ -14,6 +14,7 @@ import { patientRoutes } from "./patientRoutes";
 import { appointmentRoutes } from "./appointmentRoutes";
 import { profileRoutes } from "./profileRoutes";
 import { prescriptionRoutes } from "./prescriptionRoutes";
+import { aiRoutes } from "./aiRoutes";
 
 export default function AppRoutes() {
   return (
@@ -48,6 +49,7 @@ export default function AppRoutes() {
         {appointmentRoutes}
         {profileRoutes}
         {prescriptionRoutes}
+        {aiRoutes}
         
       </Routes>
     </AnimatePresence>
