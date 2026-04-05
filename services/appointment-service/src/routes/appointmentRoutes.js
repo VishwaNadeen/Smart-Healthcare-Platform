@@ -23,6 +23,8 @@ const {
   getPatientAppointmentStatsAdmin,
   getInternalAppointmentById,
   updateAppointmentStatusInternal,
+  updateAppointmentPaymentStatusInternal,
+
 } = require("../controllers/appointmentController");
 
 router.get("/specialties", getSpecialtiesForDropdown);
@@ -45,5 +47,6 @@ router.patch("/:id/status", requireDoctorAuth, updateAppointmentStatus);
 */
 router.get("/internal/:id", getInternalAppointmentById);
 router.patch("/internal/:id/status", updateAppointmentStatusInternal);
+router.patch("/internal/:id/payment-status", updateAppointmentPaymentStatusInternal);
 
 module.exports = router;

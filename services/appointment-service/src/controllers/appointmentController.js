@@ -501,7 +501,6 @@ const getInternalAppointmentById = async (req, res) => {
     });
   }
 };
-
 const updateAppointmentStatusInternal = async (req, res) => {
   try {
     if (!hasValidInternalSecret(req)) {
@@ -549,6 +548,41 @@ const updateAppointmentStatusInternal = async (req, res) => {
     });
   }
 };
+//nimesh add- payment status changes after payment is done
+const updateAppointmentPaymentStatusInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const { paymentStatus } = req.body;
+    const validStatuses = ["pending", "paid", "failed"];
+
+    if (!validStatuses.includes(paymentStatus)) {
+      return res.status(400).json({ message: "Invalid paymentStatus value" });
+    }
+
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    appointment.paymentStatus = paymentStatus;
+    await appointment.save();
+
+    return res.status(200).json({
+      message: "Appointment payment status updated successfully",
+      appointment,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to update appointment payment status",
+      error: error.message,
+    });
+  }
+};
+
 
 
 
@@ -567,4 +601,6 @@ module.exports = {
   getPatientAppointmentStatsAdmin,
   getInternalAppointmentById,
   updateAppointmentStatusInternal,
+  updateAppointmentPaymentStatusInternal,  // ← add this nimesh
 };
+

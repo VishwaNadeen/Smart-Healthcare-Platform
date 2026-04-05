@@ -3,13 +3,55 @@ const PDFDocument = require('pdfkit');
 const Payment = require('../models/Payment.model');
 const { generateHash, verifyNotification, getCheckoutUrl } = require('../services/payhere.service');
 
-// POST /api/payments/initiate
+//helper: get doctorConsultationFee form doctor service
+
+const getDoctorConsultationFee = async (doctorId) => {
+  const res = await fetch(
+    `${process.env.DOCTOR_SERVICE_URL}/api/doctors/${doctorId}`
+  );
+  if (!res.ok) throw new Error('Failed to fetch doctor details');
+  const data = await res.json();
+  return data?.doctor?.consultationFee ?? data?.consultationFee ?? null;
+};
+
+//helper: tell appointment service to update paymentStatus after PayHere webhook
+const updateAppointmentPaymentStatus = async (appointmentId, paymentStatus) => {
+  try {
+    await fetch(
+      `${process.env.APPOINTMENT_SERVICE_URL}/api/appointments/internal/${appointmentId}/payment-status`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-service-secret': process.env.INTERNAL_SERVICE_SECRET || '',
+        },
+        body: JSON.stringify({ paymentStatus }),
+      }
+    );
+  } catch (err) {
+    console.error('[PaymentService] Failed to update appointment payment status:', err.message);
+  }
+};
+
+// POST /api/payments/initiateconst 
 const initiatePayment = async (req, res) => {
   try {
     const {
       patientId, doctorId, appointmentId, amount,
       firstName, lastName, email, phone, currency = 'LKR'
     } = req.body;
+
+    // Validate amount against doctor's actual consultation fee
+    const consultationFee = await getDoctorConsultationFee(doctorId);
+    if (consultationFee === null) {
+      return res.status(400).json({ message: 'Could not verify doctor consultation fee' });
+    }
+    if (parseFloat(amount) !== parseFloat(consultationFee)) {
+      return res.status(400).json({
+        message: 'Amount does not match the doctor consultation fee',
+        expected: consultationFee,
+      });
+    }
 
     const orderId = `ORD-${uuidv4()}`;
 
@@ -48,6 +90,7 @@ const initiatePayment = async (req, res) => {
   }
 };
 
+
 // POST /api/payments/notify — PayHere webhook
 const handleNotification = async (req, res) => {
   try {
@@ -72,7 +115,7 @@ const handleNotification = async (req, res) => {
       '-3': 'REFUNDED'
     };
 
-    await Payment.findOneAndUpdate(
+    const updatedPayment = await Payment.findOneAndUpdate(
       { orderId: order_id },
       {
         status: statusMap[status_code] || 'FAILED',
@@ -80,14 +123,27 @@ const handleNotification = async (req, res) => {
         payhereStatusCode: status_code,
         payhereStatusMessage: status_message,
         payhereMethod: method
-      }
+      },
+      { new: true }  // returns the updated document
     );
+
+    // Sync paymentStatus back to appointment-service
+    if (updatedPayment) {
+      const appointmentPaymentStatus =
+        statusMap[status_code] === 'SUCCESS' ? 'paid' :
+        statusMap[status_code] === 'FAILED'  ? 'failed' : null;
+
+      if (appointmentPaymentStatus) {
+        updateAppointmentPaymentStatus(updatedPayment.appointmentId, appointmentPaymentStatus);
+      }
+    }
 
     res.status(200).send('OK');
   } catch (error) {
     res.status(500).send('Notification handling failed');
   }
 };
+
 
 // GET /api/payments/:orderId
 const getPaymentStatus = async (req, res) => {
