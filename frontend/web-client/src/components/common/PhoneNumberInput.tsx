@@ -26,7 +26,6 @@ type PhoneNumberInputProps = {
   error?: string;
   disabled?: boolean;
   defaultCountry?: string;
-  sizeVariant?: "default" | "large";
 };
 
 export default function PhoneNumberInput({
@@ -36,21 +35,18 @@ export default function PhoneNumberInput({
   error = "",
   disabled = false,
   defaultCountry = "lk", // Sri Lanka default
-  sizeVariant = "default",
 }: PhoneNumberInputProps) {
-  const largeVariant = sizeVariant === "large";
-  const largeControlHeight = 56;
-  const sharedStyle = largeVariant
-    ? ({
-        ["--react-international-phone-height" as string]: `${largeControlHeight}px`,
-        ["--react-international-phone-border-radius" as string]: "1rem",
-        ["--react-international-phone-font-size" as string]: "0.875rem",
-      } as CSSProperties)
-    : undefined;
-
   return (
     <div>
       <PhoneInput
+        className="w-full"
+        style={
+          {
+            "--react-international-phone-height": "56px",
+            "--react-international-phone-border-radius": "0.75rem",
+            "--react-international-phone-font-size": "0.875rem",
+          } as CSSProperties
+        }
         countries={countries}
         defaultCountry={defaultCountry}
         defaultMask=".........."
@@ -59,25 +55,11 @@ export default function PhoneNumberInput({
         onBlur={onBlur}
         disabled={disabled}
         forceDialCode
-        className="w-full"
-        style={sharedStyle}
-        inputClassName={`w-full border text-sm text-slate-800 focus:outline-none ${
-          largeVariant
-            ? "rounded-r-2xl rounded-l-none px-4 py-3.5"
-            : "rounded-r-xl rounded-l-none px-4 py-3"
-        } ${
+        inputClassName={`w-full rounded-r-xl border border-l-0 px-4 text-sm text-slate-800 focus:outline-none ${
           error ? "border-red-400" : "border-slate-300"
         } ${disabled ? "cursor-not-allowed bg-slate-100" : "bg-white"}`}
         countrySelectorStyleProps={{
-          buttonStyle: largeVariant
-            ? {
-                height: `${largeControlHeight}px`,
-                minHeight: `${largeControlHeight}px`,
-              }
-            : undefined,
-          buttonClassName: `border-y border-l ${
-            largeVariant ? "rounded-l-2xl" : "rounded-l-xl"
-          } ${
+          buttonClassName: `rounded-l-xl border ${
             error ? "border-red-400" : "border-slate-300"
           } ${disabled ? "bg-slate-100" : "bg-white"}`,
           dropdownStyleProps: {

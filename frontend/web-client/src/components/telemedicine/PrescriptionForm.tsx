@@ -2,11 +2,13 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
   type SetStateAction,
 } from "react";
+import lottie from "lottie-web";
 import {
   createPrescription,
   getPrescriptionsByAppointmentId,
@@ -15,6 +17,8 @@ import {
   updatePrescription,
 } from "../../services/telemedicineApi";
 import type { TelemedicineActorRole } from "../../utils/telemedicineAuth";
+import loadingDotAnimation from "../../assets/animations/loading-dot.json";
+import prescriptionEmptyState from "../../assets/animations/prescription-empty-state.json";
 
 type Draft = {
   id: string;
@@ -32,6 +36,14 @@ const newDraft = (): Draft => ({
   dosage: "",
   instructions: "",
 });
+
+function cloneAnimationData<T>(data: T): T {
+  if (typeof structuredClone === "function") {
+    return structuredClone(data);
+  }
+
+  return JSON.parse(JSON.stringify(data)) as T;
+}
 
 type Props = {
   role: TelemedicineActorRole;
@@ -106,6 +118,10 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
   const [editingPrescriptionId, setEditingPrescriptionId] = useState("");
   const [editingPrescriptionDraft, setEditingPrescriptionDraft] = useState<SummaryDraft>(emptySummaryDraft);
   const [activePrescriptionIndex, setActivePrescriptionIndex] = useState(0);
+  const emptyStateAnimationRef = useRef<HTMLDivElement | null>(null);
+  const loadingAnimationRef = useRef<HTMLDivElement | null>(null);
+  const [hasAnimationError, setHasAnimationError] = useState(false);
+  const [hasLoadingAnimationError, setHasLoadingAnimationError] = useState(false);
 
   const canCreatePrescription = role === "doctor" && !readOnly;
   const canEditConsultationNotes =
@@ -223,6 +239,73 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
     showPatientPrescriptionLoading || showDoctorPrescriptionLoading;
   const showEditorPrescriptionLoading =
     !readOnly && loadExistingIntoEditor && loading;
+  const showAnyDotLoadingAnimation =
+    showPrescriptionLoadingAnimation || showEditorPrescriptionLoading;
+
+  useEffect(() => {
+    if (!showAnyDotLoadingAnimation || !loadingAnimationRef.current) {
+      return;
+    }
+
+    setHasLoadingAnimationError(false);
+
+    const animation = lottie.loadAnimation({
+      container: loadingAnimationRef.current,
+      renderer: "svg",
+      loop: true,
+      autoplay: true,
+      animationData: cloneAnimationData(loadingDotAnimation),
+      rendererSettings: {
+        preserveAspectRatio: "xMidYMid meet",
+      },
+    });
+
+    const handleError = () => {
+      setHasLoadingAnimationError(true);
+    };
+
+    animation.addEventListener("data_failed", handleError);
+    animation.addEventListener("error", handleError);
+
+    return () => {
+      animation.removeEventListener("data_failed", handleError);
+      animation.removeEventListener("error", handleError);
+      animation.destroy();
+    };
+  }, [showAnyDotLoadingAnimation]);
+
+  useEffect(() => {
+    if (!showPatientEmptyState || !emptyStateAnimationRef.current) {
+      return;
+    }
+
+    setHasAnimationError(false);
+
+    const animation = lottie.loadAnimation({
+      container: emptyStateAnimationRef.current,
+      renderer: "svg",
+      loop: true,
+      autoplay: true,
+      animationData: cloneAnimationData(prescriptionEmptyState),
+      rendererSettings: {
+        preserveAspectRatio: "xMidYMid meet",
+      },
+    });
+
+    const handleError = () => {
+      setHasAnimationError(true);
+    };
+
+    animation.addEventListener("data_failed", handleError);
+    animation.addEventListener("error", handleError);
+
+    return () => {
+      animation.removeEventListener("data_failed", handleError);
+      animation.removeEventListener("error", handleError);
+      animation.destroy();
+    };
+  }, [showPatientEmptyState]);
+
   function flash(message: string) {
     setSavedMessage(message);
     window.setTimeout(() => setSavedMessage(""), 2000);
@@ -409,10 +492,17 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
       return (
         <div className="flex h-full min-h-0 items-center justify-center overflow-hidden px-4 py-6">
           <div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center text-center">
-            <div
-              className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600"
-              aria-label="Prescription loading indicator"
-            />
+            {hasLoadingAnimationError ? (
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+            ) : (
+              <div className="h-20 w-full max-w-[10rem]">
+                <div
+                  ref={loadingAnimationRef}
+                  className="h-full w-full"
+                  aria-label="Prescription loading animation"
+                />
+              </div>
+            )}
           </div>
         </div>
       );
@@ -422,16 +512,17 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
       return (
         <div className="flex h-full min-h-0 items-center justify-center overflow-hidden px-4 py-6">
           <div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center text-center">
-            <div className="mb-5 flex h-52 w-full max-w-sm items-center justify-center rounded-[28px] bg-gradient-to-br from-blue-50 via-white to-slate-100 shadow-inner sm:h-60">
-              <div className="text-center">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 text-3xl font-bold text-blue-600 shadow-sm">
-                  RX
-                </div>
-                <p className="mt-4 px-4 text-sm font-medium text-slate-500">
-                  Prescription details are not ready yet.
-                </p>
+            {hasAnimationError ? (
+              <div className="mb-5 h-12 w-12 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+            ) : (
+              <div className="mb-5 h-52 w-full max-w-sm sm:h-60">
+                <div
+                  ref={emptyStateAnimationRef}
+                  className="h-full w-full"
+                  aria-label="Prescription empty state animation"
+                />
               </div>
-            </div>
+            )}
 
             <p className="max-w-md text-base font-semibold leading-8 text-slate-800 sm:text-lg">
               Prescription and consultation notes are not ready yet.
@@ -793,10 +884,17 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
           {showEditorPrescriptionLoading ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
               <div className="flex min-h-[4.5rem] flex-col items-center justify-center gap-3">
-                <div
-                  className="h-14 w-14 animate-spin rounded-full border-[3px] border-slate-300 border-t-blue-600"
-                  aria-label="Loading saved prescriptions indicator"
-                />
+                {hasLoadingAnimationError ? (
+                  <div className="h-14 w-14 animate-spin rounded-full border-[3px] border-slate-300 border-t-blue-600" />
+                ) : (
+                  <div className="h-20 w-full max-w-[12rem]">
+                    <div
+                      ref={loadingAnimationRef}
+                      className="h-full w-full"
+                      aria-label="Loading saved prescriptions animation"
+                    />
+                  </div>
+                )}
                 <p>Loading saved prescriptions...</p>
               </div>
             </div>

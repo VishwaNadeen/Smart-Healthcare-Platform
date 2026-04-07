@@ -89,24 +89,6 @@ const buildPatientSummary = (patient) => ({
   profileImage: patient.profileImage || "",
 });
 
-const buildPatientDetails = (patient) => ({
-  _id: patient._id,
-  authUserId: patient.authUserId || "",
-  title: patient.title || "",
-  firstName: patient.firstName,
-  lastName: patient.lastName,
-  nic: patient.nic || "",
-  email: patient.email || "",
-  countryCode: patient.countryCode || "",
-  phone: patient.phone || "",
-  birthday: patient.birthday || "",
-  age: getAgeFromBirthday(patient.birthday),
-  gender: patient.gender || "",
-  address: patient.address || "",
-  country: patient.country || "",
-  profileImage: patient.profileImage || "",
-});
-
 // Create patient with auth-service registration
 const createPatient = async (req, res) => {
   let authRegistration = null;
@@ -356,44 +338,6 @@ const getPatientSummaryByAuthUserId = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch patient summary",
-      error: error.message,
-    });
-  }
-};
-
-const getPatientDetailsByAuthUserId = async (req, res) => {
-  try {
-    const requestedAuthUserId = String(req.params.authUserId || "").trim();
-    const requesterUserId = String(req.authUser?.userId || "").trim();
-    const requesterRole = String(req.authUser?.role || "").toLowerCase();
-
-    if (!requestedAuthUserId) {
-      return res.status(400).json({ message: "authUserId is required" });
-    }
-
-    const isSamePatient =
-      requesterRole === "patient" && requesterUserId === requestedAuthUserId;
-    const canReadDetails =
-      requesterRole === "doctor" || requesterRole === "admin" || isSamePatient;
-
-    if (!canReadDetails) {
-      return res.status(403).json({
-        message: "You are not allowed to access this patient profile",
-      });
-    }
-
-    const patient = await Patient.findOne({ authUserId: requestedAuthUserId }).select(
-      "_id authUserId title firstName lastName nic email countryCode phone birthday gender address country profileImage"
-    );
-
-    if (!patient) {
-      return res.status(404).json({ message: "Patient not found" });
-    }
-
-    return res.status(200).json(buildPatientDetails(patient));
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to fetch patient details",
       error: error.message,
     });
   }
@@ -703,7 +647,6 @@ module.exports = {
   getPatientById,
   getPatientByIdAdmin,
   getPatientSummaryByAuthUserId,
-  getPatientDetailsByAuthUserId,
   updateCurrentPatient,
   updatePatientAdmin,
   updatePatientStatusAdmin,
