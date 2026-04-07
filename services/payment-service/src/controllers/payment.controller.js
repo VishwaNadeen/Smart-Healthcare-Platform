@@ -168,7 +168,7 @@ const handleNotification = async (req, res) => {
         payhereStatusMessage: status_message,
         payhereMethod: method
       },
-      { new: true }  // returns the updated document
+      { returnDocument: 'after' }  // returns the updated document
     );
 
     // Sync paymentStatus back to appointment-service

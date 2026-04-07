@@ -94,8 +94,12 @@ export default function DoctorAppointmentRequestCard({
   const isRejecting = loadingAction === "reject";
   const isAnyLoading = loadingAction !== null;
 
+  // Accept is only allowed when payment is confirmed
+  const isPaymentPaid = appointment.paymentStatus === "paid";
+  const isAcceptDisabled = isAnyLoading || !isPaymentPaid;
+
   async function handleAccept() {
-    if (isAnyLoading) return;
+    if (isAcceptDisabled) return;
 
     try {
       setLoadingAction("accept");
@@ -173,23 +177,31 @@ export default function DoctorAppointmentRequestCard({
         </div>
 
         <div className="mt-6 flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={handleAccept}
-            disabled={isAnyLoading}
-            className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <span className="flex items-center justify-center gap-2">
-              {isAccepting ? (
-                <>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Updating...
-                </>
-              ) : (
-                "Accept Request"
-              )}
-            </span>
-          </button>
+          <div title={!isPaymentPaid ? "Cannot accept — payment not yet completed" : ""}>
+            <button
+              type="button"
+              onClick={handleAccept}
+              disabled={isAcceptDisabled}
+              className={`w-full rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${
+                isPaymentPaid
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-md"
+                  : "bg-slate-100 text-slate-400"
+              }`}
+            >
+              <span className="flex items-center justify-center gap-2">
+                {isAccepting ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Updating...
+                  </>
+                ) : !isPaymentPaid ? (
+                  "Awaiting Payment"
+                ) : (
+                  "Accept Request"
+                )}
+              </span>
+            </button>
+          </div>
 
           <button
             type="button"

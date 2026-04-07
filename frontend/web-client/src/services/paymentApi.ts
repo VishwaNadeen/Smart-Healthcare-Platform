@@ -140,14 +140,16 @@ export async function getPatientPaymentHistory(
 
   return handlePaymentResponse<PatientPaymentHistoryResponse>(response);
 }
-
 export async function getDoctorPaymentHistory(
-  doctorId: string
+  doctorId: string,
+  token: string
 ): Promise<DoctorPaymentHistoryResponse> {
   let response: Response;
 
   try {
-    response = await fetch(`${PAYMENT_API_URL}/doctor/${doctorId}`);
+    response = await fetch(`${PAYMENT_API_URL}/doctor/${doctorId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
   } catch {
     throw new Error(
       "Unable to connect to the payment service. Please check that it is running."
@@ -156,6 +158,7 @@ export async function getDoctorPaymentHistory(
 
   return handlePaymentResponse<DoctorPaymentHistoryResponse>(response);
 }
+
 
 export function getReceiptUrl(orderId: string): string {
   return `${PAYMENT_API_URL}/${orderId}/receipt`;

@@ -6,6 +6,7 @@ import PaymentSuccessPage from "../pages/payment/PaymentSuccess";
 import PaymentCancelPage from "../pages/payment/PaymentCancel";
 import PaymentHistoryPage from "../pages/payment/PaymentHistory";
 import NotificationHistoryPage from "../pages/notifications/NotificationHistory";
+import DoctorEarningsPage from "../pages/payment/DoctorEarnings";
 
 export const paymentRoutes = (
   <>
@@ -55,6 +56,17 @@ export const paymentRoutes = (
         <MainLayout>
           <RequireTelemedicineRole allowedRoles={["patient", "doctor"]}>
             <NotificationHistoryPage />
+          </RequireTelemedicineRole>
+        </MainLayout>
+      }
+    />
+
+    <Route
+      path="/earnings"
+      element={
+        <MainLayout>
+          <RequireTelemedicineRole allowedRoles={["doctor"]}>
+            <DoctorEarningsPage />
           </RequireTelemedicineRole>
         </MainLayout>
       }

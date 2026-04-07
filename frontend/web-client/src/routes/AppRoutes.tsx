@@ -14,6 +14,7 @@ import { appointmentRoutes } from "./appointmentRoutes";
 import { profileRoutes } from "./profileRoutes";
 import { paymentRoutes } from "./paymentRoutes";
 
+
 export default function AppRoutes() {
   return (
     <AnimatePresence mode="wait">
