@@ -3,6 +3,7 @@ import MainLayout from "../layouts/mainLayout";
 import PatientAppointmentsPage from "../pages/appointments/patientAppointments";
 import DoctorAppointmentsPage from "../pages/appointments/doctorAppointments";
 import CreateAppointmentPage from "../pages/appointments/createAppointment";
+import PatientAppointmentDetailsPage from "../pages/appointments/patientAppointmentDetails";
 import RequireTelemedicineRole from "../components/telemedicine/RequireTelemedicineRole";
 import {
   getRoleHomePath,
@@ -85,6 +86,17 @@ export const appointmentRoutes = (
         <MainLayout>
           <RequireTelemedicineRole allowedRoles={["patient"]}>
             <CreateAppointmentPage />
+          </RequireTelemedicineRole>
+        </MainLayout>
+      }
+    />
+
+    <Route
+      path="/appointments/:id"
+      element={
+        <MainLayout>
+          <RequireTelemedicineRole allowedRoles={["patient"]}>
+            <PatientAppointmentDetailsPage />
           </RequireTelemedicineRole>
         </MainLayout>
       }

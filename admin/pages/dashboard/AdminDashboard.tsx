@@ -9,11 +9,18 @@ const adminSections = [
     action: "Open Users",
   },
   {
-    title: "Doctor Verifications",
+    title: "Doctor Directory",
     description:
-      "Review new doctor registrations and complete verification-related admin tasks.",
-    to: "/doctor-verifications",
-    action: "Review Verifications",
+      "Manage the full doctor roster, review verification progress, and update doctor records from one admin workspace.",
+    to: "/doctors",
+    action: "Open Doctors",
+  },
+  {
+    title: "Doctor Specialties",
+    description:
+      "Create, edit, activate, and retire specialty options used across doctor registration and profile management.",
+    to: "/doctor-specialties",
+    action: "Open Specialties",
   },
   {
     title: "Appointments",
@@ -45,7 +52,7 @@ export default function AdminDashboard() {
         <h2 className="text-3xl font-bold text-slate-800">Admin Dashboard</h2>
         <p className="mt-2 text-slate-600">
           Use this page as the main admin entry point for account control,
-          doctor verification, appointments, payments, and platform operations.
+          doctor management, appointments, payments, and platform operations.
         </p>
       </div>
 

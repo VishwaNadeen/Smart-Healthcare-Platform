@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { Appointment } from "../../services/appointmentApi";
+import { downloadAppointmentReceiptPdf } from "../../utils/appointmentReceiptPdf";
 
 type PatientAppointmentCardProps = {
   appointment: Appointment;
@@ -58,11 +59,39 @@ function getPaymentClasses(status: Appointment["paymentStatus"]) {
   }
 }
 
+function getStatusLabel(appointment: Appointment) {
+  const rejectReason = getLatestCancelledReason(appointment);
+
+  if (appointment.status === "cancelled" && rejectReason) {
+    return "Rejected";
+  }
+
+  return appointment.status;
+}
+
+function getLatestCancelledReason(appointment: Appointment) {
+  const latestCancelledEntry = [...(appointment.statusHistory || [])]
+    .reverse()
+    .find((entry) => entry.status === "cancelled" && entry.note?.trim());
+
+  if (!latestCancelledEntry?.note?.trim()) {
+    return "";
+  }
+
+  if (latestCancelledEntry.note.trim().toLowerCase() === "appointment cancelled") {
+    return "";
+  }
+
+  return latestCancelledEntry.note.trim();
+}
+
 export default function PatientAppointmentCard({
   appointment,
   onCancel,
   isCancelling,
 }: PatientAppointmentCardProps) {
+  const rejectReason = getLatestCancelledReason(appointment);
+
   return (
     <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
       <div className="min-w-0">
@@ -115,10 +144,19 @@ export default function PatientAppointmentCard({
               appointment.status
             )}`}
           >
-            {appointment.status}
+            {getStatusLabel(appointment)}
           </span>
         </div>
       </div>
+
+      {rejectReason ? (
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">
+            Doctor Rejection Reason
+          </p>
+          <p className="mt-1 text-sm text-rose-800">{rejectReason}</p>
+        </div>
+      ) : null}
 
       <div className="mt-5 flex flex-col gap-3">
         <Link
@@ -127,6 +165,16 @@ export default function PatientAppointmentCard({
         >
           View Details
         </Link>
+
+        <button
+          type="button"
+          onClick={() =>
+            downloadAppointmentReceiptPdf(appointment, rejectReason)
+          }
+          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          Download Receipt PDF
+        </button>
 
         {appointment.status === "confirmed" && (
           <Link

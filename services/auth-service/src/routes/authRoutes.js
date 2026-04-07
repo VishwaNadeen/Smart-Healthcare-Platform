@@ -7,6 +7,7 @@ const {
   logout,
   deleteMe,
   deleteByEmailInternal,
+  updateUserIdentityInternal,
   getUserByIdInternal,
   me,
   stats,
@@ -75,7 +76,7 @@ router.delete(
   validate(deleteByEmailInternalSchema),
   deleteByEmailInternal
 );
-
+router.patch("/internal/users/:userId/identity", updateUserIdentityInternal);
 router.get("/internal/users/:id", getUserByIdInternal);
 
 router.get(
