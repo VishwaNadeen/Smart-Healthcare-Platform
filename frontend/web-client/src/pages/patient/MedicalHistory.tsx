@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
+import { Navigate, useSearchParams } from "react-router-dom";
 import ReportsPage from "./ReportsPage";
 import { getCurrentPatientProfile } from "../../services/patientApi";
+import { getPatientReports } from "../../services/report";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
 export default function MedicalHistoryPage() {
   const auth = getStoredTelemedicineAuth();
+  const [searchParams] = useSearchParams();
   const [patientId, setPatientId] = useState("");
+  const [hasReports, setHasReports] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const forceUploadForm = searchParams.get("mode") === "upload";
 
   useEffect(() => {
     let isActive = true;
@@ -29,6 +34,13 @@ export default function MedicalHistoryPage() {
         }
 
         setPatientId(patient._id);
+        const reports = await getPatientReports(patient._id);
+
+        if (!isActive) {
+          return;
+        }
+
+        setHasReports(reports.length > 0);
         setError("");
       } catch (loadError) {
         if (!isActive) {
@@ -78,6 +90,10 @@ export default function MedicalHistoryPage() {
         </div>
       </div>
     );
+  }
+
+  if (hasReports && !forceUploadForm) {
+    return <Navigate to="/medical-history/reports" replace />;
   }
 
   return <ReportsPage patientId={patientId} />;

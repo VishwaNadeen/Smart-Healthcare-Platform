@@ -23,31 +23,39 @@ const PatientReportsPage: React.FC<PatientReportsPageProps> = ({
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-10 text-white">
-            <h1 className="text-3xl font-bold">Medical Report</h1>
-            <p className="mt-3 max-w-2xl text-sm text-blue-100 sm:text-base">
-              Upload and review your lab reports, scan results, and supporting
-              medical documents in one place.
-            </p>
-          </div>
-
           <div className="grid gap-6 p-6">
-            <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">
-                    Upload New Report
-                  </h2>
-                  <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                    Add a new PDF or image report. Once uploaded, you will be
-                    taken to your report library where you can view, edit, or
-                    delete uploaded reports.
+            <section className="rounded-3xl border border-blue-200 bg-blue-100/70 p-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-3xl">
+                  <span className="inline-flex rounded-full bg-blue-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-800">
+                    Medical Reports
+                  </span>
+                  <h1 className="mt-4 text-3xl font-bold text-slate-900">
+                    Upload a new report
+                  </h1>
+                  <p className="mt-3 text-sm text-slate-600 sm:text-base">
+                    Add lab reports, scans, and other medical documents to keep
+                    your health history organized and easy to review later.
                   </p>
                 </div>
 
+                <div className="rounded-2xl border border-blue-200 bg-blue-100/80 px-4 py-4 shadow-sm lg:max-w-xs">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Before you upload
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Use a clear title, choose the correct category, and upload a
+                    PDF or image file for easier tracking.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+              <div className="flex justify-start sm:justify-end">
                 <Link
                   to="/medical-history/reports"
-                  className="inline-flex rounded-2xl border border-blue-200 bg-white px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                  className="inline-flex w-fit rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
                 >
                   Go to Report List
                 </Link>
