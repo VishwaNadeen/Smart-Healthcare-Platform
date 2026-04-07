@@ -5,7 +5,7 @@ import {
   type ReportFormPayload,
 } from "../../services/report";
 import type { Report } from "../../types/report";
-import { useToast } from "../common/ToastProvider";
+import { useToast } from "../common/toastContext";
 
 const REPORT_TYPE_OPTIONS = [
   { value: "general", label: "General Report" },

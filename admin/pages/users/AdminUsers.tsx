@@ -250,26 +250,6 @@ export default function AdminUsersPage() {
     });
   };
 
-  const handleDelete = async (patient: Patient) => {
-    setConfirmation({
-      title: "Delete Patient",
-      message: `This will permanently remove ${patient.firstName} ${patient.lastName} from the system.`,
-      confirmLabel: "Delete",
-      tone: "danger",
-      onConfirm: async () => {
-        await patientAdminService.deletePatient(patient._id);
-
-        setPatients((prev) => prev.filter((item) => item._id !== patient._id));
-
-        if (selectedPatient?._id === patient._id) {
-          setSelectedPatient(null);
-        }
-
-        showToast("success", "Patient deleted successfully.");
-      },
-    });
-  };
-
   useEffect(() => {
     async function loadAppointmentStats() {
       if (!selectedPatient?._id) {
@@ -437,7 +417,6 @@ export default function AdminUsersPage() {
               loading={loading}
               onView={handleView}
               onToggleStatus={handleToggleStatus}
-              onDelete={handleDelete}
             />
           </div>
         </>

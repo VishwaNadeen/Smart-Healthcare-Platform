@@ -2,11 +2,13 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
   type SetStateAction,
 } from "react";
+import lottie from "lottie-web";
 import {
   createPrescription,
   getPrescriptionsByAppointmentId,
@@ -15,6 +17,8 @@ import {
   updatePrescription,
 } from "../../services/telemedicineApi";
 import type { TelemedicineActorRole } from "../../utils/telemedicineAuth";
+import loadingDotAnimation from "../../assets/animations/loading-dot.json";
+import prescriptionEmptyState from "../../assets/animations/prescription-empty-state.json";
 
 type Draft = {
   id: string;
@@ -33,6 +37,14 @@ const newDraft = (): Draft => ({
   instructions: "",
 });
 
+function cloneAnimationData<T>(data: T): T {
+  if (typeof structuredClone === "function") {
+    return structuredClone(data);
+  }
+
+  return JSON.parse(JSON.stringify(data)) as T;
+}
+
 type Props = {
   role: TelemedicineActorRole;
   appointmentId: string;
@@ -43,6 +55,8 @@ type Props = {
   summaryEditable?: boolean;
   hideTitle?: boolean;
   loadExistingIntoEditor?: boolean;
+  autoRefreshWhenEmpty?: boolean;
+  readOnlyNotesHeight?: number | null;
   consultationNotes?: string;
   onConsultationNotesChange?: (notes: string) => void;
   onSaveConsultationNotes?: () => Promise<void> | void;
@@ -78,6 +92,8 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
     summaryEditable = false,
     hideTitle = false,
     loadExistingIntoEditor = false,
+    autoRefreshWhenEmpty = false,
+    readOnlyNotesHeight = null,
     consultationNotes = "",
     onConsultationNotesChange,
     onSaveConsultationNotes,
@@ -102,6 +118,10 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
   const [editingPrescriptionId, setEditingPrescriptionId] = useState("");
   const [editingPrescriptionDraft, setEditingPrescriptionDraft] = useState<SummaryDraft>(emptySummaryDraft);
   const [activePrescriptionIndex, setActivePrescriptionIndex] = useState(0);
+  const emptyStateAnimationRef = useRef<HTMLDivElement | null>(null);
+  const loadingAnimationRef = useRef<HTMLDivElement | null>(null);
+  const [hasAnimationError, setHasAnimationError] = useState(false);
+  const [hasLoadingAnimationError, setHasLoadingAnimationError] = useState(false);
 
   const canCreatePrescription = role === "doctor" && !readOnly;
   const canEditConsultationNotes =
@@ -112,11 +132,19 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
   const title = "Prescription & Medical Notes";
 
   useEffect(() => {
+    let isMounted = true;
+    let intervalId: number | null = null;
+
     async function loadPrescriptions() {
       try {
         setLoading(true);
         const response = await getPrescriptionsByAppointmentId(appointmentId);
         const nextPrescriptions = response.data || [];
+
+        if (!isMounted) {
+          return [] as TelemedicinePrescription[];
+        }
+
         setPrescriptions(nextPrescriptions);
 
         if (!readOnly && loadExistingIntoEditor) {
@@ -135,16 +163,45 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
           }
           setExpandedDraftId(null);
         }
+
+        if (nextPrescriptions.length > 0 && intervalId !== null) {
+          window.clearInterval(intervalId);
+          intervalId = null;
+        }
+
+        return nextPrescriptions;
       } catch (error) {
         console.error("Failed to load prescriptions:", error);
-        setPrescriptions([]);
+        if (isMounted) {
+          setPrescriptions([]);
+        }
+        return [] as TelemedicinePrescription[];
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
-    if (appointmentId) loadPrescriptions();
-    else setLoading(false);
-  }, [appointmentId, loadExistingIntoEditor, readOnly]);
+
+    if (appointmentId) {
+      void loadPrescriptions();
+
+      if (readOnly && autoRefreshWhenEmpty && role === "patient") {
+        intervalId = window.setInterval(() => {
+          void loadPrescriptions();
+        }, 5000);
+      }
+    } else {
+      setLoading(false);
+    }
+
+    return () => {
+      isMounted = false;
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [appointmentId, autoRefreshWhenEmpty, loadExistingIntoEditor, readOnly, role]);
 
   useEffect(() => {
     setNotesValue(consultationNotes);
@@ -160,6 +217,94 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
       return Math.min(current, prescriptions.length - 1);
     });
   }, [prescriptions.length]);
+
+  const showPatientEmptyState =
+    readOnly &&
+    role === "patient" &&
+    !notesValue.trim() &&
+    prescriptions.length === 0;
+
+  const showPatientPrescriptionLoading =
+    readOnly &&
+    role === "patient" &&
+    loading &&
+    !showPatientEmptyState;
+
+  const showDoctorPrescriptionLoading =
+    readOnly &&
+    role === "doctor" &&
+    loading;
+
+  const showPrescriptionLoadingAnimation =
+    showPatientPrescriptionLoading || showDoctorPrescriptionLoading;
+  const showEditorPrescriptionLoading =
+    !readOnly && loadExistingIntoEditor && loading;
+  const showAnyDotLoadingAnimation =
+    showPrescriptionLoadingAnimation || showEditorPrescriptionLoading;
+
+  useEffect(() => {
+    if (!showAnyDotLoadingAnimation || !loadingAnimationRef.current) {
+      return;
+    }
+
+    setHasLoadingAnimationError(false);
+
+    const animation = lottie.loadAnimation({
+      container: loadingAnimationRef.current,
+      renderer: "svg",
+      loop: true,
+      autoplay: true,
+      animationData: cloneAnimationData(loadingDotAnimation),
+      rendererSettings: {
+        preserveAspectRatio: "xMidYMid meet",
+      },
+    });
+
+    const handleError = () => {
+      setHasLoadingAnimationError(true);
+    };
+
+    animation.addEventListener("data_failed", handleError);
+    animation.addEventListener("error", handleError);
+
+    return () => {
+      animation.removeEventListener("data_failed", handleError);
+      animation.removeEventListener("error", handleError);
+      animation.destroy();
+    };
+  }, [showAnyDotLoadingAnimation]);
+
+  useEffect(() => {
+    if (!showPatientEmptyState || !emptyStateAnimationRef.current) {
+      return;
+    }
+
+    setHasAnimationError(false);
+
+    const animation = lottie.loadAnimation({
+      container: emptyStateAnimationRef.current,
+      renderer: "svg",
+      loop: true,
+      autoplay: true,
+      animationData: cloneAnimationData(prescriptionEmptyState),
+      rendererSettings: {
+        preserveAspectRatio: "xMidYMid meet",
+      },
+    });
+
+    const handleError = () => {
+      setHasAnimationError(true);
+    };
+
+    animation.addEventListener("data_failed", handleError);
+    animation.addEventListener("error", handleError);
+
+    return () => {
+      animation.removeEventListener("data_failed", handleError);
+      animation.removeEventListener("error", handleError);
+      animation.destroy();
+    };
+  }, [showPatientEmptyState]);
 
   function flash(message: string) {
     setSavedMessage(message);
@@ -343,14 +488,73 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
       ? "p-1"
       : "rounded-xl border border-slate-200 bg-slate-50 p-4";
 
+    if (showPrescriptionLoadingAnimation) {
+      return (
+        <div className="flex h-full min-h-0 items-center justify-center overflow-hidden px-4 py-6">
+          <div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center text-center">
+            {hasLoadingAnimationError ? (
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+            ) : (
+              <div className="h-20 w-full max-w-[10rem]">
+                <div
+                  ref={loadingAnimationRef}
+                  className="h-full w-full"
+                  aria-label="Prescription loading animation"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (showPatientEmptyState) {
+      return (
+        <div className="flex h-full min-h-0 items-center justify-center overflow-hidden px-4 py-6">
+          <div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center text-center">
+            {hasAnimationError ? (
+              <div className="mb-5 h-12 w-12 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+            ) : (
+              <div className="mb-5 h-52 w-full max-w-sm sm:h-60">
+                <div
+                  ref={emptyStateAnimationRef}
+                  className="h-full w-full"
+                  aria-label="Prescription empty state animation"
+                />
+              </div>
+            )}
+
+            <p className="max-w-md text-base font-semibold leading-8 text-slate-800 sm:text-lg">
+              Prescription and consultation notes are not ready yet.
+            </p>
+            <p className="mt-3 max-w-md text-sm leading-7 text-slate-600 sm:text-base">
+              The doctor has not saved the medical notes or prescription for this
+              appointment yet. This section will update automatically once the
+              consultation details are shared.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
       return (
         <div className="flex h-full min-h-0 flex-col">
-          <div className="space-y-4">
+          <div className={`min-h-0 ${plainReadOnly ? "flex flex-1 flex-col gap-4" : "space-y-4"}`}>
           {!hideTitle ? (
             <h2 className="text-xl font-bold text-slate-800">{title}</h2>
           ) : null}
-
-        <div className={plainReadOnly ? `${boxClassName} h-[102px] overflow-hidden` : boxClassName}>
+        <div
+          className={
+            plainReadOnly
+              ? `${boxClassName} h-[102px] overflow-hidden`
+              : boxClassName
+          }
+          style={
+            plainReadOnly && readOnlyNotesHeight
+              ? { height: `${readOnlyNotesHeight}px` }
+              : undefined
+          }
+        >
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-semibold text-slate-700">Consultation Notes</p>
             {canEditSummary ? (
@@ -399,10 +603,11 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
           )}
         </div>
 
-        {loading ? (
-          <p className="text-sm text-slate-500">Loading prescriptions...</p>
-        ) : (
-          <div className={boxClassName}>
+        <div
+          className={
+            plainReadOnly ? `${boxClassName} flex min-h-0 flex-1 flex-col` : boxClassName
+          }
+        >
             <div className="flex items-start justify-between gap-3">
               <p className="text-sm font-semibold text-slate-700">Prescriptions</p>
               {canEditSummary ? (
@@ -469,7 +674,7 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
                 No prescription has been shared for this consultation yet.
               </p>
             ) : plainReadOnly ? (
-              <div className="mt-3 flex flex-col gap-4 pb-4">
+              <div className="mt-3 flex flex-1 flex-col justify-between gap-4 pb-4">
                 <div
                   className={`${itemClassName} min-h-[68px]`}
                 >
@@ -647,7 +852,6 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
               </div>
             )}
           </div>
-        )}
 
         {summaryError ? (
           <p className="text-sm font-medium text-rose-600">{summaryError}</p>
@@ -677,9 +881,22 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
       </div>
       <div className="mt-4 flex-1 min-h-0 overflow-y-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         <div className="space-y-4 border-t border-slate-200 pt-4">
-          {loadExistingIntoEditor && loading ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-              Loading saved prescriptions...
+          {showEditorPrescriptionLoading ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              <div className="flex min-h-[4.5rem] flex-col items-center justify-center gap-3">
+                {hasLoadingAnimationError ? (
+                  <div className="h-14 w-14 animate-spin rounded-full border-[3px] border-slate-300 border-t-blue-600" />
+                ) : (
+                  <div className="h-20 w-full max-w-[12rem]">
+                    <div
+                      ref={loadingAnimationRef}
+                      className="h-full w-full"
+                      aria-label="Loading saved prescriptions animation"
+                    />
+                  </div>
+                )}
+                <p>Loading saved prescriptions...</p>
+              </div>
             </div>
           ) : (
             <>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import FullScreenPageLoading from "../../components/common/FullScreenPageLoading";
 import TelemedicineAccessNotice from "../../components/telemedicine/TelemedicineAccessNotice";
 import {
   getSessionByAppointmentId,
@@ -87,9 +88,7 @@ export default function PatientWaitingRoom() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
         {loading ? (
-          <div className="rounded-3xl bg-white p-8 text-center text-gray-600 shadow-sm">
-            Loading waiting room...
-          </div>
+          <FullScreenPageLoading message="Loading waiting room..." />
         ) : error ? (
           <div className="rounded-3xl bg-red-50 p-8 text-center text-red-600 shadow-sm">
             {error}

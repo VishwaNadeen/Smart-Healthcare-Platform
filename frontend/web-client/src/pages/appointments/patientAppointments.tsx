@@ -1,25 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-
-// added by nimesh: useNavigate needed to programmatically redirect to payment checkout
 import { Link, useNavigate } from "react-router-dom";
-
-// added by nimesh: fetch doctor details to get consultationFee before navigating to payment
 import { getDoctorById } from "../../services/doctorApi";
-
 import PatientAppointmentCard from "../../components/appointments/PatientAppointmentCard";
 import PageLoading from "../../components/common/PageLoading";
 import NoPendingAppointments from "./noPatAppointments";
 import {
   cancelAppointment,
   getPatientAppointments,
+  respondToReschedule,
   type Appointment,
 } from "../../services/appointmentApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
 export default function PatientAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
-
-  // added by nimesh: navigate used in handleCompletePayment to redirect to /payment/checkout
   const navigate = useNavigate();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -27,9 +21,8 @@ export default function PatientAppointmentsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-
-  // added by nimesh: tracks which appointment's "Complete Payment" button is loading
   const [completingPaymentId, setCompletingPaymentId] = useState<string | null>(null);
+  const [respondingRescheduleId, setRespondingRescheduleId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadAppointments() {
@@ -45,9 +38,7 @@ export default function PatientAppointmentsPage() {
         setAppointments(Array.isArray(data) ? data : []);
       } catch (error: unknown) {
         setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to load appointments."
+          error instanceof Error ? error.message : "Failed to load appointments."
         );
       } finally {
         setIsLoading(false);
@@ -57,32 +48,39 @@ export default function PatientAppointmentsPage() {
     loadAppointments();
   }, [auth.token]);
 
-  const pendingAppointments = useMemo(() => {
+  const visibleAppointments = useMemo(() => {
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+
     return appointments
-      .filter((appointment) => appointment.status === "pending")
+      .filter((a) => {
+        // never show these statuses — they belong elsewhere
+        if (a.status === "cancelled") return false;
+        if (a.status === "confirmed") return false;
+        if (a.status === "completed") return false;
+        // paid + pending doctor review — always show
+        if (a.paymentStatus === "paid") return true;
+        // unpaid — show only within 30 min payment window
+        if (
+          a.paymentStatus === "pending" &&
+          a.createdAt &&
+          new Date(a.createdAt) >= thirtyMinAgo
+        ) return true;
+        return false;
+      })
       .sort((a, b) => {
-        const aDate = new Date(
-          `${a.appointmentDate}T${a.appointmentTime}`
-        ).getTime();
-        const bDate = new Date(
-          `${b.appointmentDate}T${b.appointmentTime}`
-        ).getTime();
+        const aDate = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
+        const bDate = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
         return aDate - bDate;
       });
   }, [appointments]);
 
-  // added by nimesh: handles resume payment flow for appointments with paymentStatus === 'pending'
-  // fetches doctor consultationFee from doctor-service, then navigates to /payment/checkout
-  // with pre-filled appointment data so patient can complete their pending payment
   async function handleCompletePayment(appointment: Appointment) {
     try {
       setCompletingPaymentId(appointment._id);
       const doctor = await getDoctorById(appointment.doctorId);
 
       if (!doctor.consultationFee) {
-        setErrorMessage(
-          "This doctor has no consultation fee set. Please contact support."
-        );
+        setErrorMessage("This doctor has no consultation fee set. Please contact support.");
         return;
       }
 
@@ -99,9 +97,7 @@ export default function PatientAppointmentsPage() {
       });
     } catch (error: unknown) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to load payment details."
+        error instanceof Error ? error.message : "Failed to load payment details."
       );
     } finally {
       setCompletingPaymentId(null);
@@ -121,28 +117,66 @@ export default function PatientAppointmentsPage() {
 
       const response = await cancelAppointment(auth.token, appointmentId);
 
-      setAppointments((currentAppointments) =>
-        currentAppointments.map((appointment) =>
-          appointment._id === appointmentId
+      setAppointments((current) =>
+        current.map((a) =>
+          a._id === appointmentId ? { ...a, status: "cancelled" } : a
+        )
+      );
+
+      setSuccessMessage(response.message || "Appointment cancelled successfully.");
+    } catch (error: unknown) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to cancel appointment."
+      );
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
+  async function handleRescheduleResponse(
+    appointmentId: string,
+    response: "approved" | "rejected"
+  ) {
+    if (!auth.token) {
+      setErrorMessage("You must be logged in.");
+      return;
+    }
+
+    try {
+      setRespondingRescheduleId(appointmentId);
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      const data = await respondToReschedule(auth.token, appointmentId, response);
+
+      setAppointments((current) =>
+        current.map((a) =>
+          a._id === appointmentId
             ? {
-                ...appointment,
-                status: "cancelled",
+                ...a,
+                rescheduleStatus: response,
+                ...(response === "approved" && {
+                  appointmentDate: a.rescheduledDate ?? a.appointmentDate,
+                  appointmentTime: a.rescheduledTime ?? a.appointmentTime,
+                  status: "confirmed" as const,
+                }),
               }
-            : appointment
+            : a
         )
       );
 
       setSuccessMessage(
-        response.message || "Appointment cancelled successfully."
+        data.message ||
+          (response === "approved"
+            ? "Reschedule approved — appointment confirmed."
+            : "Reschedule rejected — admin will process your refund.")
       );
     } catch (error: unknown) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to cancel appointment."
+        error instanceof Error ? error.message : "Failed to respond to reschedule."
       );
     } finally {
-      setCancellingId(null);
+      setRespondingRescheduleId(null);
     }
   }
 
@@ -165,7 +199,7 @@ export default function PatientAppointmentsPage() {
           </div>
         )}
 
-        {pendingAppointments.length === 0 ? (
+        {visibleAppointments.length === 0 ? (
           <NoPendingAppointments />
         ) : (
           <>
@@ -196,20 +230,18 @@ export default function PatientAppointmentsPage() {
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {pendingAppointments.map((appointment) => {
-                // added by nimesh: passes complete payment handler and loading state
-                // to show "Complete Payment" button on cards with pending payment
-                return (
-                  <PatientAppointmentCard
-                    key={appointment._id}
-                    appointment={appointment}
-                    onCancel={handleCancelAppointment}
-                    isCancelling={cancellingId === appointment._id}
-                    onCompletePayment={handleCompletePayment}
-                    isCompletingPayment={completingPaymentId === appointment._id}
-                  />
-                );
-              })}
+              {visibleAppointments.map((appointment) => (
+                <PatientAppointmentCard
+                  key={appointment._id}
+                  appointment={appointment}
+                  onCancel={handleCancelAppointment}
+                  isCancelling={cancellingId === appointment._id}
+                  onCompletePayment={handleCompletePayment}
+                  isCompletingPayment={completingPaymentId === appointment._id}
+                  onRescheduleResponse={handleRescheduleResponse}
+                  isRespondingToReschedule={respondingRescheduleId === appointment._id}
+                />
+              ))}
             </div>
           </>
         )}

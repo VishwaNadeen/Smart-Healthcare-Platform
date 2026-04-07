@@ -15,7 +15,8 @@ import {
 import { defaultCountries } from "react-international-phone";
 import { useNavigate } from "react-router-dom";
 import PhoneNumberInput from "../../components/common/PhoneNumberInput";
-import { useToast } from "../../components/common/ToastProvider";
+import PasswordField from "../../components/common/PasswordField";
+import { useToast } from "../../components/common/toastContext";
 
 const PROFILE_NAME_KEY = "patientProfileName";
 const PROFILE_IMAGE_KEY = "patientProfileImage";
@@ -160,6 +161,8 @@ const PatientProfile = () => {
 
   const [profileImage, setProfileImage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageRemoving, setImageRemoving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeletePrompt, setShowDeletePrompt] = useState(false);
@@ -215,8 +218,7 @@ const PatientProfile = () => {
           replace: true,
           state: {
             registeredEmail: auth.email || "",
-            successMessage:
-              "Your patient account was deleted or is no longer available. Please sign in with a valid account.",
+            infoMessage: "Account not available.",
           },
         });
         return;
@@ -230,13 +232,18 @@ const PatientProfile = () => {
 
   useEffect(() => {
     if (!token) {
-      showToast("Please login first.", "error");
       setLoading(false);
+      navigate("/login", {
+        replace: true,
+        state: {
+          infoMessage: "Please log in.",
+        },
+      });
       return;
     }
 
     loadProfile();
-  }, [token]);
+  }, [navigate, token]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -296,6 +303,10 @@ const PatientProfile = () => {
   };
 
   const handleChooseImage = () => {
+    if (imageUploading || imageRemoving) {
+      return;
+    }
+
     fileInputRef.current?.click();
   };
 
@@ -307,23 +318,25 @@ const PatientProfile = () => {
     }
 
     if (!file.type.startsWith("image/")) {
-      showToast("Please choose a valid image file.", "error");
+      showToast("Choose a valid image.", "error");
       return;
     }
 
     try {
+      setImageUploading(true);
       const response = await uploadCurrentPatientProfileImage(token, file);
       const nextProfileImage = response.profileImage || response.patient.profileImage || "";
 
       localStorage.setItem(PROFILE_IMAGE_KEY, nextProfileImage);
       setProfileImage(nextProfileImage);
       window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
-      showToast(response.message || "Profile picture updated successfully.", "success");
+      showToast(response.message || "Photo updated.", "success");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to upload profile picture";
       showToast(message, "error");
     } finally {
+      setImageUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -333,16 +346,19 @@ const PatientProfile = () => {
   const handleRemoveImage = () => {
     void (async () => {
       try {
+        setImageRemoving(true);
         const response = await removeCurrentPatientProfileImage(token);
 
         localStorage.removeItem(PROFILE_IMAGE_KEY);
         setProfileImage("");
         window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
-        showToast(response.message || "Profile picture removed.", "info");
+        showToast(response.message || "Photo removed.", "info");
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to remove profile picture";
         showToast(message, "error");
+      } finally {
+        setImageRemoving(false);
       }
     })();
   };
@@ -353,7 +369,7 @@ const PatientProfile = () => {
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
-      showToast("Please correct the highlighted fields.", "error");
+      showToast("Fix the highlighted fields.", "error");
       return;
     }
 
@@ -372,7 +388,7 @@ const PatientProfile = () => {
       localStorage.setItem(PROFILE_NAME_KEY, fullName);
       window.dispatchEvent(new Event(PROFILE_UPDATED_EVENT));
 
-      showToast(response.message || "Profile updated successfully.", "success");
+      showToast(response.message || "Profile updated.", "success");
       setEditing(false);
       await loadProfile();
     } catch (error) {
@@ -389,23 +405,19 @@ const PatientProfile = () => {
 
   const handleDeleteAccount = async () => {
     if (!token) {
-      showToast("Please login first.", "error");
+      showToast("Please log in.", "error");
       return;
     }
 
     if (!deletePassword.trim()) {
-      showToast("Enter your password to delete your profile.", "error");
+      showToast("Enter your password.", "error");
       return;
     }
 
     try {
       setDeleting(true);
 
-      const response = await deleteCurrentPatient(token, deletePassword);
-      showToast(
-        response.message || "Your account was deleted successfully.",
-        "success"
-      );
+      await deleteCurrentPatient(token, deletePassword);
 
       localStorage.removeItem(PROFILE_NAME_KEY);
       localStorage.removeItem(PROFILE_IMAGE_KEY);
@@ -416,8 +428,7 @@ const PatientProfile = () => {
       navigate("/", {
         replace: true,
         state: {
-          successMessage:
-            response.message || "Your account was deleted successfully.",
+          successMessage: "Account deleted.",
         },
       });
     } catch (error) {
@@ -455,12 +466,13 @@ const PatientProfile = () => {
             </p>
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <input
-                type="password"
+              <PasswordField
                 value={deletePassword}
                 onChange={(event) => setDeletePassword(event.target.value)}
                 placeholder="Enter your password"
-                className="flex-1 rounded-xl border border-red-200 bg-white px-4 py-3 outline-none focus:border-red-400"
+                autoComplete="current-password"
+                wrapperClassName="flex-1"
+                inputClassName="w-full rounded-xl border border-red-200 bg-white px-4 py-3 outline-none focus:border-red-400"
               />
 
               <button
@@ -490,24 +502,28 @@ const PatientProfile = () => {
 
       <div className="mx-auto max-w-6xl space-y-4">
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-10 text-white">
+          <div className="border-b border-blue-200 bg-blue-100/70 px-8 py-10">
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-5">
                 {profileImage ? (
                   <img
                     src={profileImage}
                     alt="Profile"
-                    className="h-24 w-24 rounded-full object-cover ring-4 ring-white/40"
+                    className="h-24 w-24 rounded-full object-cover ring-4 ring-blue-100"
                   />
                 ) : (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white/20 text-3xl font-bold text-white ring-4 ring-white/30">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-blue-600 text-3xl font-bold text-white ring-4 ring-blue-100">
                     {initials}
                   </div>
                 )}
 
                 <div>
-                  <h1 className="text-3xl font-bold">{fullName || "Patient Profile"}</h1>
-                  <p className="mt-2 text-blue-100">Manage your personal details and account</p>
+                  <h1 className="text-3xl font-bold text-slate-900">
+                    {fullName || "Patient Profile"}
+                  </h1>
+                  <p className="mt-2 text-slate-600">
+                    Manage your personal details and account
+                  </p>
                 </div>
               </div>
 
@@ -515,7 +531,7 @@ const PatientProfile = () => {
                 <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => setEditing(true)}
-                    className="rounded-xl bg-white px-6 py-3 font-semibold text-blue-700 transition hover:bg-blue-50"
+                    className="rounded-xl border border-blue-200 bg-white px-6 py-3 font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
                   >
                     Edit Profile
                   </button>
@@ -560,6 +576,7 @@ const PatientProfile = () => {
                   type="file"
                   accept="image/*"
                   onChange={handleImageChange}
+                  disabled={imageUploading || imageRemoving}
                   className="hidden"
                 />
 
@@ -567,18 +584,24 @@ const PatientProfile = () => {
                   <button
                     type="button"
                     onClick={handleChooseImage}
-                    className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+                    disabled={imageUploading || imageRemoving}
+                    className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    {profileImage ? "Change Picture" : "Upload Picture"}
+                    {imageUploading
+                      ? "Uploading..."
+                      : profileImage
+                      ? "Change Picture"
+                      : "Upload Picture"}
                   </button>
 
                   {profileImage && (
                     <button
                       type="button"
                       onClick={handleRemoveImage}
-                      className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                      disabled={imageUploading || imageRemoving}
+                      className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      Remove Picture
+                      {imageRemoving ? "Removing..." : "Remove Picture"}
                     </button>
                   )}
                 </div>
