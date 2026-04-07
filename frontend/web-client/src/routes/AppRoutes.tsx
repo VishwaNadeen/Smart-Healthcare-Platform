@@ -12,7 +12,6 @@ import { contactRoutes } from "./contactRoute";
 import { telemedicineRoutes } from "./telemedicineRoutes";
 import { patientRoutes } from "./patientRoutes";
 import { appointmentRoutes } from "./appointmentRoutes";
-import { doctorRoutes } from "./doctorRoutes";
 import { profileRoutes } from "./profileRoutes";
 import { prescriptionRoutes } from "./prescriptionRoutes";
 import { aiRoutes } from "./aiRoutes";
@@ -41,13 +40,12 @@ export default function AppRoutes() {
 
         <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-
+      
         {aboutRoutes}
         {contactRoutes}
-
+        
         {telemedicineRoutes}
         {patientRoutes}
-        {doctorRoutes}
         {appointmentRoutes}
         {profileRoutes}
         {prescriptionRoutes}
