@@ -85,24 +85,6 @@ export type PatientSummaryResponse = {
   profileImage?: string;
 };
 
-export type PatientDetailsResponse = {
-  _id: string;
-  authUserId: string;
-  title?: "Mr" | "Miss" | "Mrs" | "";
-  firstName: string;
-  lastName: string;
-  nic?: string;
-  email: string;
-  countryCode: string;
-  phone: string;
-  birthday: string;
-  age: number | null;
-  gender?: "male" | "female" | "other" | "";
-  address: string;
-  country: string;
-  profileImage?: string;
-};
-
 export type PatientUpdatePayload = {
   title?: "Mr" | "Miss" | "Mrs" | "";
   firstName: string;
@@ -249,28 +231,6 @@ export async function getPatientSummaryByAuthUserId(
   }
 
   return handlePatientResponse<PatientSummaryResponse>(response);
-}
-
-export async function getPatientDetailsByAuthUserId(
-  token: string,
-  authUserId: string
-): Promise<PatientDetailsResponse> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${PATIENT_API_URL}/lookup/auth/${authUserId}/details`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  } catch {
-    throw new Error(
-      "Unable to connect to the patient service. Please check that it is running."
-    );
-  }
-
-  return handlePatientResponse<PatientDetailsResponse>(response);
 }
 
 export async function updateCurrentPatientProfile(
