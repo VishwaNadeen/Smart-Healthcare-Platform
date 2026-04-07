@@ -1,54 +1,29 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import lottie from "lottie-web";
-import patientEmptyState from "../../assets/animations/patient-empty-state.json";
-
-function cloneAnimationData<T>(data: T): T {
-  if (typeof structuredClone === "function") {
-    return structuredClone(data);
-  }
-
-  return JSON.parse(JSON.stringify(data)) as T;
-}
 
 export default function NoPendingAppointments() {
-  const animationRef = useRef<HTMLDivElement | null>(null);
   const [hasAnimationError, setHasAnimationError] = useState(false);
-
-  useEffect(() => {
-    if (!animationRef.current) {
-      return;
-    }
-
-    const animation = lottie.loadAnimation({
-      container: animationRef.current,
-      renderer: "svg",
-      loop: true,
-      autoplay: true,
-      animationData: cloneAnimationData(patientEmptyState),
-      rendererSettings: {
-        preserveAspectRatio: "xMidYMid meet",
-      },
-    });
-
-    const handleError = () => {
-      setHasAnimationError(true);
-    };
-
-    animation.addEventListener("data_failed", handleError);
-
-    return () => {
-      animation.removeEventListener("data_failed", handleError);
-      animation.destroy();
-    };
-  }, []);
 
   return (
     <div className="flex min-h-[calc(100vh-14rem)] w-full items-center justify-center px-4 py-8">
       <div className="w-full max-w-2xl text-center">
         {!hasAnimationError && (
-          <div className="mx-auto mb-6 h-64 w-full max-w-md sm:h-72">
-            <div ref={animationRef} className="h-full w-full" />
+          <div className="mx-auto mb-6 flex h-64 w-full max-w-md items-center justify-center rounded-[28px] bg-gradient-to-br from-blue-50 via-white to-slate-100 shadow-inner sm:h-72">
+            <div className="text-center">
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-blue-100 text-4xl font-bold text-blue-600 shadow-sm">
+                AP
+              </div>
+              <p className="mt-5 text-sm font-medium text-slate-500 sm:text-base">
+                Patient appointments are clear right now.
+              </p>
+              <button
+                type="button"
+                onClick={() => setHasAnimationError(true)}
+                className="sr-only"
+              >
+                Hide illustration
+              </button>
+            </div>
           </div>
         )}
 

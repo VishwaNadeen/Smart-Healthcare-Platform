@@ -12,6 +12,7 @@ const {
   getPatientById,
   getPatientByIdAdmin,
   getPatientSummaryByAuthUserId,
+  getPatientDetailsByAuthUserId,
   updateCurrentPatient,
   updatePatientAdmin,
   updatePatientStatusAdmin,
@@ -76,6 +77,11 @@ router.delete(
 );
 
 router.get("/lookup/auth/:authUserId", authMiddleware, getPatientSummaryByAuthUserId);
+router.get(
+  "/lookup/auth/:authUserId/details",
+  authMiddleware,
+  getPatientDetailsByAuthUserId
+);
 
 router.get("/:id", getPatientById);
 

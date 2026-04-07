@@ -339,6 +339,61 @@ const deleteUserByEmail = async (email) => {
   };
 };
 
+const updateUserIdentity = async ({ userId, username, email }) => {
+  const normalizedUserId = String(userId || "").trim();
+  const nextUsername = normalizeUsername(username);
+  const nextEmail = normalizeEmail(email);
+
+  if (!normalizedUserId) {
+    throw new Error("userId is required");
+  }
+
+  if (!nextUsername || !nextEmail) {
+    throw new Error("username and email are required");
+  }
+
+  const user = await User.findById(normalizedUserId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const existingEmailOwner = await User.findOne({
+    email: nextEmail,
+    _id: { $ne: user._id },
+  });
+
+  if (existingEmailOwner) {
+    throw new Error("User already exists with this email");
+  }
+
+  let candidateUsername = nextUsername;
+  let suffix = 1;
+
+  while (
+    await User.exists({
+      username: candidateUsername,
+      _id: { $ne: user._id },
+    })
+  ) {
+    suffix += 1;
+    candidateUsername = `${nextUsername} ${suffix}`;
+  }
+
+  user.username = candidateUsername;
+  user.email = nextEmail;
+  await user.save();
+
+  return {
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+};
+
 const getUserById = async (userId) => {
   const user = await User.findById(userId);
 
@@ -351,6 +406,7 @@ const getUserById = async (userId) => {
     username: user.username,
     email: user.email,
     role: user.role,
+    isEmailVerified: Boolean(user.isEmailVerified),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };
@@ -365,6 +421,10 @@ const requestLoginOtp = async ({ identifier, role }) => {
 
   if (role && user.role !== role) {
     throw new Error("User role does not match");
+  }
+
+  if (!user.isEmailVerified) {
+    throw new Error("Please verify your email before logging in");
   }
 
   if (!user.isEmailVerified) {
@@ -485,6 +545,7 @@ module.exports = {
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
+  updateUserIdentity,
   getUserById,
   requestEmailVerificationOtp,
   verifyEmailOtp,

@@ -1,6 +1,35 @@
 import { DOCTOR_API_URL, DOCTOR_SPECIALTY_API_URL } from "../config/api";
 
-export type DoctorProfileResponse = {
+export type DoctorAvailabilityScheduleItem = {
+  day: string;
+  startTime: string;
+  endTime: string;
+  mode: "in_person" | "video" | "both";
+  maxAppointments: number;
+};
+
+export type DoctorAvailabilityExceptionTimeRange = {
+  startTime: string;
+  endTime: string;
+};
+
+export type DoctorAvailabilityException = {
+  date: string;
+  isBlocked: boolean;
+  blockedTimeRanges: DoctorAvailabilityExceptionTimeRange[];
+  note?: string;
+};
+
+export type DoctorReviewNote = {
+  note: string;
+  status: string;
+  createdAt?: string;
+  createdByName?: string;
+  createdByEmail?: string;
+  editableFields?: string[];
+};
+
+export type DoctorProfile = {
   _id: string;
   fullName: string;
   email: string;
@@ -15,21 +44,54 @@ export type DoctorProfileResponse = {
   availableDays?: string[];
   availableTimeSlots?: string[];
   consultationFee?: number;
-  isAvailableForVideo?: boolean;
-  availabilitySchedule?: Array<{
-    day: string;
-    startTime: string;
-    endTime: string;
-    mode: "in_person" | "video" | "both";
-    maxAppointments: number;
-  }>;
-  supportsDigitalPrescriptions?: boolean;
-  acceptsNewAppointments?: boolean;
+  appointmentDurationMinutes?: number;
   profileImage?: string;
+  profileImagePublicId?: string;
   about?: string;
-  status?: "active" | "inactive";
-  createdAt: string;
-  updatedAt: string;
+  acceptsNewAppointments?: boolean;
+  availabilitySchedule?: DoctorAvailabilityScheduleItem[];
+  availabilityExceptions?: DoctorAvailabilityException[];
+  verificationStatus?: string;
+  verificationNote?: string;
+  reviewNotes?: DoctorReviewNote[];
+  editableFields?: string[];
+  verifiedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type DoctorProfileResponse = DoctorProfile;
+
+export type DoctorProfileUpdatePayload = {
+  fullName: string;
+  email: string;
+  phone: string;
+  specialization: string;
+  experience: number;
+  qualification: string;
+  licenseNumber: string;
+  hospitalName: string;
+  hospitalAddress: string;
+  city: string;
+  consultationFee: number;
+  appointmentDurationMinutes: number;
+  profileImage: string;
+  about: string;
+  acceptsNewAppointments: boolean;
+  availableDays: string[];
+  availableTimeSlots: string[];
+  availabilitySchedule: DoctorAvailabilityScheduleItem[];
+  availabilityExceptions: DoctorAvailabilityException[];
+};
+
+export type DoctorDeleteResponse = {
+  message: string;
+};
+
+export type DoctorProfileImageResponse = {
+  message: string;
+  profileImage: string;
+  doctor: DoctorProfile;
 };
 
 export type DoctorSpecialty = {
@@ -68,7 +130,7 @@ async function handleDoctorResponse<T>(response: Response): Promise<T> {
 
 export async function getCurrentDoctorProfile(
   token: string
-): Promise<DoctorProfileResponse> {
+): Promise<DoctorProfile> {
   let response: Response;
 
   try {
@@ -84,7 +146,100 @@ export async function getCurrentDoctorProfile(
     );
   }
 
-  return handleDoctorResponse<DoctorProfileResponse>(response);
+  return handleDoctorResponse<DoctorProfile>(response);
+}
+
+export async function updateCurrentDoctorProfile(
+  token: string,
+  payload: DoctorProfileUpdatePayload
+): Promise<DoctorProfile> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${DOCTOR_API_URL}/me`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the doctor service. Please check that it is running."
+    );
+  }
+
+  return handleDoctorResponse<DoctorProfile>(response);
+}
+
+export async function deleteCurrentDoctor(
+  token: string
+): Promise<DoctorDeleteResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${DOCTOR_API_URL}/me`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the doctor service. Please check that it is running."
+    );
+  }
+
+  return handleDoctorResponse<DoctorDeleteResponse>(response);
+}
+
+export async function uploadDoctorProfileImage(
+  token: string,
+  file: File
+): Promise<DoctorProfileImageResponse> {
+  const formData = new FormData();
+  formData.append("profileImage", file);
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${DOCTOR_API_URL}/me/profile-image`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the doctor service. Please check that it is running."
+    );
+  }
+
+  return handleDoctorResponse<DoctorProfileImageResponse>(response);
+}
+
+export async function removeDoctorProfileImage(
+  token: string
+): Promise<DoctorProfile> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${DOCTOR_API_URL}/me/profile-image`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the doctor service. Please check that it is running."
+    );
+  }
+
+  const data = await handleDoctorResponse<{ doctor: DoctorProfile }>(response);
+  return data.doctor;
 }
 
 export async function getDoctorSpecialties(): Promise<DoctorSpecialty[]> {

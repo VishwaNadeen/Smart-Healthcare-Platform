@@ -209,7 +209,8 @@ export default function LoginPage() {
             <div className="mb-8">
               <h2 className="text-3xl font-bold text-slate-900">Login</h2>
               <p className="mt-2 text-sm text-slate-500">
-                Enter the email and password from the auth service.
+                Patients can log in after email verification. Doctors can log in
+                only after email verification and admin approval.
               </p>
             </div>
 
@@ -225,6 +226,12 @@ export default function LoginPage() {
                 >
                   Verify now
                 </Link>
+              </div>
+            )}
+
+            {!locationState?.verificationRequired && locationState?.successMessage && (
+              <div className="mb-5 rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                {locationState.successMessage}
               </div>
             )}
 
