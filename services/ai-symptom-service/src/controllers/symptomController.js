@@ -7,6 +7,16 @@ const {
 const { buildRecommendation } = require("../services/recommendationService");
 const SymptomCheck = require("../models/SymptomCheck");
 
+function getAuthenticatedPatientId(req) {
+  return (
+    req.user?.patientProfileId ||
+    req.user?.patientId ||
+    req.user?.userId ||
+    req.user?.id ||
+    ""
+  );
+}
+
 async function getQuestions(req, res, next) {
   try {
     return res.json({
@@ -20,12 +30,13 @@ async function getQuestions(req, res, next) {
 
 async function analyzeSymptoms(req, res, next) {
   try {
-    const { patientId, ...symptoms } = req.body;
+    const authenticatedPatientId = String(getAuthenticatedPatientId(req)).trim();
+    const symptoms = req.body;
 
-    if (!patientId) {
-      return res.status(400).json({
+    if (!authenticatedPatientId) {
+      return res.status(401).json({
         success: false,
-        message: "patientId is required.",
+        message: "Logged-in patient ID was not found from token.",
       });
     }
 
@@ -47,7 +58,7 @@ async function analyzeSymptoms(req, res, next) {
     }
 
     const savedCheck = await SymptomCheck.create({
-      patientId,
+      patientId: authenticatedPatientId,
       symptoms,
       analysis: ruleResult,
       recommendation,
@@ -67,20 +78,42 @@ async function analyzeSymptoms(req, res, next) {
 
 async function getSymptomHistory(req, res, next) {
   try {
-    const { patientId } = req.params;
+    const authenticatedPatientId = String(getAuthenticatedPatientId(req)).trim();
+    const requestedPatientId = String(req.params.patientId || "").trim();
 
-    if (!patientId) {
-      return res.status(400).json({
+    if (!authenticatedPatientId) {
+      return res.status(401).json({
         success: false,
-        message: "patientId is required.",
+        message: "Logged-in patient ID was not found from token.",
       });
     }
 
-    const history = await SymptomCheck.find({ patientId }).sort({ createdAt: -1 });
+    if (requestedPatientId !== authenticatedPatientId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to view another patient's symptom history.",
+      });
+    }
+
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+    const skip = (page - 1) * limit;
+
+    const [history, totalCount] = await Promise.all([
+      SymptomCheck.find({ patientId: authenticatedPatientId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      SymptomCheck.countDocuments({ patientId: authenticatedPatientId }),
+    ]);
 
     return res.json({
       success: true,
       count: history.length,
+      totalCount,
+      page,
+      limit,
+      hasMore: skip + history.length < totalCount,
       data: history,
     });
   } catch (error) {
@@ -90,6 +123,7 @@ async function getSymptomHistory(req, res, next) {
 
 async function getSymptomCheckById(req, res, next) {
   try {
+    const authenticatedPatientId = String(getAuthenticatedPatientId(req)).trim();
     const { id } = req.params;
 
     const symptomCheck = await SymptomCheck.findById(id);
@@ -98,6 +132,13 @@ async function getSymptomCheckById(req, res, next) {
       return res.status(404).json({
         success: false,
         message: "Symptom check record not found.",
+      });
+    }
+
+    if (String(symptomCheck.patientId) !== authenticatedPatientId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to view this symptom check.",
       });
     }
 
@@ -112,15 +153,9 @@ async function getSymptomCheckById(req, res, next) {
 
 async function chatAboutSymptomCheck(req, res, next) {
   try {
+    const authenticatedPatientId = String(getAuthenticatedPatientId(req)).trim();
     const { id } = req.params;
     const { message } = req.body;
-
-    if (!message || !message.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Chat message is required.",
-      });
-    }
 
     const symptomCheck = await SymptomCheck.findById(id);
 
@@ -128,6 +163,20 @@ async function chatAboutSymptomCheck(req, res, next) {
       return res.status(404).json({
         success: false,
         message: "Symptom check record not found.",
+      });
+    }
+
+    if (String(symptomCheck.patientId) !== authenticatedPatientId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to chat on this symptom check.",
+      });
+    }
+
+    if (symptomCheck.status === "closed") {
+      return res.status(400).json({
+        success: false,
+        message: "This symptom check is already closed. Chat is no longer allowed.",
       });
     }
 
@@ -181,10 +230,112 @@ async function chatAboutSymptomCheck(req, res, next) {
   }
 }
 
+async function getLatestSymptomCheck(req, res, next) {
+  try {
+    const authenticatedPatientId = String(getAuthenticatedPatientId(req)).trim();
+
+    if (!authenticatedPatientId) {
+      return res.status(401).json({
+        success: false,
+        message: "Logged-in patient ID was not found from token.",
+      });
+    }
+
+    const latestRecord = await SymptomCheck.findOne({
+      patientId: authenticatedPatientId,
+    }).sort({ createdAt: -1 });
+
+    return res.json({
+      success: true,
+      data: latestRecord,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function closeSymptomCheck(req, res, next) {
+  try {
+    const authenticatedPatientId = String(getAuthenticatedPatientId(req)).trim();
+    const { id } = req.params;
+
+    const symptomCheck = await SymptomCheck.findById(id);
+
+    if (!symptomCheck) {
+      return res.status(404).json({
+        success: false,
+        message: "Symptom check record not found.",
+      });
+    }
+
+    if (String(symptomCheck.patientId) !== authenticatedPatientId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to close this symptom check.",
+      });
+    }
+
+    symptomCheck.status = "closed";
+    await symptomCheck.save();
+
+    return res.json({
+      success: true,
+      message: "Symptom check marked as closed successfully.",
+      data: symptomCheck,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function reopenSymptomCheck(req, res, next) {
+  try {
+    const authenticatedPatientId = String(getAuthenticatedPatientId(req)).trim();
+    const { id } = req.params;
+
+    const symptomCheck = await SymptomCheck.findById(id);
+
+    if (!symptomCheck) {
+      return res.status(404).json({
+        success: false,
+        message: "Symptom check record not found.",
+      });
+    }
+
+    if (String(symptomCheck.patientId) !== authenticatedPatientId) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not allowed to reopen this symptom check.",
+      });
+    }
+
+    if (symptomCheck.status !== "closed") {
+      return res.status(400).json({
+        success: false,
+        message: "Only closed symptom checks can be reopened.",
+      });
+    }
+
+    symptomCheck.status = "follow_up_pending";
+    await symptomCheck.save();
+
+    return res.json({
+      success: true,
+      message: "Symptom check reopened successfully.",
+      data: symptomCheck,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getQuestions,
   analyzeSymptoms,
   getSymptomHistory,
   getSymptomCheckById,
   chatAboutSymptomCheck,
+  getLatestSymptomCheck,
+  closeSymptomCheck,
+  reopenSymptomCheck,
 };

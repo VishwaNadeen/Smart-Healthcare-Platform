@@ -1,15 +1,30 @@
+const { symptomFields } = require("../config/symptomFields");
+
+function normalizeSymptoms(input = {}) {
+  const normalized = {};
+
+  for (const field of symptomFields) {
+    normalized[field.id] =
+      field.id in input ? input[field.id] : field.defaultValue;
+  }
+
+  return normalized;
+}
+
 function evaluateSymptoms(input) {
+  const normalized = normalizeSymptoms(input);
+
   const {
-    fever = false,
-    cough = false,
-    soreThroat = false,
-    chestPain = false,
-    shortnessOfBreath = false,
-    headache = false,
-    blurredVision = false,
-    vomiting = false,
-    durationDays = 0
-  } = input;
+    fever,
+    cough,
+    soreThroat,
+    chestPain,
+    shortnessOfBreath,
+    headache,
+    blurredVision,
+    vomiting,
+    durationDays,
+  } = normalized;
 
   let urgency = "low";
   let category = "general";
@@ -56,7 +71,7 @@ function evaluateSymptoms(input) {
     nextStep,
     redFlags,
     disclaimer:
-      "This is not a final medical diagnosis. Please consult a qualified doctor for professional advice."
+      "This is not a final medical diagnosis. Please consult a qualified doctor for professional advice.",
   };
 }
 

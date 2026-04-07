@@ -6,5 +6,6 @@ module.exports = {
   MONGODB_URI: process.env.MONGO_URI,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+  JWT_SECRET: process.env.JWT_SECRET || "",
   INTERNAL_SERVICE_SECRET: process.env.INTERNAL_SERVICE_SECRET || "",
 };
