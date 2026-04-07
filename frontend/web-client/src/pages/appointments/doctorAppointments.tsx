@@ -5,6 +5,7 @@ import PageLoading from "../../components/common/PageLoading";
 import {
   getDoctorAppointments,
   updateDoctorAppointmentStatus,
+  rescheduleAppointment,
   type Appointment,
   type AppointmentStatus,
 } from "../../services/appointmentApi";
@@ -57,10 +58,7 @@ export default function DoctorAppointmentsPage() {
         const patientEntries = await Promise.all(
           patientIds.map(async (patientId) => {
             try {
-              const patient = await getPatientSummaryByAuthUserId(
-                token,
-                patientId
-              );
+              const patient = await getPatientSummaryByAuthUserId(token, patientId);
               return [patientId, patient] as const;
             } catch {
               return [patientId, null] as const;
@@ -72,11 +70,9 @@ export default function DoctorAppointmentsPage() {
           patientEntries.reduce<Record<string, PatientSummaryResponse>>(
             (accumulator, entry) => {
               const [patientId, patient] = entry;
-
               if (patient) {
                 accumulator[patientId] = patient;
               }
-
               return accumulator;
             },
             {}
@@ -96,19 +92,22 @@ export default function DoctorAppointmentsPage() {
     loadDoctorAppointments();
   }, [auth.token, auth.userId]);
 
-  const pendingAppointments = useMemo(() => {
-    return appointments
-      .filter((appointment) => appointment.status === "pending")
-      .sort((a, b) => {
-        const aDate = new Date(
-          `${a.appointmentDate}T${a.appointmentTime}`
-        ).getTime();
-        const bDate = new Date(
-          `${b.appointmentDate}T${b.appointmentTime}`
-        ).getTime();
-        return aDate - bDate;
-      });
-  }, [appointments]);
+   const pendingAppointments = useMemo(() => {
+  return appointments
+    .filter((appointment) =>
+      appointment.status === "pending" &&
+      appointment.paymentStatus === "paid" &&        // hide unpaid from doctor
+      appointment.rescheduleStatus !== "pending" &&  // hide while awaiting patient response
+      appointment.rescheduleStatus !== "approved"    // hide once patient approved (moved to consultation)
+    )
+    .sort((a, b) => {
+      const aDate = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
+      const bDate = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
+      return aDate - bDate;
+    });
+}, [appointments]);
+
+
 
   async function handleUpdateAppointmentStatus(
     appointmentId: string,
@@ -131,10 +130,7 @@ export default function DoctorAppointmentsPage() {
       setAppointments((currentAppointments) =>
         currentAppointments.map((appointment) =>
           appointment._id === appointmentId
-            ? {
-                ...appointment,
-                status: data.appointment?.status ?? status,
-              }
+            ? { ...appointment, status: data.appointment?.status ?? status }
             : appointment
         )
       );
@@ -143,7 +139,7 @@ export default function DoctorAppointmentsPage() {
         data.message ||
           (status === "confirmed"
             ? "Appointment request accepted successfully."
-            : "Appointment request rejected successfully."),
+            : "Appointment request cancelled successfully."),
         "success",
         3000
       );
@@ -155,6 +151,33 @@ export default function DoctorAppointmentsPage() {
       );
     }
   }
+
+async function handleReschedule(appointmentId: string, date: string, time: string) {
+  if (!auth.token) {
+    setErrorMessage("You must be logged in to reschedule appointments.");
+    return;
+  }
+
+  try {
+    setErrorMessage("");
+    const data = await rescheduleAppointment(auth.token, appointmentId, date, time);
+
+    setAppointments((current) =>
+      current.map((a) =>
+        a._id === appointmentId
+          ? { ...a, rescheduleStatus: "pending" as const, rescheduledDate: date, rescheduledTime: time }
+          : a
+      )
+    );
+
+    showToast(data.message || "Reschedule proposed to patient.", "success", 3000);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to reschedule appointment.";
+    setErrorMessage(message);
+    throw error;  // ← re-throw so the form stays open
+  }
+}
+
 
   if (isLoading) {
     return <PageLoading message="Loading appointment requests..." />;
@@ -186,7 +209,6 @@ export default function DoctorAppointmentsPage() {
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
             Appointment Requests
           </h1>
-
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 sm:text-base">
             View only patient appointment requests here. Approved sessions will
             appear under the consultation tab.
@@ -208,8 +230,8 @@ export default function DoctorAppointmentsPage() {
               onAccept={() =>
                 handleUpdateAppointmentStatus(appointment._id, "confirmed")
               }
-              onReject={() =>
-                handleUpdateAppointmentStatus(appointment._id, "cancelled")
+              onReschedule={(date, time) =>
+                handleReschedule(appointment._id, date, time)
               }
             />
           ))}

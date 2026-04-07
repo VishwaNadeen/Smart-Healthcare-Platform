@@ -1,23 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { getDoctorById } from "../../services/doctorApi";
 import PatientAppointmentCard from "../../components/appointments/PatientAppointmentCard";
 import PageLoading from "../../components/common/PageLoading";
 import NoPendingAppointments from "./noPatAppointments";
 import {
   cancelAppointment,
   getPatientAppointments,
+  respondToReschedule,
   type Appointment,
 } from "../../services/appointmentApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
 export default function PatientAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
+  const navigate = useNavigate();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [completingPaymentId, setCompletingPaymentId] = useState<string | null>(null);
+  const [respondingRescheduleId, setRespondingRescheduleId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadAppointments() {
@@ -33,9 +38,7 @@ export default function PatientAppointmentsPage() {
         setAppointments(Array.isArray(data) ? data : []);
       } catch (error: unknown) {
         setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Failed to load appointments."
+          error instanceof Error ? error.message : "Failed to load appointments."
         );
       } finally {
         setIsLoading(false);
@@ -45,19 +48,61 @@ export default function PatientAppointmentsPage() {
     loadAppointments();
   }, [auth.token]);
 
-  const pendingAppointments = useMemo(() => {
+  const visibleAppointments = useMemo(() => {
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+
     return appointments
-      .filter((appointment) => appointment.status === "pending")
+      .filter((a) => {
+        // never show these statuses — they belong elsewhere
+        if (a.status === "cancelled") return false;
+        if (a.status === "confirmed") return false;
+        if (a.status === "completed") return false;
+        // paid + pending doctor review — always show
+        if (a.paymentStatus === "paid") return true;
+        // unpaid — show only within 30 min payment window
+        if (
+          a.paymentStatus === "pending" &&
+          a.createdAt &&
+          new Date(a.createdAt) >= thirtyMinAgo
+        ) return true;
+        return false;
+      })
       .sort((a, b) => {
-        const aDate = new Date(
-          `${a.appointmentDate}T${a.appointmentTime}`
-        ).getTime();
-        const bDate = new Date(
-          `${b.appointmentDate}T${b.appointmentTime}`
-        ).getTime();
+        const aDate = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
+        const bDate = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
         return aDate - bDate;
       });
   }, [appointments]);
+
+  async function handleCompletePayment(appointment: Appointment) {
+    try {
+      setCompletingPaymentId(appointment._id);
+      const doctor = await getDoctorById(appointment.doctorId);
+
+      if (!doctor.consultationFee) {
+        setErrorMessage("This doctor has no consultation fee set. Please contact support.");
+        return;
+      }
+
+      navigate("/payment/checkout", {
+        state: {
+          appointmentId: appointment._id,
+          doctorId: appointment.doctorId,
+          doctorName: appointment.doctorName,
+          specialization: appointment.specialization,
+          amount: doctor.consultationFee,
+          appointmentDate: appointment.appointmentDate,
+          appointmentTime: appointment.appointmentTime,
+        },
+      });
+    } catch (error: unknown) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to load payment details."
+      );
+    } finally {
+      setCompletingPaymentId(null);
+    }
+  }
 
   async function handleCancelAppointment(appointmentId: string) {
     if (!auth.token) {
@@ -72,28 +117,66 @@ export default function PatientAppointmentsPage() {
 
       const response = await cancelAppointment(auth.token, appointmentId);
 
-      setAppointments((currentAppointments) =>
-        currentAppointments.map((appointment) =>
-          appointment._id === appointmentId
+      setAppointments((current) =>
+        current.map((a) =>
+          a._id === appointmentId ? { ...a, status: "cancelled" } : a
+        )
+      );
+
+      setSuccessMessage(response.message || "Appointment cancelled successfully.");
+    } catch (error: unknown) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to cancel appointment."
+      );
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
+  async function handleRescheduleResponse(
+    appointmentId: string,
+    response: "approved" | "rejected"
+  ) {
+    if (!auth.token) {
+      setErrorMessage("You must be logged in.");
+      return;
+    }
+
+    try {
+      setRespondingRescheduleId(appointmentId);
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      const data = await respondToReschedule(auth.token, appointmentId, response);
+
+      setAppointments((current) =>
+        current.map((a) =>
+          a._id === appointmentId
             ? {
-                ...appointment,
-                status: "cancelled",
+                ...a,
+                rescheduleStatus: response,
+                ...(response === "approved" && {
+                  appointmentDate: a.rescheduledDate ?? a.appointmentDate,
+                  appointmentTime: a.rescheduledTime ?? a.appointmentTime,
+                  status: "confirmed" as const,
+                }),
               }
-            : appointment
+            : a
         )
       );
 
       setSuccessMessage(
-        response.message || "Appointment cancelled successfully."
+        data.message ||
+          (response === "approved"
+            ? "Reschedule approved — appointment confirmed."
+            : "Reschedule rejected — admin will process your refund.")
       );
     } catch (error: unknown) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to cancel appointment."
+        error instanceof Error ? error.message : "Failed to respond to reschedule."
       );
     } finally {
-      setCancellingId(null);
+      setRespondingRescheduleId(null);
     }
   }
 
@@ -116,7 +199,7 @@ export default function PatientAppointmentsPage() {
           </div>
         )}
 
-        {pendingAppointments.length === 0 ? (
+        {visibleAppointments.length === 0 ? (
           <NoPendingAppointments />
         ) : (
           <>
@@ -147,12 +230,16 @@ export default function PatientAppointmentsPage() {
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {pendingAppointments.map((appointment) => (
+              {visibleAppointments.map((appointment) => (
                 <PatientAppointmentCard
                   key={appointment._id}
                   appointment={appointment}
                   onCancel={handleCancelAppointment}
                   isCancelling={cancellingId === appointment._id}
+                  onCompletePayment={handleCompletePayment}
+                  isCompletingPayment={completingPaymentId === appointment._id}
+                  onRescheduleResponse={handleRescheduleResponse}
+                  isRespondingToReschedule={respondingRescheduleId === appointment._id}
                 />
               ))}
             </div>

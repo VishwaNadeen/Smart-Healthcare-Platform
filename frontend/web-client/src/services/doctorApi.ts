@@ -134,3 +134,17 @@ export async function getDoctors(params?: {
 
   return handleDoctorResponse<DoctorProfileResponse[]>(response);
 }
+
+
+//added by nimesh fetch single doctor by ID, get conslut fee
+export async function getDoctorById(doctorId: string): Promise<DoctorProfileResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${DOCTOR_API_URL}/${doctorId}`);
+  } catch {
+    throw new Error('Unable to connect to the doctor service.');
+  }
+
+  return handleDoctorResponse<DoctorProfileResponse>(response);
+}

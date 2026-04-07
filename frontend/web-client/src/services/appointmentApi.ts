@@ -26,6 +26,11 @@ export type Appointment = {
   reason?: string;
   status: AppointmentStatus;
   paymentStatus: PaymentStatus;
+  active: boolean;
+  rescheduleStatus?: "none" | "pending" | "approved" | "rejected";
+  rescheduledDate?: string | null;
+  rescheduledTime?: string | null;
+  rescheduledAt?: string | null;
   statusHistory?: AppointmentStatusHistoryItem[];
   createdAt?: string;
   updatedAt?: string;
@@ -183,5 +188,58 @@ export async function cancelAppointment(
 
   return handleAppointmentResponse<{ message: string; appointment?: Appointment }>(
     response
-  );
+  ); 
 }
+
+  export async function rescheduleAppointment(
+    token: string,
+    appointmentId: string,
+    rescheduledDate: string,
+    rescheduledTime: string
+  ): Promise<{ message: string; appointment: Appointment }> {
+    let response: Response;
+
+    try {
+      response = await fetch(`${APPOINTMENT_API_URL}/${appointmentId}/reschedule`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rescheduledDate, rescheduledTime }),
+      });
+    } catch {
+      throw new Error(
+        "Unable to connect to the appointment service. Please check that it is running."
+      );
+    }
+
+    return handleAppointmentResponse<{ message: string; appointment: Appointment }>(response);
+  }
+
+  export async function respondToReschedule(
+  token: string,
+  appointmentId: string,
+  response: "approved" | "rejected"
+): Promise<{ message: string; appointment: Appointment }> {
+  let res: Response;
+
+  try {
+    res = await fetch(`${APPOINTMENT_API_URL}/${appointmentId}/reschedule/respond`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ response }),
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the appointment service. Please check that it is running."
+    );
+  }
+
+  return handleAppointmentResponse<{ message: string; appointment: Appointment }>(res);
+}
+
+

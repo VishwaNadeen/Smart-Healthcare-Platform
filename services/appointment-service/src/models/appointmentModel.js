@@ -47,6 +47,10 @@ const appointmentSchema = new mongoose.Schema(
       enum: ["pending", "paid", "failed"],
       default: "pending",
     },
+    active: {
+      type: Boolean,
+      default: false,   // hidden until payment confirmed
+    },
     statusHistory: [
       {
         status: {
@@ -65,6 +69,24 @@ const appointmentSchema = new mongoose.Schema(
         },
       },
     ],
+    rescheduleStatus: {
+        type: String,
+        enum: ["none", "pending", "approved", "rejected"],
+        default: "none",
+      },
+      rescheduledDate: {
+        type: String,
+        default: null,
+      },
+      rescheduledTime: {
+        type: String,
+        default: null,
+      },
+      rescheduledAt: {
+        type: Date,
+        default: null,
+      },
+
   },
   {
     timestamps: true,
