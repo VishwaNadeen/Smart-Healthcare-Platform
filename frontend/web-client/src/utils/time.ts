@@ -87,3 +87,13 @@ export function canJoinMeeting(
 
   return diffInMinutes <= 10 && diffInMinutes >= -60;
 }
+
+export function formatDateTime(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Invalid date";
+  }
+
+  return date.toLocaleString();
+}
