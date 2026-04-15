@@ -5,6 +5,7 @@ const {
   createTelemedicineSessionForAppointment,
 } = require("../services/telemedicineService");
 
+const { notify } = require("../services/notificationService"); // ADDED:notifications
 const ACTIVE_APPOINTMENT_STATUSES = ["pending", "confirmed"];
 const APPOINTMENT_STATUSES = ["pending", "confirmed", "completed", "cancelled"];
 const STATUS_TRANSITIONS = {
@@ -144,6 +145,20 @@ const createAppointment = async (req, res) => {
       message: "Appointment created successfully",
       appointment,
     });
+    //notification
+    notify({
+      type: "APPOINTMENT_BOOKED",
+      recipientId: patientId,
+      recipientType: "patient",
+      metadata: {
+        appointmentId: String(appointment._id),
+        doctorName,
+        specialization,
+        date: appointmentDate,
+        time: appointmentTime,
+      },
+    });
+
   } catch (error) {
     res.status(500).json({
       message: "Failed to create appointment",
@@ -321,6 +336,19 @@ const cancelAppointment = async (req, res) => {
     res.status(200).json({
       message: "Appointment cancelled successfully",
       appointment,
+    });
+
+    // ADDED: notify patient when appointment is cancelled
+    notify({
+      type: "APPOINTMENT_CANCELLED",
+      recipientId: String(appointment.patientId),
+      recipientType: "patient",
+      metadata: {
+        appointmentId: String(appointment._id),
+        doctorName: appointment.doctorName || "",
+        date: appointment.appointmentDate || "",
+        time: appointment.appointmentTime || "",
+      },
     });
   } catch (error) {
     res.status(500).json({
@@ -611,6 +639,20 @@ const rescheduleAppointment = async (req, res) => {
     appointment.rescheduledAt = new Date();
 
     await appointment.save();
+
+    //notification
+    notify({
+      type: "APPOINTMENT_RESCHEDULED",
+      recipientId: String(appointment.patientId),
+      recipientType: "patient",
+      metadata: {
+        appointmentId: String(appointment._id),
+        doctorName: appointment.doctorName,
+        date: appointment.rescheduledDate,
+        time: appointment.rescheduledTime,
+      },
+    });
+
 
     return res.status(200).json({
       message: "Reschedule proposed successfully",
