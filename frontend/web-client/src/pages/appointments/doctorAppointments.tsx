@@ -430,58 +430,79 @@ export default function DoctorAppointmentsPage() {
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="flex flex-col items-center text-center">
-          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-            Appointment Requests
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-            Review, search, filter, accept, and reject appointment requests from one
-            place. Rejected appointments stay visible for follow-up and audit.
-          </p>
+        <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100">
+          <div className="bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_transparent_34%),linear-gradient(135deg,#0f172a_0%,#1d4ed8_48%,#38bdf8_100%)] px-6 py-8 text-white sm:px-8 lg:px-10">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
+                <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-50 backdrop-blur">
+                  Doctor Workspace
+                </span>
+                <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
+                  Appointment Requests
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-50/85 sm:text-base">
+                  Review incoming bookings, respond quickly, and keep your daily
+                  schedule organized from one clear workspace.
+                </p>
+              </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Total
-              </p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">
-                {summaryCounts.total}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
-                Pending
-              </p>
-              <p className="mt-2 text-2xl font-bold text-amber-800">
-                {summaryCounts.pending}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                Confirmed
-              </p>
-              <p className="mt-2 text-2xl font-bold text-emerald-800">
-                {summaryCounts.confirmed}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">
-                Rejected
-              </p>
-              <p className="mt-2 text-2xl font-bold text-rose-800">
-                {summaryCounts.cancelled}
-              </p>
+              <div className="grid w-full gap-3 sm:grid-cols-2 xl:min-w-[540px] xl:grid-cols-4">
+                <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-blue-100/80">
+                    Total Requests
+                  </p>
+                  <p className="mt-3 text-3xl font-bold text-white">
+                    {summaryCounts.total}
+                  </p>
+                  <p className="mt-1 text-xs text-blue-100/75">
+                    All appointment records
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-amber-200/70 bg-white/95 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-700">
+                    Pending
+                  </p>
+                  <p className="mt-3 text-3xl font-bold text-amber-900">
+                    {summaryCounts.pending}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-700/80">
+                    Waiting for your response
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-emerald-200/70 bg-white/95 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                    Confirmed
+                  </p>
+                  <p className="mt-3 text-3xl font-bold text-emerald-900">
+                    {summaryCounts.confirmed}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-700/80">
+                    Ready for consultation
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-rose-200/70 bg-white/95 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-700">
+                    Rejected
+                  </p>
+                  <p className="mt-3 text-3xl font-bold text-rose-900">
+                    {summaryCounts.cancelled}
+                  </p>
+                  <p className="mt-1 text-xs text-rose-700/80">
+                    Closed or declined requests
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errorMessage}
           </div>
         )}
 
-        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+        <div className="mt-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold text-slate-900">Appointments Table</h2>

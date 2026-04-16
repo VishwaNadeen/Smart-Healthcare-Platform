@@ -34,8 +34,11 @@ export default function PaymentHistoryPage() {
       try {
         setErrorMessage("");
 
-        if (auth.role === "doctor" && auth.doctorProfileId) {
-          const data = await getDoctorPaymentHistory(auth.doctorProfileId);
+        if (auth.role === "doctor" && auth.doctorProfileId && auth.token) {
+          const data = await getDoctorPaymentHistory(
+            auth.doctorProfileId,
+            auth.token
+          );
           setPayments(data.payments);
           setTotalEarnings(data.totalEarnings);
         } else {
