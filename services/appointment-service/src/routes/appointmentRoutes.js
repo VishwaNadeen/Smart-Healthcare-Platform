@@ -13,6 +13,7 @@ const {
   searchDoctorsBySpecialty,
   createAppointment,
   getAllAppointments,
+  getAllAppointmentsAdmin,
   getAppointmentById,
   getAppointmentsByDoctorId,
   updateAppointment,
@@ -35,6 +36,7 @@ router.get("/doctors/search", searchDoctorsBySpecialty);
 router.post("/", requirePatientAuth, createAppointment);
 router.get("/", requirePatientAuth, getAllAppointments);
 router.get("/doctor/:doctorId", requireDoctorAuth, enforceDoctorParamOwnership, getAppointmentsByDoctorId);
+router.get("/admin/appointments", requireAdminAuth, getAllAppointmentsAdmin);
 router.get("/admin/patient/:patientId/stats", requireAdminAuth, getPatientAppointmentStatsAdmin);
 router.get("/admin/refund-queue", requireAdminAuth, getRefundQueueAdmin);
 
