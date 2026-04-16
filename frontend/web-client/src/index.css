@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Hide scrollbar globally but keep scrolling */
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevent horizontal scroll */
+html, body {
+  overflow-x: hidden;
+}
