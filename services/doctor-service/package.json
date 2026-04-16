@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --quiet src/server.js",
+    "dev": "nodemon --legacy-watch --quiet src/server.js",
     "start": "node src/server.js"
   },
   "dependencies": {

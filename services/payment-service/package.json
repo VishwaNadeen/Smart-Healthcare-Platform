@@ -4,7 +4,7 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "nodemon --quiet src/app.js"
+    "dev": "nodemon --legacy-watch --quiet src/app.js"
   },
   "keywords": [],
   "author": "",
@@ -21,7 +21,6 @@
     "morgan": "^1.10.1",
     "pdfkit": "^0.18.0",
     "uuid": "^9.0.1"
-
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
