@@ -59,6 +59,11 @@ type DoctorServiceDoctor = {
     mode?: "in_person" | "video" | "both";
     maxAppointments?: number;
   }>;
+  verificationStatus?: DoctorVerificationStatus;
+  verificationNote?: string;
+  verifiedAt?: string;
+  editableFields?: string[];
+  reviewNotes?: DoctorReviewNote[];
   createdAt?: string;
   updatedAt?: string;
   status?: string;
@@ -245,6 +250,15 @@ async function countResourcesByAppointmentIds(
 function normalizeDoctorVerificationStatus(
   doctor: DoctorServiceDoctor
 ): DoctorVerificationStatus {
+  if (
+    doctor.verificationStatus === "pending" ||
+    doctor.verificationStatus === "in-review" ||
+    doctor.verificationStatus === "approved" ||
+    doctor.verificationStatus === "rejected"
+  ) {
+    return doctor.verificationStatus;
+  }
+
   return doctor.status === "active" ? "approved" : "pending";
 }
 
@@ -275,10 +289,12 @@ function mapDoctorToVerification(
     updatedAt: doctor.updatedAt,
     isEmailVerified: undefined,
     verificationStatus: normalizeDoctorVerificationStatus(doctor),
-    verificationNote: "",
-    verifiedAt: doctor.updatedAt || doctor.createdAt,
-    editableFields: [],
-    reviewNotes: [],
+    verificationNote: doctor.verificationNote || "",
+    verifiedAt: doctor.verifiedAt || doctor.updatedAt || doctor.createdAt,
+    editableFields: Array.isArray(doctor.editableFields)
+      ? doctor.editableFields
+      : [],
+    reviewNotes: Array.isArray(doctor.reviewNotes) ? doctor.reviewNotes : [],
     availabilitySchedule: Array.isArray(doctor.availabilitySchedule)
       ? doctor.availabilitySchedule
       : [],
@@ -330,12 +346,6 @@ async function tryFetchAppointmentsAnalytics() {
   return [];
 }
 
-function unsupportedAdminDoctorAction(): never {
-  throw new Error(
-    "This backend does not currently support admin doctor edit, review, or delete actions."
-  );
-}
-
 export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
   const [userStats, sessions] = await Promise.all([
     fetchJson<AuthStatsResponse>(`${AUTH_API_URL}/stats`),
@@ -374,14 +384,14 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
 export async function getDoctorVerifications(
   status: DoctorVerificationStatus | "all" = "all"
 ): Promise<DoctorVerification[]> {
-  const doctors = await fetchJson<DoctorServiceDoctor[]>(DOCTOR_API_URL);
-  const mapped = doctors.map(mapDoctorToVerification);
+  const url = new URL(`${DOCTOR_API_URL}/admin/verifications`);
 
-  if (status === "all") {
-    return mapped;
+  if (status !== "all") {
+    url.searchParams.set("verificationStatus", status);
   }
 
-  return mapped.filter((doctor) => doctor.verificationStatus === status);
+  const doctors = await fetchJson<DoctorServiceDoctor[]>(url.toString());
+  return doctors.map(mapDoctorToVerification);
 }
 
 export async function getDoctorDetails(
@@ -392,21 +402,38 @@ export async function getDoctorDetails(
 }
 
 export async function updateDoctorDetails(
-  _doctorId: string,
-  _payload: DoctorUpdatePayload
+  doctorId: string,
+  payload: DoctorUpdatePayload
 ): Promise<DoctorVerification> {
-  unsupportedAdminDoctorAction();
+  const doctor = await fetchJson<DoctorServiceDoctor>(`${DOCTOR_API_URL}/${doctorId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+
+  return mapDoctorToVerification(doctor);
 }
 
 export async function updateDoctorVerification(
-  _doctorId: string,
-  _payload: DoctorVerificationPayload
+  doctorId: string,
+  payload: DoctorVerificationPayload
 ): Promise<{ doctor: DoctorVerification }> {
-  unsupportedAdminDoctorAction();
+  const response = await fetchJson<{
+    doctor: DoctorServiceDoctor;
+    message?: string;
+  }>(`${DOCTOR_API_URL}/${doctorId}/verification`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+
+  return {
+    doctor: mapDoctorToVerification(response.doctor),
+  };
 }
 
-export async function deleteDoctor(_doctorId: string): Promise<{ message: string }> {
-  unsupportedAdminDoctorAction();
+export async function deleteDoctor(doctorId: string): Promise<{ message: string }> {
+  return fetchJson<{ message: string }>(`${DOCTOR_API_URL}/${doctorId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getAdminAppointmentsAnalytics(): Promise<

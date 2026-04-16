@@ -210,7 +210,11 @@ export default function CreateAppointmentPage() {
           acceptsNewAppointments: true,
         });
 
-        setDoctors(Array.isArray(data) ? data : []);
+        setDoctors(
+          (Array.isArray(data) ? data : []).filter(
+            (doctor) => doctor.verificationStatus === "approved"
+          )
+        );
       } catch (error: unknown) {
         setDoctors([]);
         setErrorMessage(
