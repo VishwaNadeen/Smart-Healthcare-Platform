@@ -38,16 +38,16 @@ function timeAgo(value: string) {
   return date.toLocaleDateString();
 }
 
-function getStatusClasses(status: "completed" | "follow_up_pending" | "closed") {
-  if (status === "closed") {
+function getStageClasses(stage: "collecting" | "completed" | "closed") {
+  if (stage === "closed") {
     return "border-slate-300 bg-slate-100 text-slate-700";
   }
 
-  if (status === "follow_up_pending") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+  if (stage === "completed") {
+    return "border-green-200 bg-green-50 text-green-700";
   }
 
-  return "border-green-200 bg-green-50 text-green-700";
+  return "border-blue-200 bg-blue-50 text-blue-700";
 }
 
 function SymptomCheckDetailsContent() {
@@ -142,6 +142,9 @@ function SymptomCheckDetailsContent() {
     );
   }
 
+  const isCompleted = record.conversationStage === "completed";
+  const isClosed = record.conversationStage === "closed";
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -152,7 +155,9 @@ function SymptomCheckDetailsContent() {
             </h1>
 
             <p className="mt-1 text-sm text-slate-500">
-              Manage the status of this symptom check conversation.
+              {isCompleted
+                ? "Your symptom interview is complete. You can ask follow-up questions."
+                : "Continue answering the AI assistant to complete your symptom check."}
             </p>
 
             <div className="mt-2 text-xs text-slate-400">
@@ -162,11 +167,11 @@ function SymptomCheckDetailsContent() {
           </div>
 
           <div
-            className={`inline-flex w-fit rounded-full border px-4 py-2 text-sm font-semibold capitalize ${getStatusClasses(
-              record.status
+            className={`inline-flex w-fit rounded-full border px-4 py-2 text-sm font-semibold capitalize ${getStageClasses(
+              record.conversationStage
             )}`}
           >
-            {record.status.replaceAll("_", " ")}
+            {record.conversationStage}
           </div>
         </div>
 
@@ -177,7 +182,7 @@ function SymptomCheckDetailsContent() {
         ) : null}
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-          {record.status !== "closed" ? (
+          {!isClosed ? (
             <button
               type="button"
               onClick={handleCloseCheck}
@@ -199,12 +204,35 @@ function SymptomCheckDetailsContent() {
         </div>
       </section>
 
-      <SymptomResultSummaryCard record={record} showActions />
+      {!isCompleted ? (
+        <section className="rounded-2xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-800">
+            Interview in Progress
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Keep answering the AI assistant. Once all required details are collected,
+            the system will generate your final symptom summary.
+          </p>
+          {record.currentQuestion ? (
+            <div className="mt-4 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm text-slate-700">
+              <span className="font-semibold text-slate-800">Current question: </span>
+              {record.currentQuestion.question}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
-      {record.status !== "closed" ? (
+      {isCompleted && record.analysis ? (
+        <SymptomResultSummaryCard record={record} showActions />
+      ) : null}
+
+      {!isClosed ? (
         <SymptomChatBox
           symptomCheckId={record._id}
           initialChatHistory={record.chatHistory}
+          currentQuestion={record.currentQuestion}
+          conversationStage={record.conversationStage}
+          onRecordUpdated={setRecord}
         />
       ) : (
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
@@ -213,7 +241,7 @@ function SymptomCheckDetailsContent() {
           </h2>
           <p className="mt-2 text-sm text-slate-600">
             This symptom check has been marked as closed. Reopen it if you want to
-            continue follow-up chat on this record.
+            continue the conversation.
           </p>
         </section>
       )}

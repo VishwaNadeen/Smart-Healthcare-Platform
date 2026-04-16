@@ -4,14 +4,14 @@ function validateSymptomChat(req, res, next) {
   if (typeof message !== "string" || !message.trim()) {
     return res.status(400).json({
       success: false,
-      message: "Chat message is required.",
+      message: "Message is required.",
     });
   }
 
   if (message.trim().length > 1000) {
     return res.status(400).json({
       success: false,
-      message: "Chat message must be 1000 characters or less.",
+      message: "Message must be 1000 characters or less.",
     });
   }
 
