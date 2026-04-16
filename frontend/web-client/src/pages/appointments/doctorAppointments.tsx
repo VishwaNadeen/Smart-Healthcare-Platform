@@ -139,7 +139,6 @@ function PatientActionIcon() {
     </svg>
   );
 }
-
 export default function DoctorAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
   const { showToast } = useToast();
@@ -181,13 +180,14 @@ export default function DoctorAppointmentsPage() {
 
         setErrorMessage("");
         const nextAppointments = await getDoctorAppointments(token, auth.userId);
-        const normalizedAppointments = Array.isArray(nextAppointments)
-          ? nextAppointments
-          : [];
-        setAppointments(normalizedAppointments);
+        setAppointments(Array.isArray(nextAppointments) ? nextAppointments : []);
 
         const patientIds = [
-          ...new Set(normalizedAppointments.map((appointment) => appointment.patientId)),
+          ...new Set(
+            (Array.isArray(nextAppointments) ? nextAppointments : []).map(
+              (appointment) => appointment.patientId
+            )
+          ),
         ];
 
         if (patientIds.length === 0) {
@@ -198,10 +198,7 @@ export default function DoctorAppointmentsPage() {
         const patientEntries = await Promise.all(
           patientIds.map(async (patientId) => {
             try {
-              const patient = await getPatientSummaryByAuthUserId(
-                token,
-                patientId
-              );
+              const patient = await getPatientSummaryByAuthUserId(token, patientId);
               return [patientId, patient] as const;
             } catch {
               return [patientId, null] as const;
@@ -211,7 +208,8 @@ export default function DoctorAppointmentsPage() {
 
         setPatientsById(
           patientEntries.reduce<Record<string, PatientSummaryResponse>>(
-            (accumulator, [patientId, patient]) => {
+            (accumulator, entry) => {
+              const [patientId, patient] = entry;
               if (patient) {
                 accumulator[patientId] = patient;
               }
@@ -231,7 +229,7 @@ export default function DoctorAppointmentsPage() {
       }
     }
 
-    void loadDoctorAppointments();
+    loadDoctorAppointments();
   }, [auth.token, auth.userId]);
 
   const filteredAppointments = useMemo(() => {
@@ -337,8 +335,7 @@ export default function DoctorAppointmentsPage() {
 
   async function handleUpdateAppointmentStatus(
     appointmentId: string,
-    status: Extract<AppointmentStatus, "confirmed" | "cancelled">,
-    note?: string
+    status: Extract<AppointmentStatus, "confirmed" | "cancelled">
   ) {
     if (!auth.token) {
       setErrorMessage("You must be logged in to manage appointment requests.");
@@ -346,37 +343,28 @@ export default function DoctorAppointmentsPage() {
     }
 
     try {
-      setActionLoadingId(appointmentId);
       setErrorMessage("");
+      setActionLoadingId(appointmentId);
 
       const data = await updateDoctorAppointmentStatus(
         auth.token,
         appointmentId,
-        status,
-        note
+        status
       );
 
       setAppointments((currentAppointments) =>
         currentAppointments.map((appointment) =>
           appointment._id === appointmentId
-            ? {
-                ...appointment,
-                ...(data.appointment || {}),
-              }
+            ? { ...appointment, status: data.appointment?.status ?? status }
             : appointment
         )
       );
 
-      if (status === "cancelled") {
-        setRejectingAppointmentId(null);
-        setRejectReason("");
-      }
-
       showToast(
         data.message ||
           (status === "confirmed"
-            ? "Appointment accepted successfully."
-            : "Appointment rejected successfully."),
+            ? "Appointment request accepted successfully."
+            : "Appointment request cancelled successfully."),
         "success",
         3000
       );
@@ -398,19 +386,18 @@ export default function DoctorAppointmentsPage() {
     }
 
     try {
-      setPatientDetailsLoadingId(appointment.patientId);
       setErrorMessage("");
+      setPatientDetailsLoadingId(appointment.patientId);
 
       const patientDetails = await getPatientDetailsByAuthUserId(
         auth.token,
         appointment.patientId
       );
+
       setSelectedPatientDetails(patientDetails);
     } catch (error: unknown) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to load patient details."
+        error instanceof Error ? error.message : "Failed to load patient details."
       );
     } finally {
       setPatientDetailsLoadingId(null);
@@ -442,15 +429,15 @@ export default function DoctorAppointmentsPage() {
 
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-col items-center text-center">
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-            Doctor Appointments
+            Appointment Requests
           </h1>
-              <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
-                Review, search, filter, accept, and reject appointment requests from one
-                place. Rejected appointments stay visible for follow-up and audit.
-              </p>
+          <p className="mt-2 text-sm leading-6 text-slate-500 sm:text-base">
+            Review, search, filter, accept, and reject appointment requests from one
+            place. Rejected appointments stay visible for follow-up and audit.
+          </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -488,9 +475,9 @@ export default function DoctorAppointmentsPage() {
           </div>
         </div>
 
-          {errorMessage && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {errorMessage}
+        {errorMessage && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {errorMessage}
           </div>
         )}
 
@@ -788,13 +775,16 @@ export default function DoctorAppointmentsPage() {
               <button
                 type="button"
                 disabled={!rejectReason.trim() || actionLoadingId === rejectingAppointmentId}
-                onClick={() =>
+                onClick={() => {
+                  if (!rejectingAppointmentId) {
+                    return;
+                  }
+
                   void handleUpdateAppointmentStatus(
                     rejectingAppointmentId,
-                    "cancelled",
-                    rejectReason.trim()
-                  )
-                }
+                    "cancelled"
+                  );
+                }}
                 className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {actionLoadingId === rejectingAppointmentId
@@ -831,7 +821,11 @@ export default function DoctorAppointmentsPage() {
                   Full Name
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {[selectedPatientDetails.title, selectedPatientDetails.firstName, selectedPatientDetails.lastName]
+                  {[
+                    selectedPatientDetails.title,
+                    selectedPatientDetails.firstName,
+                    selectedPatientDetails.lastName,
+                  ]
                     .filter(Boolean)
                     .join(" ")}
                 </p>
@@ -918,7 +912,7 @@ export default function DoctorAppointmentsPage() {
                   Appointment Details
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Review the full appointment information, including the patient’s
+                  Review the full appointment information, including the patient's
                   issue and booking status.
                 </p>
               </div>

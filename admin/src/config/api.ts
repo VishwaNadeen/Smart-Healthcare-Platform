@@ -1,16 +1,18 @@
 const AUTH_SERVICE_URL =
   import.meta.env.VITE_AUTH_SERVICE_URL || "http://localhost:5002";
-const DOCTOR_SERVICE_URL =
-  import.meta.env.VITE_DOCTOR_SERVICE_URL || "http://localhost:5003";
+
 const TELEMEDICINE_SERVICE_URL =
   import.meta.env.VITE_TELEMEDICINE_SERVICE_URL || "http://localhost:5007";
+
 const APPOINTMENT_SERVICE_URL =
   import.meta.env.VITE_APPOINTMENT_SERVICE_URL || "http://localhost:5001";
 
+const PAYMENT_SERVICE_URL =
+  import.meta.env.VITE_PAYMENT_SERVICE_URL || "http://localhost:5006";
+
 export const AUTH_API_URL = `${AUTH_SERVICE_URL}/api/auth`;
-export const DOCTOR_API_URL = `${DOCTOR_SERVICE_URL}/api/doctors`;
-export const DOCTOR_SPECIALTY_API_URL = `${DOCTOR_SERVICE_URL}/api/specialties`;
 export const TELEMEDICINE_API_URL = `${TELEMEDICINE_SERVICE_URL}/api/telemedicine`;
 export const TELEMEDICINE_FILES_API_URL = `${TELEMEDICINE_SERVICE_URL}/api/telemedicine/files`;
 export const TELEMEDICINE_PRESCRIPTIONS_API_URL = `${TELEMEDICINE_SERVICE_URL}/api/telemedicine/prescriptions`;
 export const APPOINTMENT_API_URL = `${APPOINTMENT_SERVICE_URL}/api/appointments`;
+export const PAYMENT_API_URL = `${PAYMENT_SERVICE_URL}/api/payments`;

@@ -107,7 +107,7 @@ export default function ReportsManagerPage() {
             </div>
 
             <Link
-              to="/medical-history"
+              to="/medical-history?mode=upload"
               className="inline-flex rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
               Upload New Report
