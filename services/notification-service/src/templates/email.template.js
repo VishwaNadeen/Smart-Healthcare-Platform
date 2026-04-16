@@ -9,10 +9,11 @@ const appointmentBooked = (data) => `
     <p>Your appointment has been successfully booked.</p>
     <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
       <h3 style="margin-top: 0;">Appointment Details</h3>
-      <p><strong>Appointment ID:</strong> ${data.appointmentId}</p>
       <p><strong>Doctor:</strong> ${data.doctorName}</p>
+      <p><strong>Specialization:</strong> ${data.specialization}</p>
       <p><strong>Date:</strong> ${data.date}</p>
       <p><strong>Time:</strong> ${data.time}</p>
+      <p><strong>Appointment ID:</strong> ${data.appointmentId}</p>
     </div>
     <p>Thank you for choosing Smart Healthcare Platform.</p>
   </div>
@@ -67,11 +68,39 @@ const paymentSuccess = (data) => `
     <p>Your payment has been processed successfully.</p>
     <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
       <h3 style="margin-top: 0;">Payment Details</h3>
-      <p><strong>Order ID:</strong> ${data.orderId}</p>
       <p><strong>Amount:</strong> LKR ${data.amount}</p>
-      <p><strong>Appointment ID:</strong> ${data.appointmentId}</p>
       <p><strong>Status:</strong> <span style="color: green;">SUCCESS</span></p>
     </div>
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+      <h3 style="margin-top: 0;">Appointment Details</h3>
+      <p><strong>Doctor:</strong> ${data.doctorName}</p>
+      <p><strong>Specialization:</strong> ${data.specialization}</p>
+      <p><strong>Date:</strong> ${data.date}</p>
+      <p><strong>Time:</strong> ${data.time}</p>
+      <p><strong>Appointment ID:</strong> ${data.appointmentId}</p>
+    </div>
+    <p>Thank you for using Smart Healthcare Platform.</p>
+  </div>
+</div>`;
+
+// ADDED: refund notification email template
+const paymentRefunded = (data) => `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background-color: #6b7280; padding: 20px; text-align: center;">
+    <h1 style="color: white; margin: 0;">Smart Healthcare Platform</h1>
+  </div>
+  <div style="padding: 30px; background-color: #f8f9fa;">
+    <h2 style="color: #6b7280;">Payment Refunded 💸</h2>
+    <p>Dear ${data.recipientName},</p>
+    <p>Your payment has been refunded and your appointment has been cancelled.</p>
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+      <h3 style="margin-top: 0;">Refund Details</h3>
+      <p><strong>Refunded Amount:</strong> LKR ${data.amount}</p>
+      <p><strong>Doctor:</strong> ${data.doctorName}</p>
+      <p><strong>Appointment ID:</strong> ${data.appointmentId}</p>
+      <p><strong>Status:</strong> <span style="color: #6b7280;">REFUNDED</span></p>
+    </div>
+    <p>If you have any questions, please contact our support team.</p>
     <p>Thank you for using Smart Healthcare Platform.</p>
   </div>
 </div>`;
@@ -100,5 +129,6 @@ module.exports = {
   appointmentRescheduled,
   appointmentCancelled,
   paymentSuccess,
+  paymentRefunded, // ADDED
   consultationCompleted
 };

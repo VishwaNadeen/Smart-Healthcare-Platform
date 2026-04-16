@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   getPatientPaymentHistory,
   getDoctorPaymentHistory,
   getReceiptUrl,
   type Payment,
+  type PaymentStatus,
 } from "../../services/paymentApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
@@ -15,6 +16,14 @@ const STATUS_STYLES: Record<string, string> = {
   REFUNDED: "bg-purple-100 text-purple-700",
 };
 
+const ALL_STATUSES: PaymentStatus[] = [
+  "SUCCESS",
+  "PENDING",
+  "FAILED",
+  "CANCELLED",
+  "REFUNDED",
+];
+
 export default function PaymentHistoryPage() {
   const auth = getStoredTelemedicineAuth();
 
@@ -23,9 +32,12 @@ export default function PaymentHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [searchDoctor, setSearchDoctor] = useState("");
+  const [filterStatus, setFilterStatus] = useState<PaymentStatus | "">("");
+
   useEffect(() => {
     async function loadHistory() {
-      if (!auth.userId) {
+      if (!auth.userId || !auth.token) {
         setErrorMessage("You must be logged in to view payment history.");
         setIsLoading(false);
         return;
@@ -34,15 +46,12 @@ export default function PaymentHistoryPage() {
       try {
         setErrorMessage("");
 
-        if (auth.role === "doctor" && auth.doctorProfileId && auth.token) {
-          const data = await getDoctorPaymentHistory(
-            auth.doctorProfileId,
-            auth.token
-          );
+        if (auth.role === "doctor" && auth.doctorProfileId) {
+          const data = await getDoctorPaymentHistory(auth.doctorProfileId, auth.token);
           setPayments(data.payments);
           setTotalEarnings(data.totalEarnings);
         } else {
-          const data = await getPatientPaymentHistory(auth.userId);
+          const data = await getPatientPaymentHistory(auth.userId, auth.token);
           setPayments(data.payments);
         }
       } catch (error: unknown) {
@@ -55,7 +64,18 @@ export default function PaymentHistoryPage() {
     }
 
     loadHistory();
-  }, [auth.userId, auth.role, auth.doctorProfileId]);
+  }, [auth.userId, auth.role, auth.doctorProfileId, auth.token]);
+
+  const filtered = useMemo(() => {
+    return payments.filter((p) => {
+      const matchDoctor =
+        searchDoctor.trim() === "" ||
+        (p.doctorName ?? "").toLowerCase().includes(searchDoctor.trim().toLowerCase()) ||
+        (p.specialization ?? "").toLowerCase().includes(searchDoctor.trim().toLowerCase());
+      const matchStatus = filterStatus === "" || p.status === filterStatus;
+      return matchDoctor && matchStatus;
+    });
+  }, [payments, searchDoctor, filterStatus]);
 
   const successCount = payments.filter((p) => p.status === "SUCCESS").length;
   const totalPaid = payments
@@ -64,7 +84,7 @@ export default function PaymentHistoryPage() {
 
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
             Payment History
@@ -103,6 +123,30 @@ export default function PaymentHistoryPage() {
           </div>
         )}
 
+        {!isLoading && !errorMessage && payments.length > 0 && (
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <input
+              type="text"
+              value={searchDoctor}
+              onChange={(e) => setSearchDoctor(e.target.value)}
+              placeholder="Search by doctor name or specialization..."
+              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+            />
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as PaymentStatus | "")}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+            >
+              <option value="">All Statuses</option>
+              {ALL_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
             Loading payment history...
@@ -114,14 +158,18 @@ export default function PaymentHistoryPage() {
               You have not made any payments yet.
             </p>
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="mt-6 rounded-2xl bg-white px-6 py-10 text-center shadow-sm ring-1 ring-slate-100">
+            <p className="text-sm text-slate-500">No payments match your search.</p>
+          </div>
         ) : (
           <div className="mt-6 rounded-2xl bg-white shadow-sm ring-1 ring-slate-100 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    <th className="px-5 py-4">Order ID</th>
-                    <th className="px-5 py-4">Appointment</th>
+                    <th className="px-5 py-4">Doctor</th>
+                    <th className="px-5 py-4">Specialization</th>
                     <th className="px-5 py-4">Amount</th>
                     <th className="px-5 py-4">Method</th>
                     <th className="px-5 py-4">Status</th>
@@ -130,13 +178,13 @@ export default function PaymentHistoryPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {payments.map((payment) => (
+                  {filtered.map((payment) => (
                     <tr key={payment._id} className="hover:bg-slate-50 transition">
-                      <td className="px-5 py-4 font-mono text-xs text-slate-600">
-                        {payment.orderId.slice(0, 16)}…
+                      <td className="px-5 py-4 font-medium text-slate-800">
+                        {payment.doctorName || "—"}
                       </td>
-                      <td className="px-5 py-4 font-mono text-xs text-slate-600">
-                        {payment.appointmentId.slice(0, 10)}…
+                      <td className="px-5 py-4 text-slate-600">
+                        {payment.specialization || "—"}
                       </td>
                       <td className="px-5 py-4 font-semibold text-slate-800">
                         {payment.currency} {payment.amount.toFixed(2)}

@@ -67,6 +67,8 @@ async function handleProceedToPayment() {
     const result = await initiatePayment({
       patientId: auth.userId,
       doctorId: state!.doctorId,
+      doctorName: state!.doctorName,       // ADDED: pass to backend so it's stored
+      specialization: state!.specialization, // ADDED: pass to backend so it's stored
       appointmentId: state!.appointmentId,
       amount: state!.amount,
       firstName,

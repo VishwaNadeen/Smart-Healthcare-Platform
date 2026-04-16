@@ -1,3 +1,4 @@
+const { notify } = require('../services/notificationService');
 const { v4: uuidv4 } = require('uuid');
 const PDFDocument = require('pdfkit');
 const Payment = require('../models/Payment.model');
@@ -12,6 +13,21 @@ const getDoctorConsultationFee = async (doctorId) => {
   if (!res.ok) throw new Error('Failed to fetch doctor details');
   const data = await res.json();
   return data?.doctor?.consultationFee ?? data?.consultationFee ?? null;
+};
+
+//helper: fetch appointment details for notification metadata
+const getAppointmentDetails = async (appointmentId) => {
+  try {
+    const res = await fetch(
+      `${process.env.APPOINTMENT_SERVICE_URL}/api/appointments/internal/${appointmentId}`,
+      { headers: { 'x-internal-service-secret': process.env.INTERNAL_SERVICE_SECRET || '' } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => ({}));
+    return data?.appointment || null;
+  } catch {
+    return null;
+  }
 };
 
 //helper: tell appointment service to update paymentStatus after PayHere webhook
@@ -38,7 +54,8 @@ const initiatePayment = async (req, res) => {
   try {
     const {
       patientId, doctorId, appointmentId, amount,
-      firstName, lastName, email, phone, currency = 'LKR'
+      firstName, lastName, email, phone, currency = 'LKR',
+      doctorName = '', specialization = ''  // ADDED: store doctor info on payment record
     } = req.body;
 
     // Validate amount against doctor's actual consultation fee
@@ -98,8 +115,9 @@ const initiatePayment = async (req, res) => {
     }
 
     const orderId = `ORD-${uuidv4()}`;
+    // ADDED: doctorName + specialization saved so payment history can show them
     const payment = new Payment({
-      orderId, patientId, doctorId, appointmentId, amount, currency
+      orderId, patientId, doctorId, doctorName, specialization, appointmentId, amount, currency
     });
     await payment.save();
 
@@ -171,16 +189,36 @@ const handleNotification = async (req, res) => {
       { returnDocument: 'after' }  // returns the updated document
     );
 
-    // Sync paymentStatus back to appointment-service
+    // Sync paymentStatus back to appointment-service/ + notification
     if (updatedPayment) {
-      const appointmentPaymentStatus =
-        statusMap[status_code] === 'SUCCESS' ? 'paid' :
-        statusMap[status_code] === 'FAILED'  ? 'failed' : null;
+  const appointmentPaymentStatus =
+    statusMap[status_code] === 'SUCCESS' ? 'paid' :
+    statusMap[status_code] === 'FAILED'  ? 'failed' : null;
 
-      if (appointmentPaymentStatus) {
-        updateAppointmentPaymentStatus(updatedPayment.appointmentId, appointmentPaymentStatus);
-      }
-    }
+  if (appointmentPaymentStatus) {
+    updateAppointmentPaymentStatus(updatedPayment.appointmentId, appointmentPaymentStatus);
+  }
+
+  if (statusMap[status_code] === 'SUCCESS') {
+    // fetch appointment only for date + time (doctorName/specialization are stored on payment record)
+    const appointment = await getAppointmentDetails(updatedPayment.appointmentId);
+    notify({
+      type: "PAYMENT_SUCCESS",
+      recipientId: updatedPayment.patientId,
+      recipientType: "patient",
+      metadata: {
+        appointmentId: updatedPayment.appointmentId,
+        orderId: updatedPayment.orderId,
+        amount: updatedPayment.amount,
+        doctorName: updatedPayment.doctorName || appointment?.doctorName || "",
+        specialization: updatedPayment.specialization || appointment?.specialization || "",
+        date: appointment?.appointmentDate || "",
+        time: appointment?.appointmentTime || "",
+      },
+    });
+  }
+}
+
 
     res.status(200).send('OK');
   } catch (error) {
@@ -285,8 +323,10 @@ const getAllPayments = async (req, res) => {
 // PUT /api/payments/:orderId/refund
 
 const refundPayment = async (req, res) => {
+  // declared outside try so notify() can access it after res is sent
+  let payment = null;
   try {
-    const payment = await Payment.findOne({ orderId: req.params.orderId });
+    payment = await Payment.findOne({ orderId: req.params.orderId });
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
 
     if (payment.status !== 'SUCCESS') {
@@ -319,7 +359,22 @@ const refundPayment = async (req, res) => {
     res.status(200).json({ message: 'Payment refunded successfully', payment });
   } catch (error) {
     res.status(500).json({ message: 'Refund failed', error: error.message });
+    return;
   }
+
+  // ADDED: notify outside try/catch so it never triggers a second res.status() call
+  notify({
+    type: "PAYMENT_REFUNDED",
+    recipientId: payment.patientId,
+    recipientType: "patient",
+    metadata: {
+      appointmentId: payment.appointmentId,
+      orderId: payment.orderId,
+      amount: payment.amount,
+      doctorName: payment.doctorName || "",
+      specialization: payment.specialization || "",
+    },
+  });
 };
 
 

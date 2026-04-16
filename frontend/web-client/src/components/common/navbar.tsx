@@ -21,9 +21,9 @@ const LOGOUT_PROMPT_ANIMATION_MS = 220;
 
 const navLinks = [
   { name: "Home", path: "/" },
+  { name: "HealthAI", path: "/ai" },
   { name: "Appointments", path: "/appointments" },
   { name: "Consultation", path: "/consultation" },
-  { name: "About Us", path: "/about" },
   { name: "Contact Us", path: "/contact" },
 ];
 
