@@ -12,6 +12,8 @@ export type Payment = {
   orderId: string;
   patientId: string;
   doctorId: string;
+  doctorName: string;       // ADDED: for payment history display
+  specialization: string;   // ADDED: for payment history display
   appointmentId: string;
   amount: number;
   currency: string;
@@ -27,6 +29,8 @@ export type Payment = {
 export type InitiatePaymentPayload = {
   patientId: string;
   doctorId: string;
+  doctorName?: string;      // ADDED: sent to backend so it gets stored on payment record
+  specialization?: string;  // ADDED: sent to backend so it gets stored on payment record
   appointmentId: string;
   amount: number;
   currency?: string;
@@ -125,13 +129,17 @@ export async function getPaymentStatus(orderId: string): Promise<Payment> {
   return handlePaymentResponse<Payment>(response);
 }
 
+// UPDATED: added token param — route requires auth
 export async function getPatientPaymentHistory(
-  patientId: string
+  patientId: string,
+  token: string
 ): Promise<PatientPaymentHistoryResponse> {
   let response: Response;
 
   try {
-    response = await fetch(`${PAYMENT_API_URL}/patient/${patientId}`);
+    response = await fetch(`${PAYMENT_API_URL}/patient/${patientId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
   } catch {
     throw new Error(
       "Unable to connect to the payment service. Please check that it is running."

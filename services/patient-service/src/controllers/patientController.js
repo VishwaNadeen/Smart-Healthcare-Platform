@@ -639,6 +639,31 @@ const deletePatientAdmin = async (req, res) => {
   }
 };
 
+// ADDED: internal endpoint so notification service can look up patient phone + email by authUserId
+const getPatientByAuthUserIdInternal = async (req, res) => {
+  try {
+    const secret = process.env.INTERNAL_SERVICE_SECRET;
+    if (!secret || req.headers["x-internal-service-secret"] !== secret) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const patient = await Patient.findOne({ authUserId: req.params.authUserId })
+      .select("email phone countryCode firstName lastName");
+
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    return res.status(200).json({ patient });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch patient",
+      error: error.message,
+    });
+  }
+};
+
+
 module.exports = {
   createPatient,
   getAllPatients,
@@ -654,4 +679,5 @@ module.exports = {
   removeCurrentPatientProfileImage,
   deleteCurrentPatient,
   deletePatientAdmin,
+  getPatientByAuthUserIdInternal,
 };

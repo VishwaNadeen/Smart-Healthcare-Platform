@@ -14,6 +14,14 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  doctorName: {         // ADDED: for payment history display
+    type: String,
+    default: ""
+  },
+  specialization: {     // ADDED: for payment history display
+    type: String,
+    default: ""
+  },
   appointmentId: {
     type: String,
     required: true

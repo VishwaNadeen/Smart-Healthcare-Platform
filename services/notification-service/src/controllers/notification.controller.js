@@ -12,11 +12,12 @@ const sendNotification = async (req, res) => {
     } = req.body;
 
     const smsMessages = {
-      APPOINTMENT_BOOKED: `Smart Healthcare: Your appointment ${metadata?.appointmentId} has been booked successfully.`,
-      APPOINTMENT_RESCHEDULED: `Smart Healthcare: Your appointment ${metadata?.appointmentId} has been rescheduled.`,
-      APPOINTMENT_CANCELLED: `Smart Healthcare: Your appointment ${metadata?.appointmentId} has been cancelled.`,
-      PAYMENT_SUCCESS: `Smart Healthcare: Payment of LKR ${metadata?.amount} for appointment ${metadata?.appointmentId} was successful.`,
-      CONSULTATION_COMPLETED: `Smart Healthcare: Your consultation for appointment ${metadata?.appointmentId} is completed.`
+      APPOINTMENT_BOOKED: `Smart Healthcare: Appointment booked with ${metadata?.doctorName} (${metadata?.specialization}) on ${metadata?.date} at ${metadata?.time}.`,
+      APPOINTMENT_RESCHEDULED: `Smart Healthcare: Your appointment with ${metadata?.doctorName} has been rescheduled to ${metadata?.date} at ${metadata?.time}.`,
+      APPOINTMENT_CANCELLED: `Smart Healthcare: Your appointment with ${metadata?.doctorName} on ${metadata?.date} has been cancelled.`,
+      PAYMENT_SUCCESS: `Smart Healthcare: Payment of LKR ${metadata?.amount} confirmed. Appointment with ${metadata?.doctorName} (${metadata?.specialization}) on ${metadata?.date} at ${metadata?.time}.`,
+      PAYMENT_REFUNDED: `Smart Healthcare: Your payment of LKR ${metadata?.amount} has been refunded. Your appointment with ${metadata?.doctorName} has been cancelled.`, // ADDED
+      CONSULTATION_COMPLETED: `Smart Healthcare: Your consultation with ${metadata?.doctorName} is completed. Your prescription will be available shortly.`
     };
 
     const emailSubjects = {
@@ -24,6 +25,7 @@ const sendNotification = async (req, res) => {
       APPOINTMENT_RESCHEDULED: 'Appointment Rescheduled - Smart Healthcare',
       APPOINTMENT_CANCELLED: 'Appointment Cancelled - Smart Healthcare',
       PAYMENT_SUCCESS: 'Payment Successful - Smart Healthcare',
+      PAYMENT_REFUNDED: 'Payment Refunded - Smart Healthcare', // ADDED
       CONSULTATION_COMPLETED: 'Consultation Completed - Smart Healthcare'
     };
 
@@ -32,6 +34,7 @@ const sendNotification = async (req, res) => {
       APPOINTMENT_RESCHEDULED: templates.appointmentRescheduled,
       APPOINTMENT_CANCELLED: templates.appointmentCancelled,
       PAYMENT_SUCCESS: templates.paymentSuccess,
+      PAYMENT_REFUNDED: templates.paymentRefunded, // ADDED
       CONSULTATION_COMPLETED: templates.consultationCompleted
     };
 

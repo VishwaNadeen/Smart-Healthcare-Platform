@@ -19,6 +19,7 @@ const {
   removeCurrentPatientProfileImage,
   deleteCurrentPatient,
   deletePatientAdmin,
+  getPatientByAuthUserIdInternal,
 } = require("../controllers/patientController");
 
 const {
@@ -27,6 +28,10 @@ const {
   deleteCurrentPatientSchema,
 } = require("../validations/patientValidation");
 
+
+
+// ADDED: internal route — used by notification service to fetch patient contact details
+router.get("/internal/lookup/auth/:authUserId", getPatientByAuthUserIdInternal);
 /*
   Public signup route
 */
