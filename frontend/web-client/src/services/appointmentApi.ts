@@ -1,4 +1,4 @@
-import { APPOINTMENT_API_URL } from "../config/api";
+import { APPOINTMENT_API_URL, DOCTOR_API_URL } from "../config/api";
 
 export type AppointmentStatus =
   | "pending"
@@ -44,6 +44,29 @@ export type CreateAppointmentPayload = {
   appointmentTime: string;
   reason?: string;
   paymentStatus?: PaymentStatus;
+};
+
+export type AppointmentAvailabilitySlot = {
+  time: string;
+  label: string;
+};
+
+export type GetDoctorAvailableSlotsPayload = {
+  doctorId: string;
+  appointmentDate: string;
+};
+
+export type GetDoctorAvailableSlotsResponse = {
+  availableSlots: AppointmentAvailabilitySlot[];
+};
+
+type DoctorAvailabilityProfile = {
+  availableTimeSlots?: string[];
+  availabilitySchedule?: Array<{
+    day: string;
+    startTime: string;
+    endTime: string;
+  }>;
 };
 
 async function handleAppointmentResponse<T>(response: Response): Promise<T> {
@@ -112,6 +135,101 @@ export async function createAppointment(
   return handleAppointmentResponse<{ message: string; appointment: Appointment }>(
     response
   );
+}
+
+function formatSlotLabel(time: string): string {
+  const [hours = "00", minutes = "00"] = time.split(":");
+  const date = new Date();
+  date.setHours(Number(hours), Number(minutes), 0, 0);
+
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function buildSlotsFromSchedule(
+  schedule: DoctorAvailabilityProfile["availabilitySchedule"],
+  appointmentDate: string
+): AppointmentAvailabilitySlot[] {
+  if (!Array.isArray(schedule) || schedule.length === 0) {
+    return [];
+  }
+
+  const date = new Date(`${appointmentDate}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return [];
+  }
+
+  const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+  const matchingSchedule = schedule.find((slot) => slot.day === weekday);
+
+  if (!matchingSchedule?.startTime || !matchingSchedule?.endTime) {
+    return [];
+  }
+
+  const slots: AppointmentAvailabilitySlot[] = [];
+  const [startHour = "0", startMinute = "0"] = matchingSchedule.startTime.split(":");
+  const [endHour = "0", endMinute = "0"] = matchingSchedule.endTime.split(":");
+
+  const current = new Date(date);
+  current.setHours(Number(startHour), Number(startMinute), 0, 0);
+
+  const end = new Date(date);
+  end.setHours(Number(endHour), Number(endMinute), 0, 0);
+
+  while (current < end) {
+    const time = `${String(current.getHours()).padStart(2, "0")}:${String(
+      current.getMinutes()
+    ).padStart(2, "0")}`;
+
+    slots.push({
+      time,
+      label: formatSlotLabel(time),
+    });
+
+    current.setMinutes(current.getMinutes() + 30);
+  }
+
+  return slots;
+}
+
+export async function getDoctorAvailableSlots(
+  _token: string,
+  payload: GetDoctorAvailableSlotsPayload
+): Promise<GetDoctorAvailableSlotsResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${DOCTOR_API_URL}/${payload.doctorId}`, {
+      method: "GET",
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the doctor service. Please check that it is running."
+    );
+  }
+
+  const doctor = await handleAppointmentResponse<DoctorAvailabilityProfile>(response);
+
+  const scheduleSlots = buildSlotsFromSchedule(
+    doctor.availabilitySchedule,
+    payload.appointmentDate
+  );
+
+  const fallbackSlots = Array.isArray(doctor.availableTimeSlots)
+    ? doctor.availableTimeSlots.map((time) => ({
+        time,
+        label: formatSlotLabel(time),
+      }))
+    : [];
+
+  const availableSlots = scheduleSlots.length > 0 ? scheduleSlots : fallbackSlots;
+
+  return {
+    availableSlots,
+  };
 }
 
 export async function getDoctorAppointments(

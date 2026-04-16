@@ -428,95 +428,95 @@ export default function DoctorAppointmentsPage() {
   }
 
   return (
-    <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
+    <section className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm ring-1 ring-slate-100">
-          <div className="bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_transparent_34%),linear-gradient(135deg,#0f172a_0%,#1d4ed8_48%,#38bdf8_100%)] px-6 py-8 text-white sm:px-8 lg:px-10">
-            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl">
-                <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-50 backdrop-blur">
-                  Doctor Workspace
-                </span>
-                <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
-                  Appointment Requests
-                </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-50/85 sm:text-base">
-                  Review incoming bookings, respond quickly, and keep your daily
-                  schedule organized from one clear workspace.
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-slate-900 sm:text-4xl">
+            Appointment Requests
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
+            Review incoming bookings, respond quickly, and keep your daily schedule organized.
+          </p>
+        </div>
+
+        {/* Stat Cards */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+          <div className="rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-blue-100 p-6 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+                  Total Requests
+                </p>
+                <p className="mt-4 text-4xl font-bold text-blue-900">
+                  {summaryCounts.total}
                 </p>
               </div>
-
-              <div className="grid w-full gap-3 sm:grid-cols-2 xl:min-w-[540px] xl:grid-cols-4">
-                <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-blue-100/80">
-                    Total Requests
-                  </p>
-                  <p className="mt-3 text-3xl font-bold text-white">
-                    {summaryCounts.total}
-                  </p>
-                  <p className="mt-1 text-xs text-blue-100/75">
-                    All appointment records
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-amber-200/70 bg-white/95 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-700">
-                    Pending
-                  </p>
-                  <p className="mt-3 text-3xl font-bold text-amber-900">
-                    {summaryCounts.pending}
-                  </p>
-                  <p className="mt-1 text-xs text-amber-700/80">
-                    Waiting for your response
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-emerald-200/70 bg-white/95 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
-                    Confirmed
-                  </p>
-                  <p className="mt-3 text-3xl font-bold text-emerald-900">
-                    {summaryCounts.confirmed}
-                  </p>
-                  <p className="mt-1 text-xs text-emerald-700/80">
-                    Ready for consultation
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-rose-200/70 bg-white/95 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-700">
-                    Rejected
-                  </p>
-                  <p className="mt-3 text-3xl font-bold text-rose-900">
-                    {summaryCounts.cancelled}
-                  </p>
-                  <p className="mt-1 text-xs text-rose-700/80">
-                    Closed or declined requests
-                  </p>
-                </div>
+              <div className="rounded-full bg-blue-200 p-1.5 text-xl flex-shrink-0">📋</div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-amber-100 bg-gradient-to-br from-amber-50 to-amber-100 p-6 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                  Pending
+                </p>
+                <p className="mt-4 text-4xl font-bold text-amber-900">
+                  {summaryCounts.pending}
+                </p>
               </div>
+              <div className="rounded-full bg-amber-200 p-1.5 text-xl flex-shrink-0">⏳</div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-emerald-100 bg-gradient-to-br from-emerald-50 to-emerald-100 p-6 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                  Confirmed
+                </p>
+                <p className="mt-4 text-4xl font-bold text-emerald-900">
+                  {summaryCounts.confirmed}
+                </p>
+              </div>
+              <div className="rounded-full bg-emerald-200 p-1.5 text-xl flex-shrink-0">✓</div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-rose-100 bg-gradient-to-br from-rose-50 to-rose-100 p-6 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+                  Rejected
+                </p>
+                <p className="mt-4 text-4xl font-bold text-rose-900">
+                  {summaryCounts.cancelled}
+                </p>
+              </div>
+              <div className="rounded-full bg-rose-200 p-1.5 text-xl flex-shrink-0">✕</div>
             </div>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="mb-6 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errorMessage}
           </div>
         )}
 
-        <div className="mt-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Appointments Table */}
+        <div className="rounded-lg border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Appointments Table</h2>
-              <p className="mt-2 text-sm text-slate-500">
-                Search, filter, and review appointment records with pagination.
+              <h2 className="text-lg font-bold text-slate-900">Appointments</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Search, filter, and review appointment records
               </p>
             </div>
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600">
-              {filteredAppointments.length} matching appointment
-              {filteredAppointments.length === 1 ? "" : "s"}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+              {filteredAppointments.length} matching
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-[1.6fr_0.9fr_0.8fr]">
+          <div className="grid gap-4 md:grid-cols-3 mb-6">
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Search
@@ -606,11 +606,11 @@ export default function DoctorAppointmentsPage() {
             <div className="overflow-x-auto">
               <table className="min-w-full table-fixed divide-y divide-slate-200">
                 <colgroup>
-                  <col className="w-[30%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[16%]" />
+                  <col className="w-[35%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[13%]" />
                   <col className="w-[12%]" />
-                  <col className="w-[24%]" />
+                  <col className="w-[27%]" />
                 </colgroup>
                 <thead className="bg-slate-50">
                   <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -630,7 +630,11 @@ export default function DoctorAppointmentsPage() {
                     const isActionLoading = actionLoadingId === appointment._id;
 
                     return (
-                      <tr key={appointment._id} className="align-top">
+                      <tr 
+                        key={appointment._id} 
+                        className="cursor-pointer align-top transition hover:bg-slate-50"
+                        onClick={() => setSelectedAppointmentDetails(appointment)}
+                      >
                         <td className="px-4 py-4">
                           <div>
                             <p className="font-semibold text-slate-900">{patientName}</p>
@@ -654,60 +658,68 @@ export default function DoctorAppointmentsPage() {
                             {getStatusLabel(appointment.status)}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-center">
-                          <div className="flex min-w-[240px] flex-wrap items-center justify-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedAppointmentDetails(appointment)}
-                              title="View appointment"
-                              aria-label="View appointment"
-                              className="inline-flex h-10 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
-                            >
-                              <AppointmentActionIcon />
-                              <span>Appointment</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleOpenPatientDetails(appointment)}
-                              disabled={patientDetailsLoadingId === appointment.patientId}
-                              title="View patient"
-                              aria-label="View patient"
-                              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <PatientActionIcon />
-                              {patientDetailsLoadingId === appointment.patientId
-                                ? "Loading..."
-                                : "Patient"}
-                            </button>
-
-                            {isPending ? (
-                              <>
+                        <td className="px-4 py-4">
+                          <div className="space-y-2">
+                            {/* View Buttons */}
+                            <div className="flex gap-2 justify-center">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedAppointmentDetails(appointment);
+                                }}
+                                title="View appointment details"
+                                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                              >
+                                <AppointmentActionIcon />
+                                <span>Details</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleOpenPatientDetails(appointment);
+                                }}
+                                disabled={patientDetailsLoadingId === appointment.patientId}
+                                title="View patient profile"
+                                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <PatientActionIcon />
+                                <span>{patientDetailsLoadingId === appointment.patientId ? "..." : "Profile"}</span>
+                              </button>
+                            </div>
+                            
+                            {/* Action Buttons - Only show if pending */}
+                            {isPending && (
+                              <div className="flex gap-2 justify-center pt-1">
                                 <button
                                   type="button"
                                   disabled={isActionLoading}
-                                  onClick={() =>
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     void handleUpdateAppointmentStatus(
                                       appointment._id,
                                       "confirmed"
-                                    )
-                                  }
-                                  className="inline-flex h-10 items-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    );
+                                  }}
+                                  className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                  {isActionLoading ? "Updating..." : "Accept"}
+                                  {isActionLoading ? "..." : "Accept"}
                                 </button>
                                 <button
                                   type="button"
                                   disabled={isActionLoading}
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     setRejectingAppointmentId(appointment._id);
                                     setRejectReason("");
                                   }}
-                                  className="inline-flex h-10 items-center rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   Reject
                                 </button>
-                              </>
-                            ) : null}
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -764,8 +776,17 @@ export default function DoctorAppointmentsPage() {
       </div>
 
       {rejectingAppointmentId ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
+          onClick={() => {
+            setRejectingAppointmentId(null);
+            setRejectReason("");
+          }}
+        >
+          <div 
+            className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-xl font-bold text-slate-900">Reject Appointment</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
               Please provide a reason. The patient will be able to see this message.
@@ -818,8 +839,14 @@ export default function DoctorAppointmentsPage() {
       ) : null}
 
       {selectedPatientDetails ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8"
+          onClick={() => setSelectedPatientDetails(null)}
+        >
+          <div 
+            className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-lg max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Patient Details</h2>
@@ -830,7 +857,7 @@ export default function DoctorAppointmentsPage() {
               <button
                 type="button"
                 onClick={() => setSelectedPatientDetails(null)}
-                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                className="px-3 py-2 text-sm font-semibold text-slate-700 hover:text-slate-900"
               >
                 Close
               </button>
@@ -925,8 +952,14 @@ export default function DoctorAppointmentsPage() {
       ) : null}
 
       {selectedAppointmentDetails ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8"
+          onClick={() => setSelectedAppointmentDetails(null)}
+        >
+          <div 
+            className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-lg max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
@@ -940,7 +973,7 @@ export default function DoctorAppointmentsPage() {
               <button
                 type="button"
                 onClick={() => setSelectedAppointmentDetails(null)}
-                className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                className="px-3 py-2 text-sm font-semibold text-slate-700 hover:text-slate-900"
               >
                 Close
               </button>

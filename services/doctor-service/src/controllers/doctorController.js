@@ -354,6 +354,7 @@ const getAllDoctors = async (req, res) => {
   }
 };
 
+
 const getDoctorById = async (req, res) => {
   try {
     const doctor = await Doctor.findById(req.params.id).populate(
@@ -373,6 +374,7 @@ const getDoctorById = async (req, res) => {
     });
   }
 };
+
 
 const updateDoctor = async (req, res) => {
   try {

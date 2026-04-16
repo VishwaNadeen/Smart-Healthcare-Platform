@@ -13,7 +13,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/users", label: "Users" },
-  { to: "/doctor-verifications", label: "Doctor Verifications" },
+  { to: "/doctors", label: "Doctors" },
   { to: "/appointments", label: "Appointments" },
   { to: "/payments", label: "Payments" },
   { to: "/operations", label: "Platform Operations" },
