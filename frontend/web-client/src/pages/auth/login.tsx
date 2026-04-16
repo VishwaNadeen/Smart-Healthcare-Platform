@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useToast } from "../../components/common/ToastProvider";
+import PasswordField from "../../components/common/PasswordField";
+import { useToast } from "../../components/common/toastContext";
 import { useLocationToast } from "../../hooks/useLocationToast";
 import { loginUser } from "../../services/authApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
@@ -43,10 +44,6 @@ function validateLoginForm(data: LoginFormState) {
     return "Password is required.";
   }
 
-  if (trimmedPassword.length < 6 || trimmedPassword.length > 100) {
-    return "Password must be between 6 and 100 characters.";
-  }
-
   return "";
 }
 
@@ -72,13 +69,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (!error) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setError("");
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [error]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const validationMessage = validateLoginForm(form);
 
     if (validationMessage) {
       setError(validationMessage);
-      showToast(validationMessage, "error");
       return;
     }
 
@@ -133,20 +141,23 @@ export default function LoginPage() {
         message.toLowerCase().includes("verify your email") &&
         form.email.trim()
       ) {
-        showToast("Please verify your email before logging in.", "info");
         navigate("/verify-email", {
           replace: true,
           state: {
             registeredEmail: form.email.trim(),
-            successMessage:
-              "Your account is registered, but email verification is still pending.",
+            infoMessage: "Verify your email first.",
           },
         });
         return;
       }
 
-      setError(message);
-      showToast(message, "error");
+      setError(
+        message.toLowerCase().includes("user not found")
+          ? "No account found for this email."
+          : message.toLowerCase().includes("incorrect password")
+          ? "Incorrect password."
+          : message
+      );
     } finally {
       setLoading(false);
     }
@@ -156,6 +167,10 @@ export default function LoginPage() {
     key: K,
     value: LoginFormState[K]
   ) {
+    if (error) {
+      setError("");
+    }
+
     setForm((current) => ({
       ...current,
       [key]: value,
@@ -194,8 +209,7 @@ export default function LoginPage() {
             <div className="mb-8">
               <h2 className="text-3xl font-bold text-slate-900">Login</h2>
               <p className="mt-2 text-sm text-slate-500">
-                Patients can log in after email verification. Doctors can log in
-                only after email verification and admin approval.
+                Enter the email and password from the auth service.
               </p>
             </div>
 
@@ -211,12 +225,6 @@ export default function LoginPage() {
                 >
                   Verify now
                 </Link>
-              </div>
-            )}
-
-            {!locationState?.verificationRequired && locationState?.successMessage && (
-              <div className="mb-5 rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-800">
-                {locationState.successMessage}
               </div>
             )}
 
@@ -254,16 +262,16 @@ export default function LoginPage() {
                     Forgot password?
                   </Link>
                 </div>
-                <input
+                <PasswordField
                   id="password"
-                  type="password"
                   value={form.password}
                   onChange={(event) =>
                     updateField("password", event.target.value)
                   }
                   placeholder="Enter your password"
                   required
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  autoComplete="current-password"
+                  inputClassName="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
 

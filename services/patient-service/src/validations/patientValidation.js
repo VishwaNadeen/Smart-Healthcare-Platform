@@ -4,6 +4,15 @@ const namePattern = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
 const countryCodePattern = /^\+[1-9]\d{0,3}$/;
 const phonePattern = /^\d{7,15}$/;
 const countryPattern = /^[A-Za-z]+(?:[ .'-][A-Za-z]+)*$/;
+const nicPattern = /^(?:\d{9}[VvXx]|\d{12})$/;
+
+const titleRule = Joi.string()
+  .valid("Mr", "Miss", "Mrs")
+  .required()
+  .messages({
+    "any.only": "Please select a valid title",
+    "any.required": "Title is required",
+  });
 
 const nameRule = (label) =>
   Joi.string()
@@ -26,14 +35,20 @@ const emailRule = Joi.string().trim().lowercase().email().required().messages({
   "any.required": "Email is required",
 });
 
+const nicRule = Joi.string().trim().pattern(nicPattern).required().messages({
+  "string.empty": "NIC is required",
+  "string.pattern.base": "NIC must be 12 digits or 9 digits followed by V/X",
+  "any.required": "NIC is required",
+});
+
 const passwordRule = Joi.string()
-  .min(8)
+  .min(6)
   .max(100)
   .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/)
   .required()
   .messages({
     "string.empty": "Password is required",
-    "string.min": "Password must be at least 8 characters",
+    "string.min": "Password must be at least 6 characters",
     "string.max": "Password must be 100 characters or fewer",
     "string.pattern.base":
       "Password must include uppercase, lowercase, number, and special character",
@@ -69,10 +84,9 @@ const birthdayRule = Joi.date()
 
 const genderRule = Joi.string()
   .valid("male", "female", "other")
-  .required()
+  .optional()
   .messages({
     "any.only": "Please select a valid gender",
-    "any.required": "Gender is required",
   });
 
 const addressRule = Joi.string().trim().max(255).allow("").optional().messages({
@@ -95,21 +109,24 @@ const countryRule = Joi.string()
   });
 
 const createPatientSchema = Joi.object({
+  title: titleRule,
   firstName: nameRule("First name"),
   lastName: nameRule("Last name"),
+  nic: nicRule,
   email: emailRule,
   password: passwordRule,
   countryCode: countryCodeRule,
   phone: phoneRule,
   birthday: birthdayRule,
-  gender: genderRule,
   address: addressRule,
   country: countryRule,
 });
 
 const updateCurrentPatientSchema = Joi.object({
+  title: titleRule.optional(),
   firstName: nameRule("First name").optional(),
   lastName: nameRule("Last name").optional(),
+  nic: nicRule.optional(),
   email: emailRule.optional(),
   countryCode: countryCodeRule.optional(),
   phone: phoneRule.optional(),

@@ -20,25 +20,32 @@ const {
   deleteAppointment,
   updateAppointmentStatus,
   getAppointmentTracking,
-  getAdminAppointments,
-  getAdminAppointmentActivity,
+  getPatientAppointmentStatsAdmin,
   getInternalAppointmentById,
   updateAppointmentStatusInternal,
+  updateAppointmentPaymentStatusInternal,
+  rescheduleAppointment,
+  respondToReschedule,
+  getRefundQueueAdmin,
 } = require("../controllers/appointmentController");
 
 router.get("/specialties", getSpecialtiesForDropdown);
 router.get("/doctors/search", searchDoctorsBySpecialty);
-router.get("/admin/activity", requireAdminAuth, getAdminAppointmentActivity);
-router.get("/admin/all", requireAdminAuth, getAdminAppointments);
+
 router.post("/", requirePatientAuth, createAppointment);
 router.get("/", requirePatientAuth, getAllAppointments);
 router.get("/doctor/:doctorId", requireDoctorAuth, enforceDoctorParamOwnership, getAppointmentsByDoctorId);
+router.get("/admin/patient/:patientId/stats", requireAdminAuth, getPatientAppointmentStatsAdmin);
+router.get("/admin/refund-queue", requireAdminAuth, getRefundQueueAdmin);
+
 router.get("/:id/tracking", requirePatientAuth, getAppointmentTracking);
 router.get("/:id", requirePatientAuth, getAppointmentById);
 router.put("/:id", requirePatientAuth, updateAppointment);
 router.patch("/:id/cancel", requirePatientAuth, cancelAppointment);
 router.delete("/:id", requirePatientAuth, deleteAppointment);
 router.patch("/:id/status", requireDoctorAuth, updateAppointmentStatus);
+router.patch("/:id/reschedule", requireDoctorAuth, rescheduleAppointment);
+router.patch("/:id/reschedule/respond", requirePatientAuth, respondToReschedule);
 
 /*
   Internal service-to-service routes
@@ -46,5 +53,9 @@ router.patch("/:id/status", requireDoctorAuth, updateAppointmentStatus);
 */
 router.get("/internal/:id", getInternalAppointmentById);
 router.patch("/internal/:id/status", updateAppointmentStatusInternal);
+router.patch("/internal/:id/payment-status", updateAppointmentPaymentStatusInternal);
+
+
+
 
 module.exports = router;

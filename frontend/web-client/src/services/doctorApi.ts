@@ -1,14 +1,6 @@
 import { DOCTOR_API_URL, DOCTOR_SPECIALTY_API_URL } from "../config/api";
 
-export type DoctorAvailabilityScheduleItem = {
-  day: string;
-  startTime: string;
-  endTime: string;
-  mode: "in_person" | "video" | "both";
-  maxAppointments: number;
-};
-
-export type DoctorProfile = {
+export type DoctorProfileResponse = {
   _id: string;
   fullName: string;
   email: string;
@@ -24,52 +16,20 @@ export type DoctorProfile = {
   availableTimeSlots?: string[];
   consultationFee?: number;
   isAvailableForVideo?: boolean;
-  profileImage?: string;
-  profileImagePublicId?: string;
-  about?: string;
-  status?: "active" | "inactive" | string;
+  availabilitySchedule?: Array<{
+    day: string;
+    startTime: string;
+    endTime: string;
+    mode: "in_person" | "video" | "both";
+    maxAppointments: number;
+  }>;
   supportsDigitalPrescriptions?: boolean;
   acceptsNewAppointments?: boolean;
-  availabilitySchedule?: DoctorAvailabilityScheduleItem[];
-  verificationStatus?: string;
-  verificationNote?: string;
-  verifiedAt?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-export type DoctorProfileResponse = DoctorProfile;
-
-export type DoctorProfileUpdatePayload = {
-  fullName: string;
-  email: string;
-  phone: string;
-  specialization: string;
-  experience: number;
-  qualification: string;
-  licenseNumber: string;
-  hospitalName: string;
-  hospitalAddress: string;
-  city: string;
-  consultationFee: number;
-  isAvailableForVideo: boolean;
-  profileImage: string;
-  about: string;
-  supportsDigitalPrescriptions: boolean;
-  acceptsNewAppointments: boolean;
-  availableDays: string[];
-  availableTimeSlots: string[];
-  availabilitySchedule: DoctorAvailabilityScheduleItem[];
-};
-
-export type DoctorDeleteResponse = {
-  message: string;
-};
-
-export type DoctorProfileImageResponse = {
-  message: string;
-  profileImage: string;
-  doctor: DoctorProfile;
+  profileImage?: string;
+  about?: string;
+  status?: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type DoctorSpecialty = {
@@ -108,7 +68,7 @@ async function handleDoctorResponse<T>(response: Response): Promise<T> {
 
 export async function getCurrentDoctorProfile(
   token: string
-): Promise<DoctorProfile> {
+): Promise<DoctorProfileResponse> {
   let response: Response;
 
   try {
@@ -124,100 +84,7 @@ export async function getCurrentDoctorProfile(
     );
   }
 
-  return handleDoctorResponse<DoctorProfile>(response);
-}
-
-export async function updateCurrentDoctorProfile(
-  token: string,
-  payload: DoctorProfileUpdatePayload
-): Promise<DoctorProfile> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${DOCTOR_API_URL}/me`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    throw new Error(
-      "Unable to connect to the doctor service. Please check that it is running."
-    );
-  }
-
-  return handleDoctorResponse<DoctorProfile>(response);
-}
-
-export async function deleteCurrentDoctor(
-  token: string
-): Promise<DoctorDeleteResponse> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${DOCTOR_API_URL}/me`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  } catch {
-    throw new Error(
-      "Unable to connect to the doctor service. Please check that it is running."
-    );
-  }
-
-  return handleDoctorResponse<DoctorDeleteResponse>(response);
-}
-
-export async function uploadDoctorProfileImage(
-  token: string,
-  file: File
-): Promise<DoctorProfileImageResponse> {
-  const formData = new FormData();
-  formData.append("profileImage", file);
-
-  let response: Response;
-
-  try {
-    response = await fetch(`${DOCTOR_API_URL}/me/profile-image`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
-  } catch {
-    throw new Error(
-      "Unable to connect to the doctor service. Please check that it is running."
-    );
-  }
-
-  return handleDoctorResponse<DoctorProfileImageResponse>(response);
-}
-
-export async function removeDoctorProfileImage(
-  token: string
-): Promise<DoctorProfile> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${DOCTOR_API_URL}/me/profile-image`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  } catch {
-    throw new Error(
-      "Unable to connect to the doctor service. Please check that it is running."
-    );
-  }
-
-  const data = await handleDoctorResponse<{ doctor: DoctorProfile }>(response);
-  return data.doctor;
+  return handleDoctorResponse<DoctorProfileResponse>(response);
 }
 
 export async function getDoctorSpecialties(): Promise<DoctorSpecialty[]> {
@@ -266,4 +133,18 @@ export async function getDoctors(params?: {
   }
 
   return handleDoctorResponse<DoctorProfileResponse[]>(response);
+}
+
+
+//added by nimesh fetch single doctor by ID, get conslut fee
+export async function getDoctorById(doctorId: string): Promise<DoctorProfileResponse> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${DOCTOR_API_URL}/${doctorId}`);
+  } catch {
+    throw new Error('Unable to connect to the doctor service.');
+  }
+
+  return handleDoctorResponse<DoctorProfileResponse>(response);
 }

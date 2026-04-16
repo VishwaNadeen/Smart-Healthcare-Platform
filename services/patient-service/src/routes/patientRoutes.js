@@ -7,13 +7,19 @@ const validate = require("../middlewares/validate");
 const {
   createPatient,
   getAllPatients,
+  getAllPatientsAdmin,
   getCurrentPatient,
   getPatientById,
+  getPatientByIdAdmin,
   getPatientSummaryByAuthUserId,
   updateCurrentPatient,
+  updatePatientAdmin,
+  updatePatientStatusAdmin,
   uploadCurrentPatientProfileImage,
   removeCurrentPatientProfileImage,
   deleteCurrentPatient,
+  deletePatientAdmin,
+  getPatientByAuthUserIdInternal,
 } = require("../controllers/patientController");
 
 const {
@@ -22,6 +28,10 @@ const {
   deleteCurrentPatientSchema,
 } = require("../validations/patientValidation");
 
+
+
+// ADDED: internal route — used by notification service to fetch patient contact details
+router.get("/internal/lookup/auth/:authUserId", getPatientByAuthUserIdInternal);
 /*
   Public signup route
 */
@@ -31,6 +41,11 @@ router.post("/", validate(createPatientSchema), createPatient);
   Public/general routes
 */
 router.get("/", getAllPatients);
+router.get("/admin", authMiddleware, getAllPatientsAdmin);
+router.get("/admin/:id", authMiddleware, getPatientByIdAdmin);
+router.put("/admin/:id", authMiddleware, updatePatientAdmin);
+router.patch("/admin/:id/status", authMiddleware, updatePatientStatusAdmin);
+router.delete("/admin/:id", authMiddleware, deletePatientAdmin);
 
 /*
   Protected current-user routes

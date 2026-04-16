@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useToast } from "./ToastProvider";
+import { useToast } from "./toastContext";
+import SideNavBar from "./sideNavBar";
 import { logoutUser } from "../../services/authApi";
 import { getCurrentDoctorProfile } from "../../services/doctorApi";
 import { getCurrentPatientProfile } from "../../services/patientApi";
@@ -10,20 +11,19 @@ import {
   getStoredTelemedicineAuth,
   type TelemedicineRole,
 } from "../../utils/telemedicineAuth";
-import { doctorNavRoutes } from "../../routes/navRoutes/doctorNavRoutes";
-import { patientNavRoutes } from "../../routes/navRoutes/patientNavRoutes";
 
 const PATIENT_PROFILE_NAME_KEY = "patientProfileName";
 const PATIENT_PROFILE_IMAGE_KEY = "patientProfileImage";
 const DOCTOR_PROFILE_NAME_KEY = "doctorProfileName";
 const DOCTOR_PROFILE_IMAGE_KEY = "doctorProfileImage";
 const PROFILE_UPDATED_EVENT = "patient-profile-updated";
+const LOGOUT_PROMPT_ANIMATION_MS = 220;
 
 const navLinks = [
   { name: "Home", path: "/" },
+  { name: "HealthAI", path: "/ai" },
   { name: "Appointments", path: "/appointments" },
   { name: "Consultation", path: "/consultation" },
-  { name: "About Us", path: "/about" },
   { name: "Contact Us", path: "/contact" },
 ];
 
@@ -106,9 +106,10 @@ export default function Navbar() {
   const { showToast } = useToast();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
+  const [isLogoutPromptMounted, setIsLogoutPromptMounted] = useState(false);
+  const [isLogoutPromptVisible, setIsLogoutPromptVisible] = useState(false);
   const [actionError, setActionError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -123,13 +124,6 @@ export default function Navbar() {
   );
 
   const initials = getInitials(profileName, auth.email ?? undefined);
-
-  const sidebarLinks =
-    auth.role === "patient"
-      ? patientNavRoutes
-      : auth.role === "doctor"
-      ? doctorNavRoutes
-      : [];
 
   useEffect(() => {
     setProfileName(getStoredProfileName(auth.role, auth.username || ""));
@@ -219,7 +213,6 @@ export default function Navbar() {
 
   useEffect(() => {
     setIsProfileDropdownOpen(false);
-    setIsSidebarOpen(false);
     setIsOpen(false);
   }, [location.pathname]);
 
@@ -245,16 +238,30 @@ export default function Navbar() {
   }, [isProfileDropdownOpen]);
 
   useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
+    let animationFrameId: number | undefined;
+    let timeoutId: number | undefined;
 
-    if (isSidebarOpen) {
-      document.body.style.overflow = "hidden";
+    if (showLogoutPrompt) {
+      setIsLogoutPromptMounted(true);
+      animationFrameId = window.requestAnimationFrame(() => {
+        setIsLogoutPromptVisible(true);
+      });
+    } else if (isLogoutPromptMounted) {
+      setIsLogoutPromptVisible(false);
+      timeoutId = window.setTimeout(() => {
+        setIsLogoutPromptMounted(false);
+      }, LOGOUT_PROMPT_ANIMATION_MS);
     }
 
     return () => {
-      document.body.style.overflow = originalOverflow;
+      if (animationFrameId) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
     };
-  }, [isSidebarOpen]);
+  }, [isLogoutPromptMounted, showLogoutPrompt]);
 
   async function handleLogout() {
     setActionError("");
@@ -268,15 +275,14 @@ export default function Navbar() {
       const message =
         error instanceof Error ? error.message : "Failed to log out cleanly.";
       setActionError(message);
-      showToast(message, "error");
+      showToast("Logout failed.", "error");
     } finally {
       clearStoredProfiles();
       clearTelemedicineAuth();
-      showToast("Logged out successfully.", "success");
+      showToast("Logged out.", "success");
       setShowLogoutPrompt(false);
       setIsSubmitting(false);
       setIsOpen(false);
-      setIsSidebarOpen(false);
       setIsProfileDropdownOpen(false);
       navigate("/login", { replace: true });
     }
@@ -285,9 +291,21 @@ export default function Navbar() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-blue-200/40 bg-white/80 backdrop-blur-md shadow-sm">
-        {showLogoutPrompt && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/40 px-4">
-            <div className="w-full max-w-md rounded-3xl border border-blue-200 bg-white p-8 shadow-2xl">
+        {isLogoutPromptMounted && (
+          <div
+            className={`fixed inset-0 z-[80] flex items-center justify-center px-4 transition-all duration-200 ${
+              isLogoutPromptVisible
+                ? "bg-slate-900/40 opacity-100"
+                : "pointer-events-none bg-slate-900/0 opacity-0"
+            }`}
+          >
+            <div
+              className={`w-full max-w-md rounded-3xl border border-blue-200 bg-white p-8 shadow-2xl transition-all duration-200 ${
+                isLogoutPromptVisible
+                  ? "translate-y-0 scale-100 opacity-100"
+                  : "translate-y-3 scale-95 opacity-0"
+              }`}
+            >
               <h2 className="text-center text-xl font-semibold text-slate-900">
                 Confirm Logout
               </h2>
@@ -452,20 +470,13 @@ export default function Navbar() {
               )}
             </div>
 
-            {auth.isAuthenticated && (
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen(true)}
-                className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-all duration-300 hover:bg-blue-50 hover:text-blue-600"
-                aria-label="Open sidebar"
-              >
-                <div className="relative h-5 w-5">
-                  <span className="absolute left-0 top-1 h-0.5 w-5 rounded bg-current" />
-                  <span className="absolute left-0 top-2.5 h-0.5 w-5 rounded bg-current" />
-                  <span className="absolute left-0 top-4 h-0.5 w-5 rounded bg-current" />
-                </div>
-              </button>
-            )}
+            <SideNavBar
+              authRole={auth.role}
+              initials={initials}
+              isAuthenticated={auth.isAuthenticated}
+              profileImage={profileImage}
+              profileName={profileName}
+            />
 
             <button
               type="button"
@@ -588,107 +599,6 @@ export default function Navbar() {
         </div>
       </header>
 
-      {auth.isAuthenticated && (
-        <>
-          <div
-            onClick={() => setIsSidebarOpen(false)}
-            className={`fixed inset-0 z-[60] bg-slate-900/40 transition-all duration-300 ${
-              isSidebarOpen
-                ? "pointer-events-auto opacity-100"
-                : "pointer-events-none opacity-0"
-            }`}
-          />
-
-          <aside
-            className={`fixed right-0 top-0 z-[70] h-full w-[300px] border-l border-blue-200 bg-white/95 shadow-2xl backdrop-blur-md transition-all duration-300 ${
-              isSidebarOpen ? "translate-x-0" : "translate-x-full"
-            }`}
-          >
-            <div className="flex items-center justify-between border-b border-blue-100 px-5 py-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">
-                  {auth.role === "doctor" ? "Doctor Menu" : "Patient Menu"}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsSidebarOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-all duration-300 hover:bg-blue-50 hover:text-blue-600"
-                aria-label="Close sidebar"
-              >
-                <svg
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M4.22 4.22a.75.75 0 011.06 0L10 8.94l4.72-4.72a.75.75 0 111.06 1.06L11.06 10l4.72 4.72a.75.75 0 11-1.06 1.06L10 11.06l-4.72 4.72a.75.75 0 01-1.06-1.06L8.94 10 4.22 5.28a.75.75 0 010-1.06z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div className="flex h-[calc(100%-88px)] flex-col justify-between overflow-y-auto px-4 py-4">
-              <div className="grid gap-2">
-                {sidebarLinks.map((link, index) => (
-                  <NavLink
-                    key={link.name}
-                    to={link.path}
-                    onClick={() => setIsSidebarOpen(false)}
-                    className={({ isActive }) => {
-                      const active = isNavItemActive(
-                        location.pathname,
-                        link.path,
-                        isActive
-                      );
-
-                      return `rounded-2xl px-4 py-3 text-sm font-medium transition-all duration-300 ${
-                        active
-                          ? "bg-blue-100 text-blue-700 shadow-sm"
-                          : "text-slate-700 hover:bg-blue-50 hover:text-blue-600"
-                      }`;
-                    }}
-                    style={{
-                      transitionDelay: isSidebarOpen ? `${index * 40}ms` : "0ms",
-                    }}
-                  >
-                    {link.name}
-                  </NavLink>
-                ))}
-              </div>
-
-              <div className="mt-6 rounded-2xl bg-slate-50 px-4 py-4">
-                <div className="flex items-center gap-3">
-                  {profileImage ? (
-                    <img
-                      src={profileImage}
-                      alt="Profile"
-                      className="h-12 w-12 rounded-full object-cover ring-2 ring-blue-200"
-                    />
-                  ) : (
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white ring-2 ring-blue-200">
-                      {initials}
-                    </div>
-                  )}
-
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-800">
-                      {profileName || "My Profile"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {auth.role === "doctor" ? "Doctor" : "Patient"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </aside>
-        </>
-      )}
     </>
   );
 }

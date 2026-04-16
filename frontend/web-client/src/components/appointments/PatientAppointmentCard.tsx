@@ -5,15 +5,15 @@ type PatientAppointmentCardProps = {
   appointment: Appointment;
   onCancel: (appointmentId: string) => void;
   isCancelling: boolean;
+  onCompletePayment: (appointment: Appointment) => void;
+  isCompletingPayment: boolean;
+  onRescheduleResponse: (appointmentId: string, response: "approved" | "rejected") => void;
+  isRespondingToReschedule: boolean;
 };
 
 function formatDate(dateString: string) {
   const date = new Date(dateString);
-
-  if (Number.isNaN(date.getTime())) {
-    return dateString;
-  }
-
+  if (Number.isNaN(date.getTime())) return dateString;
   return date.toLocaleDateString("en-LK", {
     year: "numeric",
     month: "short",
@@ -25,36 +25,24 @@ function formatTime(timeString: string) {
   const [hours = "00", minutes = "00"] = timeString.split(":");
   const date = new Date();
   date.setHours(Number(hours), Number(minutes), 0, 0);
-
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function getStatusClasses(status: Appointment["status"]) {
   switch (status) {
-    case "pending":
-      return "text-amber-700";
-    case "confirmed":
-      return "text-emerald-700";
-    case "completed":
-      return "text-blue-700";
-    case "cancelled":
-      return "text-rose-700";
-    default:
-      return "text-slate-700";
+    case "pending":    return "text-amber-700";
+    case "confirmed":  return "text-emerald-700";
+    case "completed":  return "text-blue-700";
+    case "cancelled":  return "text-rose-700";
+    default:           return "text-slate-700";
   }
 }
 
 function getPaymentClasses(status: Appointment["paymentStatus"]) {
   switch (status) {
-    case "paid":
-      return "text-emerald-700";
-    case "failed":
-      return "text-rose-700";
-    default:
-      return "text-amber-700";
+    case "paid":   return "text-emerald-700";
+    case "failed": return "text-rose-700";
+    default:       return "text-amber-700";
   }
 }
 
@@ -62,7 +50,16 @@ export default function PatientAppointmentCard({
   appointment,
   onCancel,
   isCancelling,
+  onCompletePayment,
+  isCompletingPayment,
+  onRescheduleResponse,
+  isRespondingToReschedule,
 }: PatientAppointmentCardProps) {
+  const hasPendingReschedule =
+    appointment.rescheduleStatus === "pending" &&
+    appointment.rescheduledDate &&
+    appointment.rescheduledTime;
+
   return (
     <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
       <div className="min-w-0">
@@ -76,49 +73,74 @@ export default function PatientAppointmentCard({
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Date
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Date</p>
           <p className="mt-1 text-sm font-semibold text-slate-800">
             {formatDate(appointment.appointmentDate)}
           </p>
         </div>
 
         <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Time
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Time</p>
           <p className="mt-1 text-sm font-semibold text-slate-800">
             {formatTime(appointment.appointmentTime)}
           </p>
         </div>
 
         <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Payment
-          </p>
-          <span
-            className={`mt-1 inline-flex text-sm font-semibold capitalize ${getPaymentClasses(
-              appointment.paymentStatus
-            )}`}
-          >
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Payment</p>
+          <span className={`mt-1 inline-flex text-sm font-semibold capitalize ${getPaymentClasses(appointment.paymentStatus)}`}>
             {appointment.paymentStatus}
           </span>
         </div>
 
         <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Status
-          </p>
-          <span
-            className={`mt-1 inline-flex text-sm font-semibold capitalize ${getStatusClasses(
-              appointment.status
-            )}`}
-          >
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
+          <span className={`mt-1 inline-flex text-sm font-semibold capitalize ${getStatusClasses(appointment.status)}`}>
             {appointment.status}
           </span>
         </div>
       </div>
+
+      {/* Reschedule proposal banner */}
+      {hasPendingReschedule && (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+            Doctor Proposed Reschedule
+          </p>
+          <div className="mt-2 flex gap-3">
+            <div>
+              <p className="text-xs text-slate-500">New Date</p>
+              <p className="text-sm font-semibold text-slate-800">
+                {formatDate(appointment.rescheduledDate!)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">New Time</p>
+              <p className="text-sm font-semibold text-slate-800">
+                {formatTime(appointment.rescheduledTime!)}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => onRescheduleResponse(appointment._id, "approved")}
+              disabled={isRespondingToReschedule}
+              className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isRespondingToReschedule ? "Processing..." : "Approve"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onRescheduleResponse(appointment._id, "rejected")}
+              disabled={isRespondingToReschedule}
+              className="flex-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isRespondingToReschedule ? "Processing..." : "Reject"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-5 flex flex-col gap-3">
         <Link
@@ -137,7 +159,7 @@ export default function PatientAppointmentCard({
           </Link>
         )}
 
-        {appointment.status === "pending" && (
+        {appointment.status === "pending" && !hasPendingReschedule && (
           <button
             type="button"
             onClick={() => onCancel(appointment._id)}
@@ -145,6 +167,17 @@ export default function PatientAppointmentCard({
             className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isCancelling ? "Cancelling..." : "Cancel Appointment"}
+          </button>
+        )}
+
+        {appointment.paymentStatus === "pending" && appointment.status !== "cancelled" && (
+          <button
+            type="button"
+            onClick={() => onCompletePayment(appointment)}
+            disabled={isCompletingPayment}
+            className="inline-flex items-center justify-center rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isCompletingPayment ? "Loading..." : "Complete Payment"}
           </button>
         )}
       </div>

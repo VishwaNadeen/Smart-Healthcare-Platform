@@ -7,13 +7,13 @@ const email = Joi.string().trim().lowercase().email().required().messages({
 });
 
 const password = Joi.string()
-  .min(8)
+  .min(6)
   .max(100)
   .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/)
   .required()
   .messages({
     "string.empty": "Password is required",
-    "string.min": "Password must be at least 8 characters",
+    "string.min": "Password must be at least 6 characters",
     "string.max": "Password must be 100 characters or fewer",
     "string.pattern.base":
       "Password must include uppercase, lowercase, number, and special character",
@@ -62,7 +62,7 @@ const registerSchema = Joi.object({
 
 const loginSchema = Joi.object({
   email,
-  password,
+  password: currentPassword,
 });
 
 const requestEmailVerificationSchema = Joi.object({

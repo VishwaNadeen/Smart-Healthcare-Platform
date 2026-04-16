@@ -1,16 +1,11 @@
-const streamifier = require("streamifier");
 const Doctor = require("../models/doctorModel");
 const Specialty = require("../models/specialtyModel");
-const cloudinary = require("../config/cloudinary");
 const {
   registerDoctorAuth,
   deleteAuthAccountByEmail,
 } = require("../services/authService");
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const APPOINTMENT_DURATION_MINUTES = 10;
-const MIN_SLOT_DURATION_MINUTES = 120;
-const MAX_SLOT_DURATION_MINUTES = 360;
 
 const parseBoolean = (value) => {
   if (typeof value === "boolean") return value;
@@ -44,17 +39,10 @@ const doctorAllowedFields = [
   "availabilitySchedule",
 ];
 
-const adminDoctorAllowedFields = [...doctorAllowedFields, "verificationNote"];
-
-const sanitizeStringArray = (values) => {
-  if (!Array.isArray(values)) {
-    return undefined;
-  }
-
-  return [
-    ...new Set(values.map((value) => String(value || "").trim()).filter(Boolean)),
-  ];
-};
+const sanitizeStringArray = (values) =>
+  Array.isArray(values)
+    ? [...new Set(values.map((v) => String(v || "").trim()).filter(Boolean))]
+    : undefined;
 
 const sanitizeAvailabilitySchedule = (slots) => {
   if (!Array.isArray(slots)) return undefined;
@@ -73,75 +61,9 @@ const sanitizeAvailabilitySchedule = (slots) => {
     .filter((slot) => slot.day && slot.startTime && slot.endTime);
 };
 
-const toMinutes = (time) => {
-  const [hours, minutes] = String(time || "")
-    .split(":")
-    .map((value) => Number(value));
-
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return NaN;
-  }
-
-  return hours * 60 + minutes;
-};
-
-const getAvailabilityOverlapMessage = (slots = []) => {
-  const groupedByDay = new Map();
-
-  for (const slot of slots) {
-    const start = toMinutes(slot.startTime);
-    const end = toMinutes(slot.endTime);
-
-    if (Number.isNaN(start) || Number.isNaN(end) || start >= end) {
-      return `Invalid time range for ${slot.day || "selected day"}. End time must be later than start time.`;
-    }
-
-    if (end - start < MIN_SLOT_DURATION_MINUTES) {
-      return `Invalid time range for ${slot.day || "selected day"}. Each slot must be at least 2 hours.`;
-    }
-
-    if (end - start > MAX_SLOT_DURATION_MINUTES) {
-      return `Invalid time range for ${slot.day || "selected day"}. Each slot cannot exceed 6 hours.`;
-    }
-
-    const daySlots = groupedByDay.get(slot.day) || [];
-    daySlots.push(slot);
-    groupedByDay.set(slot.day, daySlots);
-  }
-
-  for (const [day, daySlots] of groupedByDay.entries()) {
-    const sortedSlots = [...daySlots].sort(
-      (left, right) => toMinutes(left.startTime) - toMinutes(right.startTime)
-    );
-
-    for (let index = 1; index < sortedSlots.length; index += 1) {
-      const previous = sortedSlots[index - 1];
-      const current = sortedSlots[index];
-
-      if (toMinutes(current.startTime) < toMinutes(previous.endTime)) {
-        return `${day} has overlapping time slots. Please adjust the times so they do not overlap.`;
-      }
-    }
-  }
-
-  return "";
-};
-
-const withCalculatedSlotCapacities = (slots = []) =>
-  slots.map((slot) => ({
-    ...slot,
-    maxAppointments: Math.max(
-      1,
-      Math.floor(
-        (toMinutes(slot.endTime) - toMinutes(slot.startTime)) /
-          APPOINTMENT_DURATION_MINUTES
-      )
-    ),
-  }));
-
-const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
+const sanitizeDoctorPayload = (payload = {}) => {
   const sanitized = Object.fromEntries(
-    Object.entries(payload).filter(([key]) => allowedFields.includes(key))
+    Object.entries(payload).filter(([key]) => doctorAllowedFields.includes(key))
   );
 
   if (sanitized.email !== undefined) {
@@ -176,9 +98,6 @@ const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
   }
   if (sanitized.profileImage !== undefined) {
     sanitized.profileImage = String(sanitized.profileImage).trim();
-  }
-  if (sanitized.verificationNote !== undefined) {
-    sanitized.verificationNote = String(sanitized.verificationNote).trim();
   }
   if (sanitized.experience !== undefined && sanitized.experience !== "") {
     sanitized.experience = Number(sanitized.experience);
@@ -229,9 +148,6 @@ const sanitizePayloadWithAllowedFields = (payload = {}, allowedFields = []) => {
   return sanitized;
 };
 
-const sanitizeDoctorPayload = (payload = {}) =>
-  sanitizePayloadWithAllowedFields(payload, doctorAllowedFields);
-
 const resolveSpecialty = async (specializationName) => {
   const normalizedName = String(specializationName || "").trim();
   if (!normalizedName) return null;
@@ -245,7 +161,7 @@ const resolveSpecialty = async (specializationName) => {
 const findDoctorByAuthUserId = async (authUserId, email) => {
   if (authUserId) {
     const byAuthUserId = await Doctor.findOne({ authUserId })
-      .select("+authUserId +profileImagePublicId")
+      .select("+authUserId")
       .populate("specializationId", "name description isActive");
 
     if (byAuthUserId) return byAuthUserId;
@@ -253,7 +169,7 @@ const findDoctorByAuthUserId = async (authUserId, email) => {
 
   if (email) {
     return Doctor.findOne({ email: String(email).toLowerCase() })
-      .select("+authUserId +profileImagePublicId")
+      .select("+authUserId")
       .populate("specializationId", "name description isActive");
   }
 
@@ -273,83 +189,27 @@ const ensureDoctorIdentity = async (req, res) => {
 
   const doctor = await findDoctorByAuthUserId(req.user.id, req.user.email);
   if (!doctor) {
-    res.status(404).json({
-      message: "Doctor profile not found for this account",
-    });
+    res.status(404).json({ message: "Doctor profile not found for this account" });
     return null;
   }
 
   return doctor;
 };
 
-const toDoctorResponse = (doctorDocument, options = {}) => {
-  if (!doctorDocument) {
-    return doctorDocument;
-  }
-
-  const doctor = doctorDocument.toObject
-    ? doctorDocument.toObject()
-    : { ...doctorDocument };
-
-  if (!options.includeAuthUserId) {
-    delete doctor.authUserId;
-  }
-
-  delete doctor.profileImagePublicId;
+const toDoctorResponse = (doc) => {
+  if (!doc) return doc;
+  const doctor = doc.toObject ? doc.toObject() : { ...doc };
+  delete doctor.authUserId;
   return doctor;
 };
-
-const deleteCloudinaryImage = async (publicId) => {
-  if (!publicId) {
-    return;
-  }
-
-  await cloudinary.uploader.destroy(publicId, {
-    resource_type: "image",
-  });
-};
-
-const uploadProfileImageFromBuffer = (buffer, folder) =>
-  new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder,
-        resource_type: "image",
-      },
-      (error, result) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      }
-    );
-
-    streamifier.createReadStream(buffer).pipe(stream);
-  });
 
 const createDoctor = async (req, res) => {
   let authUserCreated = false;
   let normalizedEmail = "";
-  let uploadedProfileImagePublicId = null;
 
   try {
     const doctorPayload = sanitizeDoctorPayload(req.body);
     const password = String(req.body?.password || "").trim();
-
-    if (doctorPayload.availabilitySchedule !== undefined) {
-      const overlapMessage = getAvailabilityOverlapMessage(
-        doctorPayload.availabilitySchedule
-      );
-
-      if (overlapMessage) {
-        return res.status(400).json({ message: overlapMessage });
-      }
-
-      doctorPayload.availabilitySchedule = withCalculatedSlotCapacities(
-        doctorPayload.availabilitySchedule
-      );
-    }
 
     if (!doctorPayload.fullName || !doctorPayload.email || !password) {
       return res.status(400).json({
@@ -390,26 +250,11 @@ const createDoctor = async (req, res) => {
       authResponse?.userId ||
       null;
 
-    if (req.file?.buffer) {
-      const profileImageUpload = await uploadProfileImageFromBuffer(
-        req.file.buffer,
-        "smart-healthcare/doctor-profiles"
-      );
-
-      uploadedProfileImagePublicId = profileImageUpload.public_id;
-      doctorPayload.profileImage = profileImageUpload.secure_url;
-      doctorPayload.profileImagePublicId = profileImageUpload.public_id;
-    }
-
     const doctorData = {
       ...doctorPayload,
       email: normalizedEmail,
       specialization: specialty.name,
       specializationId: specialty._id,
-      status: "inactive",
-      verificationStatus: "pending",
-      verificationNote: "",
-      verifiedAt: null,
     };
 
     if (authUserId) {
@@ -427,17 +272,6 @@ const createDoctor = async (req, res) => {
       doctor: toDoctorResponse(doctor),
     });
   } catch (error) {
-    if (uploadedProfileImagePublicId) {
-      try {
-        await deleteCloudinaryImage(uploadedProfileImagePublicId);
-      } catch (cloudinaryError) {
-        console.error(
-          "createDoctor image rollback failed:",
-          cloudinaryError.message
-        );
-      }
-    }
-
     if (authUserCreated && normalizedEmail) {
       try {
         await deleteAuthAccountByEmail(normalizedEmail);
@@ -482,10 +316,7 @@ const getAllDoctors = async (req, res) => {
 
     if (specialization) {
       query.specialization = {
-        $regex: new RegExp(
-          `^${escapeRegExp(String(specialization).trim())}$`,
-          "i"
-        ),
+        $regex: new RegExp(`^${escapeRegExp(String(specialization).trim())}$`, "i"),
       };
     }
 
@@ -545,24 +376,7 @@ const getDoctorById = async (req, res) => {
 
 const updateDoctor = async (req, res) => {
   try {
-    const updatePayload = sanitizePayloadWithAllowedFields(
-      req.body,
-      adminDoctorAllowedFields
-    );
-
-    if (updatePayload.availabilitySchedule !== undefined) {
-      const overlapMessage = getAvailabilityOverlapMessage(
-        updatePayload.availabilitySchedule
-      );
-
-      if (overlapMessage) {
-        return res.status(400).json({ message: overlapMessage });
-      }
-
-      updatePayload.availabilitySchedule = withCalculatedSlotCapacities(
-        updatePayload.availabilitySchedule
-      );
-    }
+    const updatePayload = sanitizeDoctorPayload(req.body);
 
     if (updatePayload.specialization !== undefined) {
       const specialty = await resolveSpecialty(updatePayload.specialization);
@@ -595,137 +409,18 @@ const updateDoctor = async (req, res) => {
   }
 };
 
-const getDoctorsForVerification = async (req, res) => {
+const deleteDoctor = async (req, res) => {
   try {
-    const { verificationStatus } = req.query;
-    const query = {};
-
-    if (verificationStatus) {
-      query.verificationStatus = String(verificationStatus).trim().toLowerCase();
-    }
-
-    const doctors = await Doctor.find(query)
-      .select("+authUserId")
-      .populate("specializationId", "name description isActive")
-      .sort({ createdAt: -1 });
-
-    return res.status(200).json(
-      doctors.map((doctor) =>
-        toDoctorResponse(doctor, { includeAuthUserId: true })
-      )
-    );
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to fetch doctor verifications",
-      error: error.message,
-    });
-  }
-};
-
-const updateDoctorVerification = async (req, res) => {
-  try {
-    const verificationStatus = String(
-      req.body?.verificationStatus || ""
-    ).trim().toLowerCase();
-    const verificationNote =
-      req.body?.verificationNote === undefined
-        ? undefined
-        : String(req.body.verificationNote || "").trim();
-
-    if (!["pending", "approved", "rejected"].includes(verificationStatus)) {
-      return res.status(400).json({
-        message: "verificationStatus must be pending, approved or rejected",
-      });
-    }
-
-    const doctor = await Doctor.findById(req.params.id)
-      .select("+authUserId")
-      .populate("specializationId", "name description isActive");
+    const doctor = await Doctor.findByIdAndDelete(req.params.id);
 
     if (!doctor) {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
-    doctor.verificationStatus = verificationStatus;
-    doctor.status = verificationStatus === "approved" ? "active" : "inactive";
-    doctor.verificationNote =
-      verificationNote !== undefined ? verificationNote : doctor.verificationNote;
-    doctor.verifiedAt = new Date();
-    await doctor.save();
-
-    return res.status(200).json({
-      message: `Doctor ${verificationStatus} successfully`,
-      doctor: toDoctorResponse(doctor, { includeAuthUserId: true }),
-    });
+    return res.status(200).json({ message: "Deleted" });
   } catch (error) {
     return res.status(500).json({
-      message: "Failed to update doctor verification",
-      error: error.message,
-    });
-  }
-};
-
-const uploadMyDoctorProfileImage = async (req, res) => {
-  try {
-    const doctor = await ensureDoctorIdentity(req, res);
-    if (!doctor) {
-      return;
-    }
-
-    if (!req.file) {
-      return res.status(400).json({
-        message: "Please select an image",
-      });
-    }
-
-    const result = await uploadProfileImageFromBuffer(
-      req.file.buffer,
-      "smart-healthcare/doctor-profiles"
-    );
-
-    if (doctor.profileImagePublicId) {
-      await deleteCloudinaryImage(doctor.profileImagePublicId);
-    }
-
-    doctor.profileImage = result.secure_url;
-    doctor.profileImagePublicId = result.public_id;
-    await doctor.save();
-
-    return res.status(200).json({
-      message: "Profile image uploaded successfully",
-      profileImage: result.secure_url,
-      doctor: toDoctorResponse(doctor),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to upload doctor profile image",
-      error: error.message,
-    });
-  }
-};
-
-const removeMyDoctorProfileImage = async (req, res) => {
-  try {
-    const doctor = await ensureDoctorIdentity(req, res);
-    if (!doctor) {
-      return;
-    }
-
-    if (doctor.profileImagePublicId) {
-      await deleteCloudinaryImage(doctor.profileImagePublicId);
-    }
-
-    doctor.profileImage = "";
-    doctor.profileImagePublicId = "";
-    await doctor.save();
-
-    return res.status(200).json({
-      message: "Profile image removed successfully",
-      doctor: toDoctorResponse(doctor),
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to remove doctor profile image",
+      message: "Failed to delete doctor",
       error: error.message,
     });
   }
@@ -737,10 +432,6 @@ const deleteMyDoctorProfile = async (req, res) => {
     if (!doctor) return;
 
     const doctorEmail = doctor.email;
-
-    if (doctor.profileImagePublicId) {
-      await deleteCloudinaryImage(doctor.profileImagePublicId);
-    }
 
     await doctor.deleteOne();
 
@@ -788,20 +479,6 @@ const updateMyDoctorProfile = async (req, res) => {
     if (!doctor) return;
 
     const updatePayload = sanitizeDoctorPayload(req.body);
-
-    if (updatePayload.availabilitySchedule !== undefined) {
-      const overlapMessage = getAvailabilityOverlapMessage(
-        updatePayload.availabilitySchedule
-      );
-
-      if (overlapMessage) {
-        return res.status(400).json({ message: overlapMessage });
-      }
-
-      updatePayload.availabilitySchedule = withCalculatedSlotCapacities(
-        updatePayload.availabilitySchedule
-      );
-    }
 
     if (
       updatePayload.email &&
@@ -875,20 +552,6 @@ const updateMyAvailability = async (req, res) => {
       supportsDigitalPrescriptions: req.body.supportsDigitalPrescriptions,
     });
 
-    if (updatePayload.availabilitySchedule !== undefined) {
-      const overlapMessage = getAvailabilityOverlapMessage(
-        updatePayload.availabilitySchedule
-      );
-
-      if (overlapMessage) {
-        return res.status(400).json({ message: overlapMessage });
-      }
-
-      updatePayload.availabilitySchedule = withCalculatedSlotCapacities(
-        updatePayload.availabilitySchedule
-      );
-    }
-
     Object.assign(doctor, updatePayload);
     await doctor.save();
 
@@ -917,13 +580,10 @@ module.exports = {
   getAllDoctors,
   getDoctorById,
   updateDoctor,
-  getDoctorsForVerification,
-  updateDoctorVerification,
-  uploadMyDoctorProfileImage,
-  removeMyDoctorProfileImage,
-  deleteMyDoctorProfile,
+  deleteDoctor,
   getMyDoctorProfile,
   updateMyDoctorProfile,
+  deleteMyDoctorProfile,
   getMyAvailability,
   updateMyAvailability,
 };

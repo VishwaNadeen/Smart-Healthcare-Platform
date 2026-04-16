@@ -4,7 +4,6 @@ const {
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
-  updateDoctorApprovalStatus,
   requestEmailVerificationOtp,
   verifyEmailOtp,
   requestLoginOtp,
@@ -106,11 +105,9 @@ const login = async (req, res) => {
     });
   } catch (error) {
     const isInvalidCredentials =
-      error.message === "Invalid email or password" ||
-      error.message === "Please verify your email before logging in" ||
-      error.message === "Your doctor account is pending admin approval" ||
-      error.message === "Your doctor account was rejected by admin. Please contact support." ||
-      error.message === "Doctor profile not found for this account";
+      error.message === "Incorrect password" ||
+      error.message === "User not found" ||
+      error.message === "Please verify your email before logging in";
 
     res.status(isInvalidCredentials ? 401 : 500).json({
       message: isInvalidCredentials ? error.message : "Failed to login",
@@ -223,52 +220,6 @@ const deleteByEmailInternal = async (req, res) => {
       message: "Failed to delete user by email",
       error: error.message,
     });
-  }
-};
-
-const updateDoctorApprovalStatusInternal = async (req, res) => {
-  try {
-    const isAdminRequest = req.user?.role === "admin";
-
-    if (!isAdminRequest && !hasValidInternalSecret(req)) {
-      return res.status(403).json({
-        message: "Forbidden",
-      });
-    }
-
-    const authUserId = String(req.params.authUserId || "").trim();
-    const doctorApprovalStatus = req.body?.doctorApprovalStatus;
-
-    if (!authUserId) {
-      return res.status(400).json({
-        message: "authUserId is required",
-      });
-    }
-
-    const result = await updateDoctorApprovalStatus({
-      authUserId,
-      doctorApprovalStatus,
-    });
-
-    return res.status(200).json({
-      message: "Doctor approval status updated successfully",
-      user: result,
-    });
-  } catch (error) {
-    const message = error.message || "Failed to update doctor approval status";
-    const isValidationError =
-      message === "authUserId is required" ||
-      message === "doctorApprovalStatus must be pending, approved or rejected";
-    const isNotFoundOrRoleError =
-      message === "User not found" ||
-      message === "Approval status can only be updated for doctor accounts";
-
-    return res
-      .status(isValidationError ? 400 : isNotFoundOrRoleError ? 404 : 500)
-      .json({
-        message,
-        error: message,
-      });
   }
 };
 
@@ -442,7 +393,6 @@ module.exports = {
   logout,
   deleteMe,
   deleteByEmailInternal,
-  updateDoctorApprovalStatusInternal,
   getUserByIdInternal,
   me,
   stats,

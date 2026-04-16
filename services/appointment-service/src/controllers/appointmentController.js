@@ -5,10 +5,9 @@ const {
   createTelemedicineSessionForAppointment,
 } = require("../services/telemedicineService");
 
+const { notify } = require("../services/notificationService"); // ADDED:notifications
 const ACTIVE_APPOINTMENT_STATUSES = ["pending", "confirmed"];
 const APPOINTMENT_STATUSES = ["pending", "confirmed", "completed", "cancelled"];
-const DOCTOR_SERVICE_URL = process.env.DOCTOR_SERVICE_URL || "http://localhost:5003";
-const CONSULTATION_DURATION_MINUTES = 10;
 const STATUS_TRANSITIONS = {
   pending: ["confirmed", "cancelled"],
   confirmed: ["completed", "cancelled"],
@@ -17,183 +16,6 @@ const STATUS_TRANSITIONS = {
 };
 
 const normalizeString = (value) => String(value || "").trim();
-
-const toMinutes = (time) => {
-  const [hours, minutes] = String(time || "")
-    .split(":")
-    .map((value) => Number(value));
-
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
-    return NaN;
-  }
-
-  return hours * 60 + minutes;
-};
-
-const getWeekdayFromDate = (appointmentDate) => {
-  const date = new Date(`${normalizeString(appointmentDate)}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return date.toLocaleDateString("en-US", { weekday: "long" });
-};
-
-const buildLegacyScheduleForDay = (doctor, day) => {
-  if (
-    !Array.isArray(doctor?.availableDays) ||
-    !doctor.availableDays.includes(day) ||
-    !Array.isArray(doctor?.availableTimeSlots)
-  ) {
-    return [];
-  }
-
-  return doctor.availableTimeSlots
-    .map((slot) => {
-      const [startTime = "", endTime = ""] = String(slot || "").split("-");
-      const duration = toMinutes(endTime) - toMinutes(startTime);
-
-      if (duration < CONSULTATION_DURATION_MINUTES) {
-        return null;
-      }
-
-      return {
-        day,
-        startTime,
-        endTime,
-        maxAppointments: Math.max(
-          1,
-          Math.floor(duration / CONSULTATION_DURATION_MINUTES)
-        ),
-      };
-    })
-    .filter(Boolean);
-};
-
-const getScheduleSlotsForDate = (doctor, appointmentDate) => {
-  const day = getWeekdayFromDate(appointmentDate);
-
-  if (!day) {
-    return [];
-  }
-
-  const detailedSchedule = Array.isArray(doctor?.availabilitySchedule)
-    ? doctor.availabilitySchedule.filter((slot) => slot.day === day)
-    : [];
-
-  if (detailedSchedule.length > 0) {
-    return detailedSchedule;
-  }
-
-  return buildLegacyScheduleForDay(doctor, day);
-};
-
-const findMatchingScheduleSlot = (doctor, appointmentDate, appointmentTime) => {
-  const appointmentStart = toMinutes(appointmentTime);
-
-  if (Number.isNaN(appointmentStart)) {
-    return null;
-  }
-
-  return getScheduleSlotsForDate(doctor, appointmentDate).find((slot) => {
-    const start = toMinutes(slot.startTime);
-    const end = toMinutes(slot.endTime);
-
-    if (Number.isNaN(start) || Number.isNaN(end)) {
-      return false;
-    }
-
-    return (
-      appointmentStart >= start &&
-      appointmentStart + CONSULTATION_DURATION_MINUTES <= end &&
-      (appointmentStart - start) % CONSULTATION_DURATION_MINUTES === 0
-    );
-  });
-};
-
-const fetchDoctorProfile = async (doctorId) => {
-  const response = await fetch(
-    `${DOCTOR_SERVICE_URL}/api/doctors/${encodeURIComponent(doctorId)}`
-  );
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    const error = new Error(data.message || "Failed to fetch doctor profile");
-    error.status = response.status;
-    throw error;
-  }
-
-  return data;
-};
-
-const countAppointmentsInScheduleSlot = async ({
-  doctorId,
-  appointmentDate,
-  scheduleSlot,
-  excludeAppointmentId,
-}) => {
-  const query = {
-    doctorId,
-    appointmentDate,
-    status: { $in: ACTIVE_APPOINTMENT_STATUSES },
-  };
-
-  if (excludeAppointmentId) {
-    query._id = { $ne: excludeAppointmentId };
-  }
-
-  const appointments = await Appointment.find(query).select("appointmentTime");
-  const slotStart = toMinutes(scheduleSlot.startTime);
-  const slotEnd = toMinutes(scheduleSlot.endTime);
-
-  return appointments.filter((appointment) => {
-    const appointmentStart = toMinutes(appointment.appointmentTime);
-
-    return (
-      !Number.isNaN(appointmentStart) &&
-      appointmentStart >= slotStart &&
-      appointmentStart + CONSULTATION_DURATION_MINUTES <= slotEnd
-    );
-  }).length;
-};
-
-const validateDoctorScheduleAvailability = async ({
-  doctorId,
-  appointmentDate,
-  appointmentTime,
-  excludeAppointmentId,
-}) => {
-  const doctor = await fetchDoctorProfile(doctorId);
-
-  if (doctor?.acceptsNewAppointments === false) {
-    return "This doctor is not accepting new appointments right now";
-  }
-
-  const scheduleSlot = findMatchingScheduleSlot(
-    doctor,
-    appointmentDate,
-    appointmentTime
-  );
-
-  if (!scheduleSlot) {
-    return "Doctor is not available at the selected date and time";
-  }
-
-  const existingAppointments = await countAppointmentsInScheduleSlot({
-    doctorId,
-    appointmentDate,
-    scheduleSlot,
-    excludeAppointmentId,
-  });
-
-  if (existingAppointments >= Number(scheduleSlot.maxAppointments || 1)) {
-    return "This schedule is already fully booked";
-  }
-
-  return null;
-};
 
 const enrichAppointmentWithPatientName = async (appointmentDoc) => {
   const appointment =
@@ -299,16 +121,6 @@ const createAppointment = async (req, res) => {
       return res.status(400).json({ message: validationMessage });
     }
 
-    const availabilityMessage = await validateDoctorScheduleAvailability({
-      doctorId: normalizeString(doctorId),
-      appointmentDate: normalizeString(appointmentDate),
-      appointmentTime: normalizeString(appointmentTime),
-    });
-
-    if (availabilityMessage) {
-      return res.status(409).json({ message: availabilityMessage });
-    }
-
     const conflict = await hasTimeConflict(doctorId, appointmentDate, appointmentTime);
 
     if (conflict) {
@@ -333,6 +145,20 @@ const createAppointment = async (req, res) => {
       message: "Appointment created successfully",
       appointment,
     });
+    //notification
+    notify({
+      type: "APPOINTMENT_BOOKED",
+      recipientId: patientId,
+      recipientType: "patient",
+      metadata: {
+        appointmentId: String(appointment._id),
+        doctorName,
+        specialization,
+        date: appointmentDate,
+        time: appointmentTime,
+      },
+    });
+
   } catch (error) {
     res.status(500).json({
       message: "Failed to create appointment",
@@ -443,17 +269,6 @@ const updateAppointment = async (req, res) => {
       nextAppointmentTime !== appointment.appointmentTime;
 
     if (slotChanged) {
-      const availabilityMessage = await validateDoctorScheduleAvailability({
-        doctorId: normalizeString(nextDoctorId),
-        appointmentDate: normalizeString(nextAppointmentDate),
-        appointmentTime: normalizeString(nextAppointmentTime),
-        excludeAppointmentId: appointment._id,
-      });
-
-      if (availabilityMessage) {
-        return res.status(409).json({ message: availabilityMessage });
-      }
-
       const conflict = await hasTimeConflict(
         nextDoctorId,
         nextAppointmentDate,
@@ -522,6 +337,19 @@ const cancelAppointment = async (req, res) => {
       message: "Appointment cancelled successfully",
       appointment,
     });
+
+    // ADDED: notify patient when appointment is cancelled
+    notify({
+      type: "APPOINTMENT_CANCELLED",
+      recipientId: String(appointment.patientId),
+      recipientType: "patient",
+      metadata: {
+        appointmentId: String(appointment._id),
+        doctorName: appointment.doctorName || "",
+        date: appointment.appointmentDate || "",
+        time: appointment.appointmentTime || "",
+      },
+    });
   } catch (error) {
     res.status(500).json({
       message: "Failed to cancel appointment",
@@ -589,10 +417,6 @@ const updateAppointmentStatus = async (req, res) => {
         });
       }
 
-      if (previousStatus === "pending" && status === "confirmed") {
-        await createTelemedicineSessionForAppointment(appointment._id);
-      }
-
       appointment.status = status;
       appointment.statusHistory.push({
         status,
@@ -600,6 +424,10 @@ const updateAppointmentStatus = async (req, res) => {
       });
 
       await appointment.save();
+
+      if (previousStatus === "pending" && status === "confirmed") {
+        await createTelemedicineSessionForAppointment(appointment._id);
+      }
     }
 
     res.status(200).json({
@@ -645,58 +473,28 @@ const getAppointmentTracking = async (req, res) => {
   }
 };
 
-const getAdminAppointments = async (req, res) => {
+const getPatientAppointmentStatsAdmin = async (req, res) => {
   try {
-    const { status, patientId, doctorId, appointmentDate } = req.query;
-    const query = {};
+    const patientId = normalizeString(req.params.patientId);
 
-    if (status) {
-      query.status = status;
+    if (!patientId) {
+      return res.status(400).json({ message: "Patient ID is required" });
     }
 
-    if (patientId) {
-      query.patientId = patientId;
-    }
+    const appointments = await Appointment.find({ patientId }).select("status");
 
-    if (doctorId) {
-      query.doctorId = doctorId;
-    }
+    const stats = {
+      totalBookings: appointments.length,
+      pendingBookings: appointments.filter((item) => item.status === "pending").length,
+      confirmedBookings: appointments.filter((item) => item.status === "confirmed").length,
+      completedBookings: appointments.filter((item) => item.status === "completed").length,
+      cancelledBookings: appointments.filter((item) => item.status === "cancelled").length,
+    };
 
-    if (appointmentDate) {
-      query.appointmentDate = appointmentDate;
-    }
-
-    const appointments = await Appointment.find(query).sort({ createdAt: -1 });
-    return res.status(200).json(appointments);
+    return res.status(200).json(stats);
   } catch (error) {
     return res.status(500).json({
-      message: "Failed to fetch appointments",
-      error: error.message,
-    });
-  }
-};
-
-const getAdminAppointmentActivity = async (_req, res) => {
-  try {
-    const [totalAppointments, pendingAppointments, confirmedAppointments, completedAppointments, cancelledAppointments] =
-      await Promise.all([
-        Appointment.countDocuments(),
-        Appointment.countDocuments({ status: "pending" }),
-        Appointment.countDocuments({ status: "confirmed" }),
-        Appointment.countDocuments({ status: "completed" }),
-        Appointment.countDocuments({ status: "cancelled" }),
-      ]);
-
-    return res.status(200).json({
-      totalAppointments,
-      pendingAppointments,
-      confirmedAppointments,
-      completedAppointments,
-      cancelledAppointments,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to fetch appointment activity",
+      message: "Failed to fetch patient appointment stats",
       error: error.message,
     });
   }
@@ -714,9 +512,7 @@ const getInternalAppointmentById = async (req, res) => {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    return res.status(200).json({
-      appointment,
-    });
+    return res.status(200).json({ appointment });
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch appointment",
@@ -773,6 +569,179 @@ const updateAppointmentStatusInternal = async (req, res) => {
   }
 };
 
+const updateAppointmentPaymentStatusInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const { paymentStatus } = req.body;
+    const validStatuses = ["pending", "paid", "failed"];
+
+    if (!validStatuses.includes(paymentStatus)) {
+      return res.status(400).json({ message: "Invalid paymentStatus value" });
+    }
+
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    appointment.paymentStatus = paymentStatus;
+    if (paymentStatus === "paid") {
+      appointment.active = true;
+    }
+    await appointment.save();
+
+    return res.status(200).json({
+      message: "Appointment payment status updated successfully",
+      appointment,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to update appointment payment status",
+      error: error.message,
+    });
+  }
+};
+
+// PATCH /api/appointments/:id/reschedule — doctor proposes new date/time
+const rescheduleAppointment = async (req, res) => {
+  try {
+    const { rescheduledDate, rescheduledTime } = req.body;
+
+    if (!rescheduledDate || !rescheduledTime) {
+      return res.status(400).json({ message: "rescheduledDate and rescheduledTime are required" });
+    }
+
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    if (!enforceDoctorAppointmentOwnership(req, appointment)) {
+      return res.status(403).json({ message: "You can only reschedule your own appointments" });
+    }
+
+    if (appointment.paymentStatus !== "paid") {
+      return res.status(400).json({ message: "Cannot reschedule an unpaid appointment" });
+    }
+
+    if (appointment.status !== "pending") {
+      return res.status(409).json({ message: "Only pending appointments can be rescheduled" });
+    }
+
+    appointment.rescheduleStatus = "pending";
+    appointment.rescheduledDate = normalizeString(rescheduledDate);
+    appointment.rescheduledTime = normalizeString(rescheduledTime);
+    appointment.rescheduledAt = new Date();
+
+    await appointment.save();
+
+    //notification
+    notify({
+      type: "APPOINTMENT_RESCHEDULED",
+      recipientId: String(appointment.patientId),
+      recipientType: "patient",
+      metadata: {
+        appointmentId: String(appointment._id),
+        doctorName: appointment.doctorName,
+        date: appointment.rescheduledDate,
+        time: appointment.rescheduledTime,
+      },
+    });
+
+
+    return res.status(200).json({
+      message: "Reschedule proposed successfully",
+      appointment,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to reschedule appointment",
+      error: error.message,
+    });
+  }
+};
+
+// PATCH /api/appointments/:id/reschedule/respond — patient approves or rejects reschedule
+const respondToReschedule = async (req, res) => {
+  try {
+    const { response } = req.body; // "approved" or "rejected"
+
+    if (!["approved", "rejected"].includes(response)) {
+      return res.status(400).json({ message: "response must be 'approved' or 'rejected'" });
+    }
+
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    if (!canPatientAccessAppointment(req, appointment)) {
+      return res.status(403).json({ message: "You can only respond to your own appointments" });
+    }
+
+    if (appointment.rescheduleStatus !== "pending") {
+      return res.status(409).json({ message: "No pending reschedule to respond to" });
+    }
+
+    appointment.rescheduleStatus = response;
+
+    if (response === "approved") {
+      appointment.appointmentDate = appointment.rescheduledDate;
+      appointment.appointmentTime = appointment.rescheduledTime;
+      appointment.status = "confirmed";
+      appointment.statusHistory.push({
+        status: "confirmed",
+        note: "Patient approved reschedule — appointment confirmed",
+      });
+    }
+
+    // Save first so the telemedicine service fetches the correct date/time and confirmed status
+    await appointment.save();
+
+    if (response === "approved") {
+      await createTelemedicineSessionForAppointment(appointment._id);
+    }
+
+    return res.status(200).json({
+      message: `Reschedule ${response} successfully`,
+      appointment,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to respond to reschedule",
+      error: error.message,
+    });
+  }
+};
+
+// GET /api/appointments/admin/refund-queue — appointments where patient rejected a reschedule
+const getRefundQueueAdmin = async (req, res) => {
+  try {
+    const appointments = await Appointment.find({
+      rescheduleStatus: "rejected",
+      paymentStatus: "paid",
+      status: { $ne: "cancelled" },
+    }).sort({ updatedAt: -1 });
+
+    const enriched = await Promise.all(
+      appointments.map((a) => enrichAppointmentWithPatientName(a))
+    );
+
+    return res.status(200).json(enriched);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch refund queue",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getSpecialtiesForDropdown,
   searchDoctorsBySpecialty,
@@ -785,8 +754,11 @@ module.exports = {
   deleteAppointment,
   updateAppointmentStatus,
   getAppointmentTracking,
-  getAdminAppointments,
-  getAdminAppointmentActivity,
+  getPatientAppointmentStatsAdmin,
   getInternalAppointmentById,
   updateAppointmentStatusInternal,
+  updateAppointmentPaymentStatusInternal,
+  rescheduleAppointment,
+  respondToReschedule,
+  getRefundQueueAdmin,
 };

@@ -101,31 +101,12 @@ const doctorSchema = new mongoose.Schema(
     },
 
     profileImage: String,
-    profileImagePublicId: {
-      type: String,
-      default: "",
-      select: false,
-    },
     about: String,
 
     status: {
       type: String,
       enum: ["active", "inactive"],
       default: "active",
-    },
-    verificationStatus: {
-      type: String,
-      enum: ["pending", "approved", "rejected"],
-      default: "pending",
-    },
-    verificationNote: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    verifiedAt: {
-      type: Date,
-      default: null,
     },
   },
   { timestamps: true }

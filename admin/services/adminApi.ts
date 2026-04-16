@@ -1,7 +1,6 @@
 import type { AdminDashboardStats } from "../types/admin";
 import {
   AUTH_API_URL,
-  DOCTOR_API_URL,
   TELEMEDICINE_API_URL,
   TELEMEDICINE_FILES_API_URL,
   TELEMEDICINE_PRESCRIPTIONS_API_URL,
@@ -22,29 +21,6 @@ type AuthStatsResponse = {
   totalUsers: number;
   adminCount: number;
   message?: string;
-};
-
-export type DoctorVerificationStatus = "pending" | "approved" | "rejected";
-
-export type DoctorVerification = {
-  _id: string;
-  authUserId: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  specialization: string;
-  qualification: string;
-  experience: number;
-  licenseNumber: string;
-  consultationFee?: number;
-  hospitalName?: string;
-  city?: string;
-  about?: string;
-  verificationStatus: DoctorVerificationStatus;
-  verificationNote?: string;
-  status: "active" | "inactive";
-  createdAt: string;
-  verifiedAt?: string | null;
 };
 
 type AppointmentResourceResponse<T> = {
@@ -78,39 +54,6 @@ async function fetchJson<T>(url: string) {
   }
 
   const response = await fetch(url, { headers });
-  const data = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const message =
-      data && typeof data === "object" && "message" in data
-        ? String(data.message)
-        : `Request failed with status ${response.status}`;
-
-    throw new Error(message);
-  }
-
-  return data as T;
-}
-
-async function fetchJsonWithMethod<T>(
-  url: string,
-  options: RequestInit = {}
-) {
-  const headers = new Headers(options.headers || {});
-  const token = getStoredAuthToken();
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
@@ -186,48 +129,4 @@ export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
     totalDoctors: userStats.doctorCount,
     totalPatients: userStats.patientCount,
   };
-}
-
-export async function getDoctorVerifications(
-  verificationStatus?: DoctorVerificationStatus | "all"
-) {
-  const query =
-    verificationStatus && verificationStatus !== "all"
-      ? `?verificationStatus=${verificationStatus}`
-      : "";
-
-  return fetchJson<DoctorVerification[]>(
-    `${DOCTOR_API_URL}/admin/verifications${query}`
-  );
-}
-
-export async function updateDoctorVerification(
-  doctorId: string,
-  payload: {
-    verificationStatus: DoctorVerificationStatus;
-    verificationNote?: string;
-  }
-) {
-  return fetchJsonWithMethod<{ message: string; doctor: DoctorVerification }>(
-    `${DOCTOR_API_URL}/${doctorId}/verification`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export async function updateDoctorApprovalStatus(
-  authUserId: string,
-  payload: {
-    doctorApprovalStatus: Exclude<DoctorVerificationStatus, "pending">;
-  }
-) {
-  return fetchJsonWithMethod<{ message: string; user: { doctorApprovalStatus: DoctorVerificationStatus } }>(
-    `${AUTH_API_URL}/doctor-approval/${authUserId}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    }
-  );
 }

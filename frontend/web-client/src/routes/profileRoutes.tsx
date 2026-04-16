@@ -4,7 +4,7 @@ import RequireTelemedicineRole from "../components/telemedicine/RequireTelemedic
 import { getStoredTelemedicineAuth } from "../utils/telemedicineAuth";
 
 import PatientProfile from "../pages/patient/Profile";
-import DoctorProfile from "../pages/doctor/Profile";
+import DoctorProfile from "../pages/doctor/doctorProfile";
 
 function ProfileRedirect() {
   const auth = getStoredTelemedicineAuth();
