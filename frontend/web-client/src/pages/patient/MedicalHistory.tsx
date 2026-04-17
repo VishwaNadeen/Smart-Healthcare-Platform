@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import ReportsPage from "./ReportsPage";
+import PageLoading from "../../components/common/PageLoading";
 import { getCurrentPatientProfile } from "../../services/patientApi";
 import { getPatientReports } from "../../services/report";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
@@ -68,15 +69,7 @@ export default function MedicalHistoryPage() {
   }, [auth.token]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 px-4 py-8">
-        <div className="mx-auto max-w-6xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-sm font-medium text-slate-600">
-            Loading medical history...
-          </p>
-        </div>
-      </div>
-    );
+    return <PageLoading message="Loading medical history..." />;
   }
 
   if (error || !patientId) {

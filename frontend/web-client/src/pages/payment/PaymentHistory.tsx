@@ -7,6 +7,7 @@ import {
   type PaymentStatus,
 } from "../../services/paymentApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
+import PageLoading from "../../components/common/PageLoading";
 
 const STATUS_STYLES: Record<string, string> = {
   SUCCESS: "bg-emerald-100 text-emerald-700",
@@ -82,6 +83,10 @@ export default function PaymentHistoryPage() {
     .filter((p) => p.status === "SUCCESS")
     .reduce((sum, p) => sum + p.amount, 0);
 
+  if (isLoading) {
+    return <PageLoading message="Loading payment history..." />;
+  }
+
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
@@ -147,11 +152,7 @@ export default function PaymentHistoryPage() {
           </div>
         )}
 
-        {isLoading ? (
-          <div className="mt-6 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow-sm ring-1 ring-slate-100">
-            Loading payment history...
-          </div>
-        ) : payments.length === 0 && !errorMessage ? (
+        {payments.length === 0 && !errorMessage ? (
           <div className="mt-6 rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-slate-100">
             <h3 className="text-xl font-bold text-slate-900">No payments found</h3>
             <p className="mt-2 text-sm text-slate-500">
