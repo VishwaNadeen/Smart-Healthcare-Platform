@@ -693,17 +693,17 @@ export default function DoctorRegisterPage() {
               registration and approval.
             </p>
 
-            <div className="mt-8 rounded-3xl border border-white/15 bg-white/10 p-5 backdrop-blur">
+            <div className="mt-8 rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur">
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-100">
                 Progress
               </p>
-              <div className="mt-4 flex items-end justify-between gap-4">
+              <div className="mt-3 flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-4xl font-bold">{currentStep + 1}</p>
+                  <p className="text-3xl font-bold">{currentStep + 1}</p>
                   <p className="mt-1 text-sm text-blue-100">of {STEPS.length} steps</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-semibold">{completionCount}</p>
+                  <p className="text-xl font-semibold">{completionCount}</p>
                   <p className="mt-1 text-sm text-blue-100">filled inputs</p>
                 </div>
               </div>
@@ -717,7 +717,7 @@ export default function DoctorRegisterPage() {
                 return (
                   <div
                     key={step.id}
-                    className={`rounded-3xl border px-5 py-5 transition ${
+                    className={`rounded-3xl border px-5 py-4 transition ${
                       active
                         ? "border-white/30 bg-white/16 shadow-lg"
                         : completed
@@ -730,10 +730,10 @@ export default function DoctorRegisterPage() {
                         <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-100">
                           {step.eyebrow}
                         </p>
-                        <h3 className="mt-2 text-xl font-semibold">{step.title}</h3>
+                        <h3 className="mt-1.5 text-lg font-semibold">{step.title}</h3>
                       </div>
                       <span
-                        className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ${
+                        className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold ${
                           active || completed
                             ? "bg-white text-blue-700"
                             : "bg-white/10 text-white"
@@ -742,10 +742,24 @@ export default function DoctorRegisterPage() {
                         {step.id}
                       </span>
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-blue-100">{step.description}</p>
+                    <p className="mt-2 text-sm leading-6 text-blue-100">{step.description}</p>
                   </div>
                 );
               })}
+
+              <Link
+                to="/patient/register"
+                className="block rounded-3xl border border-white/20 bg-white/10 px-5 py-4 transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/40"
+              >
+                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-blue-100">
+                  Patient Access
+                </p>
+                <h3 className="mt-1.5 text-lg font-semibold">Register as a Patient</h3>
+                <p className="mt-2 text-sm leading-6 text-blue-100">
+                  Switch to the patient signup flow to create an account for
+                  appointments, reports, and consultations.
+                </p>
+              </Link>
             </div>
           </div>
         </aside>

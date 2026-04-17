@@ -26,6 +26,7 @@ const PROFILE_UPDATED_EVENT = "patient-profile-updated";
 type FormErrors = Partial<Record<keyof PatientUpdatePayload, string>>;
 
 const NAME_PATTERN = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
+const NAME_INPUT_PATTERN = /^[A-Za-z\s'-]*$/;
 const NIC_PATTERN = /^(?:\d{9}[VvXx]|\d{12})$/;
 const COUNTRY_CODE_PATTERN = /^\+[1-9]\d{0,3}$/;
 const PHONE_PATTERN = /^\d{7,15}$/;
@@ -141,6 +142,9 @@ const PatientProfile = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { showToast } = useToast();
+  const today = new Date();
+  today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+  const maxBirthday = today.toISOString().split("T")[0];
 
   const [formData, setFormData] = useState<PatientUpdatePayload>({
     title: "",
@@ -246,11 +250,34 @@ const PatientProfile = () => {
     loadProfile();
   }, [navigate, token]);
 
+  const getRestrictedFieldError = (
+    field: keyof PatientUpdatePayload
+  ): string | null => {
+    switch (field) {
+      case "firstName":
+        return "First name can contain only letters, spaces, apostrophes, and hyphens.";
+      case "lastName":
+        return "Last name can contain only letters, spaces, apostrophes, and hyphens.";
+      default:
+        return null;
+    }
+  };
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     const fieldName = name as keyof PatientUpdatePayload;
+    const restrictedFieldError = getRestrictedFieldError(fieldName);
+
+    if (restrictedFieldError && !NAME_INPUT_PATTERN.test(value)) {
+      setErrors((prev) => ({
+        ...prev,
+        [fieldName]: restrictedFieldError,
+      }));
+      return;
+    }
+
     const nextFormData = {
       ...formData,
       [fieldName]: value,
@@ -674,6 +701,7 @@ const PatientProfile = () => {
                     value={formData.nic || ""}
                     onChange={handleChange}
                     onBlur={handleBlur}
+                    readOnly
                     error={errors.nic}
                     maxLength={12}
                     helperText="Use 12 digits for new NIC or 9 digits with V/X for old NIC."
@@ -710,7 +738,9 @@ const PatientProfile = () => {
                     value={formData.birthday}
                     onChange={handleChange}
                     onBlur={handleBlur}
+                    readOnly
                     error={errors.birthday}
+                    max={maxBirthday}
                   />
 
                   <div>
@@ -816,6 +846,7 @@ const InputField = ({
   error = "",
   autoComplete,
   maxLength,
+  max,
 }: {
   label: string;
   name: string;
@@ -832,6 +863,7 @@ const InputField = ({
   error?: string;
   autoComplete?: string;
   maxLength?: number;
+  max?: string;
 }) => {
   return (
     <div>
@@ -847,6 +879,7 @@ const InputField = ({
         readOnly={readOnly}
         autoComplete={autoComplete}
         maxLength={maxLength}
+        max={max}
         className={getFieldClass(Boolean(error), readOnly)}
         required={name !== "address"}
       />

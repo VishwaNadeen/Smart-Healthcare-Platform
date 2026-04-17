@@ -26,6 +26,7 @@ type PatientFormData = {
 type FormErrors = Partial<Record<keyof PatientFormData, string>>;
 
 const NAME_PATTERN = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
+const NAME_INPUT_PATTERN = /^[A-Za-z\s'-]*$/;
 const COUNTRY_PATTERN = /^[A-Za-z]+(?:[ .'-][A-Za-z]+)*$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_PATTERN =
@@ -198,6 +199,9 @@ export default function PatientRegister() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   useLocationToast();
+  const today = new Date();
+  today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+  const maxBirthday = today.toISOString().split("T")[0];
 
   const [formData, setFormData] = useState<PatientFormData>({
     title: "",
@@ -218,11 +222,37 @@ export default function PatientRegister() {
   const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
 
+  const getRestrictedFieldError = (
+    field: keyof PatientFormData
+  ): string | null => {
+    switch (field) {
+      case "firstName":
+        return "First name can contain only letters, spaces, apostrophes, and hyphens.";
+      case "lastName":
+        return "Last name can contain only letters, spaces, apostrophes, and hyphens.";
+      default:
+        return null;
+    }
+  };
+
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     const fieldName = name as keyof PatientFormData;
+    const restrictedFieldError = getRestrictedFieldError(fieldName);
+
+    if (
+      restrictedFieldError &&
+      !NAME_INPUT_PATTERN.test(value)
+    ) {
+      setErrorMessage("");
+      setErrors((prev) => ({
+        ...prev,
+        [fieldName]: restrictedFieldError,
+      }));
+      return;
+    }
 
     const nextFormData = {
       ...formData,
@@ -365,6 +395,16 @@ export default function PatientRegister() {
                 Your information is protected in the system.
               </p>
             </div>
+
+            <Link
+              to="/doctor/register"
+              className="block rounded-xl bg-white/10 p-4 transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/40"
+            >
+              <h3 className="text-lg font-semibold">Register as a Doctor</h3>
+              <p className="mt-1 text-sm text-blue-100">
+                Create a doctor account and continue with professional details.
+              </p>
+            </Link>
           </div>
         </div>
 
@@ -571,6 +611,7 @@ export default function PatientRegister() {
                   value={formData.birthday}
                   onChange={handleChange}
                   onBlur={handleBlur}
+                  max={maxBirthday}
                   required
                   className={getFieldClass(Boolean(errors.birthday))}
                 />
