@@ -159,21 +159,17 @@ function SymptomCheckerPageContent() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">AI Symptom Checker</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Chat naturally about your symptoms. The assistant will guide you step by
-            step on this same page.
-          </p>
+      <div className="mb-6 overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
+        <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
+        <div className="p-6">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-slate-800">AI Symptom Checker</h1>
+            <p className="mt-2 text-sm text-slate-500">
+              Chat naturally about your symptoms. The assistant will guide you step by
+              step on this same page.
+            </p>
+          </div>
         </div>
-
-        <Link
-          to="/ai/history"
-          className="inline-flex w-fit items-center rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-50"
-        >
-          View Symptom History
-        </Link>
       </div>
 
       {!canUseChecker ? (
@@ -185,12 +181,23 @@ function SymptomCheckerPageContent() {
       {!activeRecord ? (
         <section className="rounded-2xl border border-blue-100 bg-white shadow-sm">
           <div className="border-b border-blue-100 px-6 py-5">
-            <h2 className="text-lg font-semibold text-slate-800">
-              Start a New Symptom Conversation
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Example: I have fever and headache for 2 days.
-            </p>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">
+                  Start a New Symptom Conversation
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Example: I have fever and headache for 2 days.
+                </p>
+              </div>
+
+              <Link
+                to="/ai/history"
+                className="inline-flex w-fit items-center rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-50"
+              >
+                View Symptom History
+              </Link>
+            </div>
           </div>
 
           <div className="space-y-6 px-6 py-6">
