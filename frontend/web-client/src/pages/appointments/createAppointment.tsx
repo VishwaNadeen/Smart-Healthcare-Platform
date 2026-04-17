@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   createAppointment,
   getDoctorAvailableSlots,
+  getPatientAppointments,
+  type Appointment,
   type AppointmentAvailabilitySlot,
   type CreateAppointmentPayload,
 } from "../../services/appointmentApi";
@@ -154,12 +156,12 @@ export default function CreateAppointmentPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const [availableSlots, setAvailableSlots] = useState<AppointmentAvailabilitySlot[]>(
     []
   );
   const [slotInfoMessage, setSlotInfoMessage] = useState("");
   const [showAllAvailableDates, setShowAllAvailableDates] = useState(false);
+  const [bookedAppointments, setBookedAppointments] = useState<Appointment[]>([]);
 
   const selectedDoctor =
     doctors.find((doctor) => doctor._id === formData.doctorId) || null;
@@ -167,6 +169,15 @@ export default function CreateAppointmentPage() {
   const visibleDateOptions = showAllAvailableDates
     ? availableDateOptions
     : availableDateOptions.slice(0, 8);
+
+  const bookedTimesOnSelectedDate = useMemo(() => {
+    if (!formData.appointmentDate) return new Set<string>();
+    return new Set(
+      bookedAppointments
+        .filter((a) => a.appointmentDate === formData.appointmentDate)
+        .map((a) => a.appointmentTime)
+    );
+  }, [bookedAppointments, formData.appointmentDate]);
 
   useEffect(() => {
     async function loadSpecialties() {
@@ -193,6 +204,25 @@ export default function CreateAppointmentPage() {
 
     loadSpecialties();
   }, []);
+
+  useEffect(() => {
+    if (!auth.token || !formData.doctorId) {
+      setBookedAppointments([]);
+      return;
+    }
+
+    getPatientAppointments(auth.token)
+      .then((all) => {
+        setBookedAppointments(
+          all.filter(
+            (a) =>
+              a.doctorId === formData.doctorId &&
+              (a.status === "pending" || a.status === "confirmed")
+          )
+        );
+      })
+      .catch(() => setBookedAppointments([]));
+  }, [auth.token, formData.doctorId]);
 
   useEffect(() => {
     async function loadDoctorsForSpecialization() {
@@ -243,7 +273,7 @@ export default function CreateAppointmentPage() {
   ) {
     const nextSpecialization = event.target.value;
 
-      setSuccessMessage("");
+
       setFormData((current) => ({
         ...current,
         specialization: nextSpecialization,
@@ -261,7 +291,6 @@ export default function CreateAppointmentPage() {
     const nextDoctorId = event.target.value;
     const doctor = doctors.find((item) => item._id === nextDoctorId) || null;
 
-    setSuccessMessage("");
     setFormData((current) => ({
       ...current,
       doctorId: nextDoctorId,
@@ -275,7 +304,6 @@ export default function CreateAppointmentPage() {
   }
 
   function handleAppointmentDateSelect(value: string) {
-    setSuccessMessage("");
     setFormData((current) => ({
       ...current,
       appointmentDate: value,
@@ -361,7 +389,7 @@ export default function CreateAppointmentPage() {
     try {
       setIsSubmitting(true);
       setErrorMessage("");
-      setSuccessMessage("");
+
 
       const payload: CreateAppointmentPayload = {
         doctorId: formData.doctorId,
@@ -375,15 +403,17 @@ export default function CreateAppointmentPage() {
 
       const response = await createAppointment(auth.token, payload);
 
-      setSuccessMessage(
-        response.message || "Appointment request created successfully."
-      );
-      setFormData(initialFormState);
-      setDoctors([]);
-
-      window.setTimeout(() => {
-        navigate("/appointments/patient");
-      }, 1200);
+      navigate("/payment/checkout", {
+        state: {
+          appointmentId: response.appointment._id,
+          doctorId: formData.doctorId,
+          doctorName: formData.doctorName,
+          specialization: formData.specialization,
+          amount: selectedDoctor?.consultationFee ?? 0,
+          appointmentDate: formData.appointmentDate,
+          appointmentTime: formData.appointmentTime,
+        },
+      });
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
@@ -396,277 +426,300 @@ export default function CreateAppointmentPage() {
   }
 
   return (
-    <section className="min-h-screen bg-[linear-gradient(180deg,#eef6ff_0%,#f8fbff_26%,#f8fafc_100%)] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="overflow-hidden rounded-[2rem] border border-sky-100 bg-white shadow-[0_30px_80px_rgba(15,23,42,0.08)]">
-          <div className="p-6 sm:p-8">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-slate-900 sm:text-4xl">
-                Create Appointment
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-                Choose a specialization first, then select a doctor from the
-                doctor service. Appointment booking still submits only to the
-                appointment service.
-              </p>
+    <section className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-3xl">
+
+        {/* Page header */}
+        <div className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="px-6 py-6 text-center sm:px-8">
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+              Book an Appointment
+            </h1>
+            <p className="mt-1.5 text-sm text-slate-500">
+              Follow the steps below to schedule your consultation.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* Step 1 — Doctor Selection */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50 px-6 py-4">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                1
+              </span>
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-600">
+                Select Doctor
+              </h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid gap-5 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Specialization
-                  </label>
-                  <select
-                    value={formData.specialization}
-                    onChange={handleSpecializationChange}
-                    disabled={loadingSpecialties}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-70"
-                    required
-                  >
-                    <option value="">
-                      {loadingSpecialties
-                        ? "Loading specializations..."
-                        : "Select specialization"}
+            <div className="grid gap-5 p-6 md:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  Specialization
+                </label>
+                <select
+                  value={formData.specialization}
+                  onChange={handleSpecializationChange}
+                  disabled={loadingSpecialties}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-70"
+                  required
+                >
+                  <option value="">
+                    {loadingSpecialties ? "Loading specializations..." : "Select specialization"}
+                  </option>
+                  {specialties.map((specialty) => (
+                    <option key={specialty._id} value={specialty.name}>
+                      {specialty.name}
                     </option>
-                    {specialties.map((specialty) => (
-                      <option key={specialty._id} value={specialty.name}>
-                        {specialty.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Doctor
-                  </label>
-                  <select
-                    value={formData.doctorId}
-                    onChange={handleDoctorChange}
-                    disabled={!formData.specialization || loadingDoctors}
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-70"
-                    required
-                  >
-                    <option value="">
-                      {!formData.specialization
-                        ? "Select specialization first"
-                        : loadingDoctors
-                          ? "Loading doctors..."
-                          : doctors.length === 0
-                            ? "No doctors found"
-                            : "Select doctor"}
-                    </option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor._id} value={doctor._id}>
-                        {getDoctorLabel(doctor)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  ))}
+                </select>
               </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Appointment Date
-                  </label>
-                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    {!formData.doctorId ? (
-                      <p className="text-sm text-slate-500">
-                        Select a doctor first to see available dates.
-                      </p>
-                    ) : availableDateOptions.length === 0 ? (
-                      <p className="text-sm text-slate-500">
-                        This doctor has no bookable dates configured yet.
-                      </p>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          {visibleDateOptions.map((dateOption) => {
-                          const isSelected =
-                            formData.appointmentDate === dateOption.value;
-                          const parts = formatDateParts(dateOption.value);
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  Doctor
+                </label>
+                <select
+                  value={formData.doctorId}
+                  onChange={handleDoctorChange}
+                  disabled={!formData.specialization || loadingDoctors}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-70"
+                  required
+                >
+                  <option value="">
+                    {!formData.specialization
+                      ? "Select specialization first"
+                      : loadingDoctors
+                        ? "Loading doctors..."
+                        : doctors.length === 0
+                          ? "No doctors found"
+                          : "Select doctor"}
+                  </option>
+                  {doctors.map((doctor) => (
+                    <option key={doctor._id} value={doctor._id}>
+                      {getDoctorLabel(doctor)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
 
+          {/* Step 2 — Schedule */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50 px-6 py-4">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                2
+              </span>
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-600">
+                Pick a Date & Time
+              </h2>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {/* Date picker */}
+              <div className="p-6">
+                <p className="mb-3 text-sm font-semibold text-slate-700">
+                  Appointment Date
+                </p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  {!formData.doctorId ? (
+                    <p className="text-sm text-slate-400">
+                      Select a doctor first to see available dates.
+                    </p>
+                  ) : availableDateOptions.length === 0 ? (
+                    <p className="text-sm text-slate-400">
+                      This doctor has no bookable dates configured yet.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                        {visibleDateOptions.map((dateOption) => {
+                          const isSelected = formData.appointmentDate === dateOption.value;
+                          const parts = formatDateParts(dateOption.value);
                           return (
                             <button
                               key={dateOption.value}
                               type="button"
                               onClick={() => handleAppointmentDateSelect(dateOption.value)}
-                              className={`rounded-2xl border px-4 py-3 text-left transition ${
+                              className={`rounded-xl border px-3 py-3 text-left transition ${
                                 isSelected
                                   ? "border-blue-600 bg-blue-600 text-white shadow-sm"
-                                  : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50"
                               }`}
                             >
-                              <p
-                                className={`text-xs font-semibold uppercase tracking-[0.18em] ${
-                                  isSelected ? "text-blue-100" : "text-slate-500"
-                                }`}
-                              >
+                              <p className={`text-[10px] font-bold uppercase tracking-widest ${isSelected ? "text-blue-200" : "text-slate-400"}`}>
                                 {parts.weekday}
                               </p>
-                              <p className="mt-2 text-base font-semibold">
+                              <p className="mt-1 text-sm font-semibold leading-tight">
                                 {parts.monthDay}
                               </p>
                             </button>
                           );
-                          })}
-                        </div>
-
-                        {availableDateOptions.length > 8 ? (
-                          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                            <p className="text-sm text-slate-600">
-                              {showAllAvailableDates
-                                ? `Showing all ${availableDateOptions.length} available dates`
-                                : `Showing the next ${visibleDateOptions.length} available dates`}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setShowAllAvailableDates((current) => !current)
-                              }
-                              className="rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
-                            >
-                              {showAllAvailableDates ? "Show fewer" : "Show more"}
-                            </button>
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-                  {selectedDoctor && availableDateOptions.length > 0 ? (
-                    <p className="mt-2 text-xs text-slate-500">
-                      Available on {getDoctorScheduleWeekdays(selectedDoctor).join(", ")}.
-                    </p>
-                  ) : null}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Appointment Time
-                  </label>
-                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    {!formData.appointmentDate ? (
-                      <p className="text-sm text-slate-500">
-                        Choose a date first to see available time slots.
-                      </p>
-                    ) : loadingSlots ? (
-                      <p className="text-sm text-slate-500">
-                        Loading available times...
-                      </p>
-                    ) : availableSlots.length === 0 ? (
-                      <p className="text-sm text-slate-500">
-                        No appointment times are available for this date.
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {availableSlots.map((slot) => {
-                          const isSelected =
-                            formData.appointmentTime === slot.time;
-
-                          return (
-                            <button
-                              key={slot.time}
-                              type="button"
-                              onClick={() => updateField("appointmentTime", slot.time)}
-                              className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                                isSelected
-                                  ? "border-blue-600 bg-blue-600 text-white shadow-sm"
-                                  : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50"
-                              }`}
-                            >
-                              {slot.label}
-                            </button>
-                          );
                         })}
                       </div>
-                    )}
-                  </div>
-                  {slotInfoMessage ? (
-                    <p className="mt-2 text-xs text-amber-600">{slotInfoMessage}</p>
-                  ) : selectedDoctor?.appointmentDurationMinutes ? (
-                    <p className="mt-2 text-xs text-slate-500">
-                      Each appointment is {selectedDoctor.appointmentDurationMinutes} minutes.
-                    </p>
-                  ) : null}
+
+                      {availableDateOptions.length > 8 ? (
+                        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
+                          <p className="text-xs text-slate-500">
+                            {showAllAvailableDates
+                              ? `All ${availableDateOptions.length} dates shown`
+                              : `Showing next ${visibleDateOptions.length} dates`}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setShowAllAvailableDates((c) => !c)}
+                            className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                          >
+                            {showAllAvailableDates ? "Show fewer" : "Show more"}
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
                 </div>
+                {selectedDoctor && availableDateOptions.length > 0 ? (
+                  <p className="mt-2 text-xs text-slate-400">
+                    Available on {getDoctorScheduleWeekdays(selectedDoctor).join(", ")}.
+                  </p>
+                ) : null}
               </div>
 
+              {/* Time picker */}
+              <div className="p-6">
+                <p className="mb-3 text-sm font-semibold text-slate-700">
+                  Appointment Time
+                </p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  {!formData.appointmentDate ? (
+                    <p className="text-sm text-slate-400">
+                      Choose a date first to see available time slots.
+                    </p>
+                  ) : loadingSlots ? (
+                    <p className="text-sm text-slate-400">Loading available times...</p>
+                  ) : availableSlots.length === 0 ? (
+                    <p className="text-sm text-slate-400">
+                      No appointment times are available for this date.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                      {availableSlots.map((slot) => {
+                        const isSelected = formData.appointmentTime === slot.time;
+                        const isBooked = bookedTimesOnSelectedDate.has(slot.time);
+                        return (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            disabled={isBooked}
+                            onClick={() => !isBooked && updateField("appointmentTime", slot.time)}
+                            className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${
+                              isBooked
+                                ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60"
+                                : isSelected
+                                ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50"
+                            }`}
+                          >
+                            <span className="block">{slot.label}</span>
+                            {isBooked && (
+                              <span className="block text-[9px] font-bold uppercase tracking-wider text-rose-400">
+                                Booked
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {slotInfoMessage ? (
+                  <p className="mt-2 text-xs text-amber-600">{slotInfoMessage}</p>
+                ) : selectedDoctor?.appointmentDurationMinutes ? (
+                  <p className="mt-2 text-xs text-slate-400">
+                    Each appointment is {selectedDoctor.appointmentDurationMinutes} minutes.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* Step 3 — Details */}
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50 px-6 py-4">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
+                3
+              </span>
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-600">
+                Appointment Details
+              </h2>
+            </div>
+
+            <div className="space-y-5 p-6">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
                   Reason for Appointment
                 </label>
                 <textarea
                   value={formData.reason}
                   onChange={(event) => updateField("reason", event.target.value)}
-                  rows={5}
-                  className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500"
-                  placeholder="Describe your health concern"
+                  rows={4}
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  placeholder="Describe your health concern or symptoms..."
                   required
                 />
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">
-                  Payment Status
-                </label>
-                <select
-                  value={formData.paymentStatus}
-                  onChange={(event) =>
-                    updateField(
-                      "paymentStatus",
-                      event.target.value as AppointmentFormState["paymentStatus"]
-                    )
-                  }
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500"
-                >
-                  <option value="pending">Pending</option>
-                  <option value="paid">Paid</option>
-                  <option value="failed">Failed</option>
-                </select>
-              </div>
-
-              {errorMessage ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {errorMessage}
-                </div>
-              ) : null}
-
-              {successMessage ? (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {successMessage}
-                </div>
-              ) : null}
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="submit"
-                  disabled={
-                    isSubmitting ||
-                    loadingSpecialties ||
-                    loadingDoctors ||
-                    loadingSlots ||
-                    !formData.specialization ||
-                    !formData.doctorId ||
-                    !formData.appointmentDate ||
-                    !formData.appointmentTime
-                  }
-                  className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isSubmitting ? "Creating Appointment..." : "Create Appointment"}
-                </button>
-
-                <Link
-                  to="/appointments/patient"
-                  className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  Back to My Appointments
-                </Link>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
+
+          {/* Alerts */}
+          {errorMessage ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3.5 text-sm text-rose-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
+
+
+          {/* Actions */}
+          <div className="flex justify-center pb-2">
+            <button
+              type="submit"
+              disabled={
+                isSubmitting ||
+                loadingSpecialties ||
+                loadingDoctors ||
+                loadingSlots ||
+                !formData.specialization ||
+                !formData.doctorId ||
+                !formData.appointmentDate ||
+                !formData.appointmentTime
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-8 py-3.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:bg-emerald-700 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-md"
+            >
+              {isSubmitting ? (
+                <>
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                    <path d="M2 10h20" />
+                  </svg>
+                  Proceed to Payment
+                </>
+              )}
+            </button>
+          </div>
+
+        </form>
       </div>
     </section>
   );

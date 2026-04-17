@@ -3,7 +3,6 @@ import PageLoading from "../../components/common/PageLoading";
 import {
   getDoctorAppointments,
   type Appointment,
-  type AppointmentStatus,
   type PaymentStatus,
 } from "../../services/appointmentApi";
 import {
@@ -43,10 +42,6 @@ function getAppointmentDateTimeValue(appointment: Appointment) {
   return new Date(`${appointment.appointmentDate}T${appointment.appointmentTime}`);
 }
 
-function getStatusLabel(status: AppointmentStatus) {
-  if (status === "cancelled") return "Rejected";
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
 
 function getPaymentBadgeClasses(paymentStatus?: PaymentStatus) {
   switch (paymentStatus) {
@@ -106,6 +101,17 @@ export default function DoctorRejectedAppointmentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] =
     useState<Appointment | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  function openModal(appointment: Appointment) {
+    setSelectedAppointmentDetails(appointment);
+    requestAnimationFrame(() => setIsModalVisible(true));
+  }
+
+  function closeModal() {
+    setIsModalVisible(false);
+    setTimeout(() => setSelectedAppointmentDetails(null), 250);
+  }
 
   useEffect(() => {
     async function loadDoctorAppointments() {
@@ -280,10 +286,10 @@ export default function DoctorRejectedAppointmentsPage() {
           </div>
         )}
 
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-2">
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+          <div className="mb-3 grid gap-2.5 md:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-1 block text-sm font-semibold text-slate-700">
                 Search
               </label>
               <input
@@ -291,12 +297,12 @@ export default function DoctorRejectedAppointmentsPage() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search by patient, reason, rejection note, date, or time"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-1 block text-sm font-semibold text-slate-700">
                 Schedule
               </label>
               <select
@@ -304,7 +310,7 @@ export default function DoctorRejectedAppointmentsPage() {
                 onChange={(event) =>
                   setScheduleFilter(event.target.value as ScheduleFilter)
                 }
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
               >
                 <option value="all">All days</option>
                 <option value="today">Today</option>
@@ -314,7 +320,7 @@ export default function DoctorRejectedAppointmentsPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2">
             <p className="text-sm text-slate-600">
               <span className="font-semibold text-slate-900">
                 {rejectedAppointments.length}
@@ -331,7 +337,7 @@ export default function DoctorRejectedAppointmentsPage() {
                 onChange={(event) =>
                   setRowsPerPage(Number(event.target.value) as 5 | 10 | 20)
                 }
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
@@ -353,23 +359,19 @@ export default function DoctorRejectedAppointmentsPage() {
             <div className="overflow-x-auto">
               <table className="min-w-full table-fixed divide-y divide-slate-200">
                 <colgroup>
-                  <col className="w-[16%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[25%]" />
-                  <col className="w-[12%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[15%]" />
                 </colgroup>
 
                 <thead className="bg-slate-50">
                   <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     <th className="px-6 py-4">Patient</th>
-                    <th className="px-6 py-4 text-center">Age</th>
                     <th className="px-6 py-4 text-center">Date</th>
                     <th className="px-6 py-4 text-center">Time</th>
                     <th className="px-6 py-4 text-center">Payment</th>
-                    <th className="px-6 py-4">Rejection Reason</th>
                     <th className="px-6 py-4 text-center">Details</th>
                   </tr>
                 </thead>
@@ -378,17 +380,10 @@ export default function DoctorRejectedAppointmentsPage() {
                   {paginatedAppointments.map((appointment) => {
                     const patient = patientsById[appointment.patientId];
                     const patientName = getPatientDisplayName(appointment, patient);
-                    const rejectedReason =
-                      getLatestCancelledReason(appointment) || "No rejection note provided.";
-
                     return (
                       <tr key={appointment._id} className="transition hover:bg-slate-50">
                         <td className="px-6 py-4 font-semibold text-slate-900">
                           {patientName}
-                        </td>
-
-                        <td className="px-6 py-4 text-center text-sm text-slate-700">
-                          {patient?.age ?? "N/A"}
                         </td>
 
                         <td className="px-6 py-4 text-center text-sm text-slate-700">
@@ -409,16 +404,10 @@ export default function DoctorRejectedAppointmentsPage() {
                           </span>
                         </td>
 
-                        <td className="px-6 py-4 text-sm text-slate-700">
-                          <p className="line-clamp-2 whitespace-pre-wrap">
-                            {rejectedReason}
-                          </p>
-                        </td>
-
                         <td className="px-6 py-4 text-center">
                           <button
                             type="button"
-                            onClick={() => setSelectedAppointmentDetails(appointment)}
+                            onClick={() => openModal(appointment)}
                             className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                           >
                             View
@@ -482,11 +471,11 @@ export default function DoctorRejectedAppointmentsPage() {
 
       {selectedAppointmentDetails ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8"
-          onClick={() => setSelectedAppointmentDetails(null)}
+          className={`fixed inset-0 z-50 flex items-center justify-center px-4 py-8 transition-all duration-250 ${isModalVisible ? "bg-slate-900/40" : "bg-slate-900/0"}`}
+          onClick={closeModal}
         >
           <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lg"
+            className={`max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lg transition-all duration-250 ${isModalVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -501,7 +490,7 @@ export default function DoctorRejectedAppointmentsPage() {
 
               <button
                 type="button"
-                onClick={() => setSelectedAppointmentDetails(null)}
+                onClick={closeModal}
                 className="px-3 py-2 text-sm font-semibold text-slate-700 hover:text-slate-900"
               >
                 Close
@@ -509,24 +498,6 @@ export default function DoctorRejectedAppointmentsPage() {
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Doctor
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {selectedAppointmentDetails.doctorName}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Specialization
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {selectedAppointmentDetails.specialization}
-                </p>
-              </div>
-
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Appointment Date
@@ -542,34 +513,6 @@ export default function DoctorRejectedAppointmentsPage() {
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">
                   {formatTime(selectedAppointmentDetails.appointmentTime)}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Payment Status
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {getPaymentLabel(selectedAppointmentDetails.paymentStatus)}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Status
-                </p>
-                <p className="mt-2 text-sm font-semibold text-rose-700">
-                  {getStatusLabel(selectedAppointmentDetails.status)}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Reason for Appointment
-                </p>
-                <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-slate-900">
-                  {selectedAppointmentDetails.reason?.trim() ||
-                    "No reason provided by the patient."}
                 </p>
               </div>
 

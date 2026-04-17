@@ -370,10 +370,10 @@ export default function DoctorAppointmentsPage() {
           </div>
         )}
 
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <div className="mb-6 grid gap-4 md:grid-cols-2">
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+          <div className="mb-3 grid gap-2.5 md:grid-cols-2">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-1 block text-sm font-semibold text-slate-700">
                 Search
               </label>
               <input
@@ -381,12 +381,12 @@ export default function DoctorAppointmentsPage() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="Search by patient, reason, date, or time"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
+              <label className="mb-1 block text-sm font-semibold text-slate-700">
                 Schedule
               </label>
               <select
@@ -394,7 +394,7 @@ export default function DoctorAppointmentsPage() {
                 onChange={(event) =>
                   setScheduleFilter(event.target.value as ScheduleFilter)
                 }
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
               >
                 <option value="all">All days</option>
                 <option value="today">Today</option>
@@ -404,9 +404,9 @@ export default function DoctorAppointmentsPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-sm text-slate-500">
-              <span className="font-semibold text-slate-700">
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2">
+            <p className="text-sm text-blue-600">
+              <span className="font-semibold text-blue-700">
                 {pendingAppointments.length}
               </span>{" "}
               pending appointment requests awaiting review.
@@ -421,7 +421,7 @@ export default function DoctorAppointmentsPage() {
                 onChange={(event) =>
                   setRowsPerPage(Number(event.target.value) as 5 | 10 | 20)
                 }
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>

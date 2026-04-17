@@ -97,6 +97,16 @@ function isNavItemActive(pathname: string, linkPath: string, isActive: boolean) 
     return isConsultationPath(pathname);
   }
 
+  if (linkPath === "/appointments") {
+    if (
+      pathname.startsWith("/appointments/doctor/completed") ||
+      pathname.startsWith("/appointments/doctor/rejected")
+    ) {
+      return false;
+    }
+    return pathname.startsWith("/appointments");
+  }
+
   return isActive;
 }
 
@@ -115,6 +125,9 @@ export default function Navbar() {
   const profileDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const auth = getStoredTelemedicineAuth();
+  const visibleNavLinks = navLinks.filter(
+    (link) => !(auth.role === "doctor" && link.path === "/ai")
+  );
 
   const [profileName, setProfileName] = useState(() =>
     getStoredProfileName(auth.role, auth.username || "")
@@ -355,7 +368,7 @@ export default function Navbar() {
           </div>
 
           <div className="hidden items-center gap-2 md:flex">
-            {navLinks.map((link) => (
+            {visibleNavLinks.map((link) => (
               <NavLink
                 key={link.name}
                 to={link.path}
@@ -511,7 +524,7 @@ export default function Navbar() {
           }`}
         >
           <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 sm:px-6">
-            {navLinks.map((link) => (
+            {visibleNavLinks.map((link) => (
               <NavLink
                 key={link.name}
                 to={link.path}

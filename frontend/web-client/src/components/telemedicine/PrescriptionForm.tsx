@@ -541,7 +541,7 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
         <div className="flex h-full min-h-0 flex-col">
           <div className={`min-h-0 ${plainReadOnly ? "flex flex-1 flex-col gap-4" : "space-y-4"}`}>
           {!hideTitle ? (
-            <h2 className="text-xl font-bold text-slate-800">{title}</h2>
+            <h2 className="text-center text-xl font-bold text-slate-800">{title}</h2>
           ) : null}
         <div
           className={
