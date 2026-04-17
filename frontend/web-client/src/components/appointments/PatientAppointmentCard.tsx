@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Appointment } from "../../services/appointmentApi";
 
@@ -114,6 +114,28 @@ export default function PatientAppointmentCard({
     if (isCancelling) return;
     setShowCancelConfirm(false);
   };
+
+  useEffect(() => {
+    if (!isDetailsOpen) {
+      return;
+    }
+
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousOverflow = document.body.style.overflow;
+    const previousBodyTouchAction = body.style.touchAction;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.touchAction = "none";
+
+    return () => {
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousOverflow;
+      body.style.touchAction = previousBodyTouchAction;
+    };
+  }, [isDetailsOpen]);
 
   return (
     <>
@@ -336,13 +358,13 @@ export default function PatientAppointmentCard({
 
       {isDetailsOpen && (
         <div style={{transition:"background 250ms"}} className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm ${isVisible ? "bg-slate-900/60" : "bg-slate-900/0"}`}>
-          <div style={{transition:"opacity 250ms, transform 250ms"}} className={`relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-blue-100 bg-white shadow-2xl ${isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}>
+          <div style={{transition:"opacity 250ms, transform 250ms"}} className={`relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-blue-100 bg-white shadow-2xl ${isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}>
             <div className="sticky top-0 z-10 overflow-hidden border-b border-slate-200 bg-white/95 backdrop-blur">
               <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
-              <div className="px-6 py-5">
+              <div className="px-5 py-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 text-center">
-                  <h3 className="text-2xl font-bold text-slate-900">
+                  <h3 className="text-xl font-bold text-slate-900">
                     Appointment Details
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">
@@ -381,9 +403,9 @@ export default function PatientAppointmentCard({
               </div>
             </div>
 
-            <div className="space-y-6 px-6 py-6">
-              <div className="rounded-3xl bg-gradient-to-r from-blue-50 via-cyan-50 to-emerald-50 p-5">
-                <h4 className="text-lg font-bold text-slate-900">
+            <div className="space-y-5 px-5 py-5">
+              <div className="rounded-3xl bg-gradient-to-r from-blue-50 via-cyan-50 to-emerald-50 p-4">
+                <h4 className="text-base font-bold text-slate-900">
                   {appointment.doctorName || "-"}
                 </h4>
                 <p className="mt-1 text-sm font-medium text-cyan-700">
@@ -392,7 +414,7 @@ export default function PatientAppointmentCard({
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Appointment Date
                   </p>
@@ -401,7 +423,7 @@ export default function PatientAppointmentCard({
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Appointment Time
                   </p>
@@ -410,7 +432,7 @@ export default function PatientAppointmentCard({
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Status
                   </p>
@@ -423,7 +445,7 @@ export default function PatientAppointmentCard({
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Payment Status
                   </p>
@@ -436,7 +458,7 @@ export default function PatientAppointmentCard({
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:col-span-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Reason
                   </p>
@@ -447,7 +469,7 @@ export default function PatientAppointmentCard({
               </div>
 
               {(appointment.rescheduledDate || appointment.rescheduledTime) && (
-                <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-5">
+                <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
                     Reschedule Details
                   </p>
@@ -474,7 +496,7 @@ export default function PatientAppointmentCard({
               )}
 
               {canCancel && (
-                <div className="rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 to-red-50 p-5">
+                <div className="rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 to-red-50 p-4">
                   {!showCancelConfirm ? (
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div>

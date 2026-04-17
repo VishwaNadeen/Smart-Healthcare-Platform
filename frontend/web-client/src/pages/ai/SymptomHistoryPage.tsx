@@ -150,29 +150,27 @@ function SymptomHistoryPageContent() {
   }, [records, latestRecord]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">Symptom History</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            View your previous symptom analyses and continue saved AI conversations.
-          </p>
-        </div>
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mb-6 overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
+        <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
+        <div className="p-6">
+          <div className="flex flex-col gap-4">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-slate-800">Symptom History</h1>
+              <p className="mt-2 text-sm text-slate-500">
+                View your previous symptom analyses and continue saved AI conversations.
+              </p>
+            </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Link
-            to="/ai"
-            className="inline-flex w-fit items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
-          >
-            Start New Conversation
-          </Link>
-
-          <Link
-            to="/ai"
-            className="inline-flex w-fit items-center rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-50"
-          >
-            Back to Symptom Checker
-          </Link>
+            <div className="flex flex-wrap justify-center gap-3 md:justify-end">
+              <Link
+                to="/ai"
+                className="inline-flex w-fit items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+              >
+                Start New Conversation
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
 
