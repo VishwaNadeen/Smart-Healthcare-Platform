@@ -185,6 +185,25 @@ const getAllAppointments = async (req, res) => {
   }
 };
 
+const getAllAppointmentsAdmin = async (req, res) => {
+  try {
+    const { status, doctorId, paymentStatus } = req.query;
+    const query = {};
+
+    if (status) query.status = status;
+    if (doctorId) query.doctorId = doctorId;
+    if (paymentStatus) query.paymentStatus = paymentStatus;
+
+    const appointments = await Appointment.find(query).sort({ createdAt: -1 });
+    res.status(200).json(appointments);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch admin appointments",
+      error: error.message,
+    });
+  }
+};
+
 const getAppointmentById = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id);
@@ -747,6 +766,7 @@ module.exports = {
   searchDoctorsBySpecialty,
   createAppointment,
   getAllAppointments,
+  getAllAppointmentsAdmin,
   getAppointmentById,
   getAppointmentsByDoctorId,
   updateAppointment,

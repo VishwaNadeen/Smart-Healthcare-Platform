@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { initiatePayment, type PayHereParams } from "../../services/paymentApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
+import PageLoading from "../../components/common/PageLoading";
 
 type CheckoutState = {
   appointmentId: string;
@@ -42,6 +43,8 @@ export default function PaymentCheckoutPage() {
   }, [paymentParams]);
 
   if (!state) return null;
+
+  if (isLoading) return <PageLoading message="Redirecting to PayHere..." />;
 
 async function handleProceedToPayment() {
   if (!auth.userId || !auth.email || !auth.username) {
@@ -85,7 +88,6 @@ async function handleProceedToPayment() {
     setIsLoading(false);
   }
 }
-
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl">

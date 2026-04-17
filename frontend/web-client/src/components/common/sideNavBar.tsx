@@ -32,6 +32,10 @@ function isNavItemActive(pathname: string, linkPath: string, isActive: boolean) 
     return isConsultationPath(pathname);
   }
 
+  if (linkPath === "/appointments" || linkPath === "/appointments/doctor") {
+    return pathname === linkPath;
+  }
+
   return isActive;
 }
 

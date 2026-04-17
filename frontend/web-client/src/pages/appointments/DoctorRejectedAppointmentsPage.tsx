@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useToast } from "../../components/common/toastContext";
 import PageLoading from "../../components/common/PageLoading";
 import {
   getDoctorAppointments,
-  updateDoctorAppointmentStatus,
   type Appointment,
-  type AppointmentStatus,
   type PaymentStatus,
 } from "../../services/appointmentApi";
 import {
@@ -13,7 +10,6 @@ import {
   type PatientSummaryResponse,
 } from "../../services/patientApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
-import NoDocAppointments from "./noDocAppointments";
 
 type ScheduleFilter = "all" | "today" | "sevenDays" | "oneMonth";
 
@@ -46,13 +42,6 @@ function getAppointmentDateTimeValue(appointment: Appointment) {
   return new Date(`${appointment.appointmentDate}T${appointment.appointmentTime}`);
 }
 
-function getStatusLabel(status: AppointmentStatus) {
-  if (status === "cancelled") {
-    return "Rejected";
-  }
-
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
 
 function getPaymentBadgeClasses(paymentStatus?: PaymentStatus) {
   switch (paymentStatus) {
@@ -78,11 +67,7 @@ function getPatientDisplayName(
   const backendPatientName =
     typeof appointment.patientName === "string" ? appointment.patientName : "";
 
-  return (
-    backendPatientName ||
-    fullName ||
-    `Patient ${appointment.patientId.slice(-6)}`
-  );
+  return backendPatientName || fullName || `Patient ${appointment.patientId.slice(-6)}`;
 }
 
 function getLatestCancelledReason(appointment: Appointment) {
@@ -101,9 +86,8 @@ function getLatestCancelledReason(appointment: Appointment) {
   return latestCancelledEntry.note.trim();
 }
 
-export default function DoctorAppointmentsPage() {
+export default function DoctorRejectedAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
-  const { showToast } = useToast();
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patientsById, setPatientsById] = useState<
@@ -113,15 +97,21 @@ export default function DoctorAppointmentsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("all");
-  const [rowsPerPage, setRowsPerPage] = useState<5 | 10 | 20>(20);
+  const [rowsPerPage, setRowsPerPage] = useState<5 | 10 | 20>(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-  const [rejectingAppointmentId, setRejectingAppointmentId] = useState<string | null>(
-    null
-  );
-  const [rejectReason, setRejectReason] = useState("");
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] =
     useState<Appointment | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  function openModal(appointment: Appointment) {
+    setSelectedAppointmentDetails(appointment);
+    requestAnimationFrame(() => setIsModalVisible(true));
+  }
+
+  function closeModal() {
+    setIsModalVisible(false);
+    setTimeout(() => setSelectedAppointmentDetails(null), 250);
+  }
 
   useEffect(() => {
     async function loadDoctorAppointments() {
@@ -133,8 +123,8 @@ export default function DoctorAppointmentsPage() {
 
       try {
         const token = auth.token;
-
         setErrorMessage("");
+
         const nextAppointments = await getDoctorAppointments(token, auth.userId);
         const safeAppointments = Array.isArray(nextAppointments) ? nextAppointments : [];
 
@@ -173,7 +163,7 @@ export default function DoctorAppointmentsPage() {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "Failed to load doctor appointments."
+            : "Failed to load rejected appointments."
         );
       } finally {
         setIsLoading(false);
@@ -183,8 +173,8 @@ export default function DoctorAppointmentsPage() {
     void loadDoctorAppointments();
   }, [auth.token, auth.userId]);
 
-  const pendingAppointments = useMemo(
-    () => appointments.filter((appointment) => appointment.status === "pending"),
+  const rejectedAppointments = useMemo(
+    () => appointments.filter((appointment) => appointment.status === "cancelled"),
     [appointments]
   );
 
@@ -199,7 +189,7 @@ export default function DoctorAppointmentsPage() {
     const oneMonthFromToday = new Date(today);
     oneMonthFromToday.setMonth(oneMonthFromToday.getMonth() + 1);
 
-    return pendingAppointments
+    return rejectedAppointments
       .filter((appointment) => {
         const appointmentDateTime = getAppointmentDateTimeValue(appointment);
         const appointmentDay = new Date(appointmentDateTime);
@@ -225,20 +215,22 @@ export default function DoctorAppointmentsPage() {
           return false;
         }
 
-        if (!normalizedSearchTerm) {
-          return true;
-        }
-
         const patient = patientsById[appointment.patientId];
         const patientName = getPatientDisplayName(appointment, patient).toLowerCase();
         const reason = String(appointment.reason || "").toLowerCase();
+        const rejectReason = getLatestCancelledReason(appointment).toLowerCase();
+
+        if (!normalizedSearchTerm) {
+          return true;
+        }
 
         return (
           patientName.includes(normalizedSearchTerm) ||
           appointment.specialization.toLowerCase().includes(normalizedSearchTerm) ||
           appointment.appointmentDate.toLowerCase().includes(normalizedSearchTerm) ||
           appointment.appointmentTime.toLowerCase().includes(normalizedSearchTerm) ||
-          reason.includes(normalizedSearchTerm)
+          reason.includes(normalizedSearchTerm) ||
+          rejectReason.includes(normalizedSearchTerm)
         );
       })
       .sort((left, right) => {
@@ -251,7 +243,7 @@ export default function DoctorAppointmentsPage() {
 
         return rightDate - leftDate;
       });
-  }, [patientsById, pendingAppointments, scheduleFilter, searchTerm]);
+  }, [patientsById, rejectedAppointments, scheduleFilter, searchTerm]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -270,84 +262,8 @@ export default function DoctorAppointmentsPage() {
     }
   }, [currentPage, totalPages]);
 
-  async function handleUpdateAppointmentStatus(
-    appointmentId: string,
-    status: Extract<AppointmentStatus, "confirmed" | "cancelled">,
-    note?: string
-  ) {
-    if (!auth.token) {
-      setErrorMessage("You must be logged in to manage appointment requests.");
-      return;
-    }
-
-    try {
-      setErrorMessage("");
-      setActionLoadingId(appointmentId);
-
-      const data = await updateDoctorAppointmentStatus(
-        auth.token,
-        appointmentId,
-        status,
-        note
-      );
-
-      setAppointments((currentAppointments) =>
-        currentAppointments.map((appointment) =>
-          appointment._id === appointmentId
-            ? {
-                ...appointment,
-                ...(data.appointment || {}),
-                status: data.appointment?.status ?? status,
-              }
-            : appointment
-        )
-      );
-
-      showToast(
-        data.message ||
-          (status === "confirmed"
-            ? "Appointment request accepted successfully."
-            : "Appointment request rejected successfully."),
-        "success",
-        3000
-      );
-
-      if (status === "cancelled") {
-        setRejectingAppointmentId(null);
-        setRejectReason("");
-      }
-    } catch (error: unknown) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to update appointment request."
-      );
-    } finally {
-      setActionLoadingId(null);
-    }
-  }
-
   if (isLoading) {
-    return <PageLoading message="Loading appointment requests..." />;
-  }
-
-  if (pendingAppointments.length === 0) {
-    return (
-      <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          {errorMessage && (
-            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {errorMessage}
-            </div>
-          )}
-
-          <NoDocAppointments
-            viewScheduleLink="/doctor-sessions"
-            editAvailabilityLink="/doctor-availability"
-          />
-        </div>
-      </section>
-    );
+    return <PageLoading message="Loading rejected appointments..." />;
   }
 
   return (
@@ -356,10 +272,10 @@ export default function DoctorAppointmentsPage() {
         <div className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="px-4 py-5 text-center md:px-6">
             <h1 className="text-3xl font-bold text-slate-900 sm:text-4xl">
-              Appointment Requests
+              Rejected Appointments
             </h1>
             <p className="mx-auto mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-              Review incoming bookings, respond quickly, and keep your daily schedule organized.
+              Review rejected bookings and the reason shared with each patient.
             </p>
           </div>
         </div>
@@ -380,8 +296,8 @@ export default function DoctorAppointmentsPage() {
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search by patient, reason, date, or time"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                placeholder="Search by patient, reason, rejection note, date, or time"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
               />
             </div>
 
@@ -394,7 +310,7 @@ export default function DoctorAppointmentsPage() {
                 onChange={(event) =>
                   setScheduleFilter(event.target.value as ScheduleFilter)
                 }
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
               >
                 <option value="all">All days</option>
                 <option value="today">Today</option>
@@ -405,11 +321,11 @@ export default function DoctorAppointmentsPage() {
           </div>
 
           <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2">
-            <p className="text-sm text-blue-600">
-              <span className="font-semibold text-blue-700">
-                {pendingAppointments.length}
+            <p className="text-sm text-slate-600">
+              <span className="font-semibold text-slate-900">
+                {rejectedAppointments.length}
               </span>{" "}
-              pending appointment requests awaiting review.
+              rejected appointments
             </p>
 
             <div className="flex items-center gap-3">
@@ -421,7 +337,7 @@ export default function DoctorAppointmentsPage() {
                 onChange={(event) =>
                   setRowsPerPage(Number(event.target.value) as 5 | 10 | 20)
                 }
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
               >
                 <option value={5}>5</option>
                 <option value={10}>10</option>
@@ -433,9 +349,9 @@ export default function DoctorAppointmentsPage() {
 
         {filteredAppointments.length === 0 ? (
           <div className="rounded-2xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-slate-200">
-            <h3 className="text-xl font-bold text-slate-900">No matching appointments</h3>
+            <h3 className="text-xl font-bold text-slate-900">No rejected appointments</h3>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Try changing the search text or schedule filter.
+              There are no rejected appointments matching your filter.
             </p>
           </div>
         ) : (
@@ -443,24 +359,20 @@ export default function DoctorAppointmentsPage() {
             <div className="overflow-x-auto">
               <table className="min-w-full table-fixed divide-y divide-slate-200">
                 <colgroup>
-                  <col className="w-[16.66%]" />
-                  <col className="w-[16.66%]" />
-                  <col className="w-[16.66%]" />
-                  <col className="w-[16.66%]" />
-                  <col className="w-[16.66%]" />
-                  <col className="w-[16.66%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[15%]" />
                 </colgroup>
 
                 <thead className="bg-slate-50">
                   <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     <th className="px-6 py-4">Patient</th>
-                    <th className="px-6 py-4 text-center">Age</th>
                     <th className="px-6 py-4 text-center">Date</th>
                     <th className="px-6 py-4 text-center">Time</th>
-                    <th className="px-6 py-4 text-center whitespace-nowrap">
-                      Payment Status
-                    </th>
-                    <th className="px-6 py-4 text-center">Actions</th>
+                    <th className="px-6 py-4 text-center">Payment</th>
+                    <th className="px-6 py-4 text-center">Details</th>
                   </tr>
                 </thead>
 
@@ -468,22 +380,10 @@ export default function DoctorAppointmentsPage() {
                   {paginatedAppointments.map((appointment) => {
                     const patient = patientsById[appointment.patientId];
                     const patientName = getPatientDisplayName(appointment, patient);
-                    const isActionLoading = actionLoadingId === appointment._id;
-
                     return (
-                      <tr
-                        key={appointment._id}
-                        className="cursor-pointer align-top transition hover:bg-slate-50"
-                        onClick={() => setSelectedAppointmentDetails(appointment)}
-                      >
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="font-semibold text-slate-900">{patientName}</p>
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-4 text-center text-sm text-slate-700">
-                          {patient?.age ?? "N/A"}
+                      <tr key={appointment._id} className="transition hover:bg-slate-50">
+                        <td className="px-6 py-4 font-semibold text-slate-900">
+                          {patientName}
                         </td>
 
                         <td className="px-6 py-4 text-center text-sm text-slate-700">
@@ -504,38 +404,14 @@ export default function DoctorAppointmentsPage() {
                           </span>
                         </td>
 
-                        <td className="px-6 py-4">
-                          <div className="space-y-2">
-                            <div className="flex justify-center gap-2 pt-1">
-                              <button
-                                type="button"
-                                disabled={isActionLoading || appointment.paymentStatus === "pending"}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void handleUpdateAppointmentStatus(
-                                    appointment._id,
-                                    "confirmed"
-                                  );
-                                }}
-                                className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-3.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {isActionLoading ? "..." : "Accept"}
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={isActionLoading}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setRejectingAppointmentId(appointment._id);
-                                  setRejectReason("");
-                                }}
-                                className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          </div>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openModal(appointment)}
+                            className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            View
+                          </button>
                         </td>
                       </tr>
                     );
@@ -569,7 +445,7 @@ export default function DoctorAppointmentsPage() {
                       onClick={() => setCurrentPage(pageNumber)}
                       className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
                         currentPage === pageNumber
-                          ? "bg-blue-600 text-white"
+                          ? "bg-rose-600 text-white"
                           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                       }`}
                     >
@@ -593,93 +469,28 @@ export default function DoctorAppointmentsPage() {
         )}
       </div>
 
-      {rejectingAppointmentId ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
-          onClick={() => {
-            setRejectingAppointmentId(null);
-            setRejectReason("");
-          }}
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-lg"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h2 className="text-xl font-bold text-slate-900">Reject Appointment</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Please provide a clear reason. The patient will be able to see this
-              message.
-            </p>
-
-            <label className="mt-5 block text-sm font-semibold text-slate-700">
-              Rejection Reason
-            </label>
-            <textarea
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              rows={4}
-              placeholder="Example: Please upload recent lab reports and book again for next week."
-              className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-            />
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setRejectingAppointmentId(null);
-                  setRejectReason("");
-                }}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                disabled={!rejectReason.trim() || actionLoadingId === rejectingAppointmentId}
-                onClick={() => {
-                  if (!rejectingAppointmentId) return;
-
-                  void handleUpdateAppointmentStatus(
-                    rejectingAppointmentId,
-                    "cancelled",
-                    rejectReason.trim()
-                  );
-                }}
-                className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {actionLoadingId === rejectingAppointmentId
-                  ? "Rejecting..."
-                  : "Reject Appointment"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {selectedAppointmentDetails ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8"
-          onClick={() => setSelectedAppointmentDetails(null)}
+          className={`fixed inset-0 z-50 flex items-center justify-center px-4 py-8 transition-all duration-250 ${isModalVisible ? "bg-slate-900/40" : "bg-slate-900/0"}`}
+          onClick={closeModal}
         >
           <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lg"
+            className={`max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lg transition-all duration-250 ${isModalVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  Appointment Details
+                  Rejected Appointment Details
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Review the full appointment information, including the patient's
-                  issue and booking status.
+                  Review the full appointment information and rejection note.
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setSelectedAppointmentDetails(null)}
+                onClick={closeModal}
                 className="px-3 py-2 text-sm font-semibold text-slate-700 hover:text-slate-900"
               >
                 Close
@@ -687,24 +498,6 @@ export default function DoctorAppointmentsPage() {
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Doctor
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {selectedAppointmentDetails.doctorName}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Specialization
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {selectedAppointmentDetails.specialization}
-                </p>
-              </div>
-
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Appointment Date
@@ -723,44 +516,15 @@ export default function DoctorAppointmentsPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Payment Status
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 md:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">
+                  Rejection Reason
                 </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {getPaymentLabel(selectedAppointmentDetails.paymentStatus)}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Status
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {getStatusLabel(selectedAppointmentDetails.status)}
+                <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-rose-900">
+                  {getLatestCancelledReason(selectedAppointmentDetails) ||
+                    "No rejection note provided."}
                 </p>
               </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Reason for Appointment
-                </p>
-                <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-slate-900">
-                  {selectedAppointmentDetails.reason?.trim() ||
-                    "No reason provided by the patient."}
-                </p>
-              </div>
-
-              {getLatestCancelledReason(selectedAppointmentDetails) ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 md:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">
-                    Rejection Reason
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-rose-900">
-                    {getLatestCancelledReason(selectedAppointmentDetails)}
-                  </p>
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
