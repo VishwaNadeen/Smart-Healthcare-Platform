@@ -63,19 +63,6 @@ function validateSymptomAnalysis(req, res, next) {
     }
   }
 
-  const hasAtLeastOnePositiveBoolean = booleanSymptomFields.some(
-    (field) => body[field.id] === true
-  );
-
-  const hasNumberField = numberSymptomFields.some((field) => field.id in body);
-
-  if (!hasAtLeastOnePositiveBoolean && !hasNumberField) {
-    return res.status(400).json({
-      success: false,
-      message: "At least one symptom or duration field is required.",
-    });
-  }
-
   return next();
 }
 

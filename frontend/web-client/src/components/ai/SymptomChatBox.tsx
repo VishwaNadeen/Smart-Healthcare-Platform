@@ -1,11 +1,18 @@
 import { useMemo, useState } from "react";
 import type React from "react";
 import { sendSymptomChatMessage } from "../../services/symptomAiApi";
-import type { ChatMessage } from "../../services/symptomAiApi";
+import type {
+  ChatMessage,
+  SymptomCheckRecord,
+  SymptomQuestion,
+} from "../../services/symptomAiApi";
 
 type Props = {
   symptomCheckId: string;
   initialChatHistory?: ChatMessage[];
+  currentQuestion?: SymptomQuestion | null;
+  conversationStage?: "collecting" | "completed" | "closed";
+  onRecordUpdated?: (record: SymptomCheckRecord) => void;
 };
 
 function formatTimestamp(value: string) {
@@ -21,6 +28,9 @@ function formatTimestamp(value: string) {
 export default function SymptomChatBox({
   symptomCheckId,
   initialChatHistory = [],
+  currentQuestion = null,
+  conversationStage = "completed",
+  onRecordUpdated,
 }: Props) {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>(initialChatHistory);
   const [message, setMessage] = useState("");
@@ -28,11 +38,12 @@ export default function SymptomChatBox({
   const [error, setError] = useState("");
 
   const hasMessages = useMemo(() => chatHistory.length > 0, [chatHistory]);
+  const isCollecting = conversationStage === "collecting";
+  const showBooleanQuickReplies =
+    isCollecting && currentQuestion?.type === "boolean";
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const trimmedMessage = message.trim();
+  async function submitMessage(nextMessage: string) {
+    const trimmedMessage = nextMessage.trim();
 
     if (!trimmedMessage || loading) {
       return;
@@ -54,6 +65,7 @@ export default function SymptomChatBox({
       const result = await sendSymptomChatMessage(symptomCheckId, trimmedMessage);
 
       setChatHistory(result.chatHistory);
+      onRecordUpdated?.(result.symptomCheck);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to send message.";
@@ -75,32 +87,45 @@ export default function SymptomChatBox({
     }
   }
 
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitMessage(message);
+  }
+
   return (
     <section className="rounded-2xl border border-blue-100 bg-white shadow-sm">
       <div className="border-b border-blue-100 px-5 py-4">
         <h2 className="text-lg font-semibold text-slate-800">
-          Ask Follow-up Questions
+          {isCollecting ? "AI Symptom Interview" : "Ask Follow-up Questions"}
         </h2>
+
         <p className="mt-1 text-sm text-slate-500">
-          Ask about urgency, doctor recommendation, or next steps.
+          {isCollecting
+            ? "Answer the assistant step by step to complete your symptom check."
+            : "Ask about urgency, doctor recommendation, or next steps."}
         </p>
       </div>
 
-      <div className="max-h-[420px] space-y-4 overflow-y-auto px-5 py-4">
+      <div className="max-h-[460px] space-y-4 overflow-y-auto px-5 py-4">
         {!hasMessages ? (
           <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/60 px-4 py-6 text-center text-sm text-slate-600">
-            No chat yet. Ask something like:
-            <div className="mt-3 space-y-2 text-left">
-              <div className="rounded-lg bg-white px-3 py-2 shadow-sm">
-                Is this serious?
+            {isCollecting
+              ? "Start answering the assistant's questions."
+              : "No chat yet. Ask something like:"}
+
+            {!isCollecting ? (
+              <div className="mt-3 space-y-2 text-left">
+                <div className="rounded-lg bg-white px-3 py-2 shadow-sm">
+                  Is this serious?
+                </div>
+                <div className="rounded-lg bg-white px-3 py-2 shadow-sm">
+                  Should I book a doctor?
+                </div>
+                <div className="rounded-lg bg-white px-3 py-2 shadow-sm">
+                  Why did you suggest this department?
+                </div>
               </div>
-              <div className="rounded-lg bg-white px-3 py-2 shadow-sm">
-                Should I book a doctor?
-              </div>
-              <div className="rounded-lg bg-white px-3 py-2 shadow-sm">
-                Why did you suggest this department?
-              </div>
-            </div>
+            ) : null}
           </div>
         ) : (
           chatHistory.map((item, index) => {
@@ -118,7 +143,9 @@ export default function SymptomChatBox({
                       : "border border-slate-200 bg-slate-50 text-slate-800"
                   }`}
                 >
-                  <div className="text-sm leading-6">{item.message}</div>
+                  <div className="text-sm leading-6 whitespace-pre-wrap">
+                    {item.message}
+                  </div>
                   <div
                     className={`mt-2 text-[11px] ${
                       isUser ? "text-blue-100" : "text-slate-400"
@@ -148,18 +175,48 @@ export default function SymptomChatBox({
           </div>
         ) : null}
 
+        {showBooleanQuickReplies ? (
+          <div className="mb-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => submitMessage("yes")}
+              disabled={loading}
+              className="inline-flex min-w-[110px] items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+            >
+              Yes
+            </button>
+
+            <button
+              type="button"
+              onClick={() => submitMessage("no")}
+              disabled={loading}
+              className="inline-flex min-w-[110px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              No
+            </button>
+          </div>
+        ) : null}
+
         <form onSubmit={handleSubmit} className="space-y-3">
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={3}
-            placeholder="Type your follow-up question..."
+            placeholder={
+              isCollecting
+                ? currentQuestion?.type === "number"
+                  ? "Type a number..."
+                  : "Type your answer..."
+                : "Type your follow-up question..."
+            }
             className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
           />
 
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-slate-400">
-              Example: Should I consult online today?
+              {isCollecting
+                ? "Answer briefly so the assistant can continue the interview."
+                : "Example: Should I consult online today?"}
             </p>
 
             <button
