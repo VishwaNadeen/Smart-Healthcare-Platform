@@ -9,11 +9,11 @@ const adminSections = [
     action: "Open Users",
   },
   {
-    title: "Doctor Verifications",
+    title: "Doctors",
     description:
-      "Review new doctor registrations and complete verification-related admin tasks.",
-    to: "/doctor-verifications",
-    action: "Review Verifications",
+      "Review doctor records, verification status, and profile details from one admin workspace.",
+    to: "/doctors",
+    action: "Open Doctors",
   },
   {
     title: "Appointments",
@@ -45,7 +45,7 @@ export default function AdminDashboard() {
         <h2 className="text-3xl font-bold text-slate-800">Admin Dashboard</h2>
         <p className="mt-2 text-slate-600">
           Use this page as the main admin entry point for account control,
-          doctor verification, appointments, payments, and platform operations.
+          doctor management, appointments, payments, and platform operations.
         </p>
       </div>
 
@@ -81,7 +81,7 @@ export default function AdminDashboard() {
             control, not just raw numbers.
           </p>
           <p>
-            Suitable sections here would be pending doctor approvals, recent
+            Suitable sections here would be doctor review work, recent
             appointment issues, payment alerts, system notices, and quick links
             to the most important admin actions.
           </p>

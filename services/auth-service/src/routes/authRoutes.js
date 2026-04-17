@@ -8,6 +8,7 @@ const {
   deleteMe,
   deleteByEmailInternal,
   getUserByIdInternal,
+  updateUserIdentityInternal,
   me,
   stats,
   requestEmailVerification,
@@ -34,6 +35,7 @@ const {
   resetPasswordSchema,
   verifyPasswordSchema,
   deleteByEmailInternalSchema,
+  updateUserIdentityInternalSchema,
 } = require("../validations/authValidation");
 
 router.post("/register", validate(registerSchema), register);
@@ -77,6 +79,11 @@ router.delete(
 );
 
 router.get("/internal/users/:id", getUserByIdInternal);
+router.patch(
+  "/internal/users/:id/identity",
+  validate(updateUserIdentityInternalSchema),
+  updateUserIdentityInternal
+);
 
 router.get(
   "/doctor/dashboard",

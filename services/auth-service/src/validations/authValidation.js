@@ -108,6 +108,11 @@ const deleteByEmailInternalSchema = Joi.object({
   email,
 });
 
+const updateUserIdentityInternalSchema = Joi.object({
+  username,
+  email,
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -119,4 +124,5 @@ module.exports = {
   resetPasswordSchema,
   verifyPasswordSchema,
   deleteByEmailInternalSchema,
+  updateUserIdentityInternalSchema,
 };

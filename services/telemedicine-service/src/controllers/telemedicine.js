@@ -1,3 +1,4 @@
+const { notify } = require("../services/notificationService");
 const TelemedicineSession = require("../models/telemedicineSession");
 const {
   getAppointmentById,
@@ -650,6 +651,27 @@ const updateSessionStatus = async (req, res) => {
 
     session.status = status;
     await session.save();
+
+    //notification
+    if (status === "completed") {
+      (async () => {
+        try {
+          const appt = await getAppointmentPayload(session.appointmentId);
+          notify({
+            type: "CONSULTATION_COMPLETED",
+            recipientId: session.patientId,
+            recipientType: "patient",
+            metadata: {
+              appointmentId: session.appointmentId,
+              doctorName: appt?.doctorName || "",
+              date: session.scheduledDate,
+            },
+          });
+        } catch {}
+      })();
+    }
+
+
 
     const mappedAppointmentStatus = SESSION_TO_APPOINTMENT_STATUS_MAP[status];
 

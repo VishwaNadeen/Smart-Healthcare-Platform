@@ -51,11 +51,11 @@ function PrescriptionTable({
   prescriptions: TelemedicinePrescription[];
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl bg-blue-50/40 ring-1 ring-blue-200">
+    <div className="overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200">
       <div className="overflow-x-auto">
         <table className="min-w-full border-collapse bg-white">
           <thead>
-            <tr className="bg-blue-100/80 text-left">
+            <tr className="bg-slate-50 text-left">
               <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 #
               </th>
@@ -80,7 +80,7 @@ function PrescriptionTable({
             {prescriptions.map((prescription, index) => (
               <tr
                 key={prescription._id}
-                className="border-t border-blue-100 align-top even:bg-blue-50/30"
+                className="border-t border-slate-200 align-top even:bg-slate-50/50"
               >
                 <td className="px-4 py-4 text-sm font-semibold text-slate-700">
                   {index + 1}
@@ -145,7 +145,8 @@ export default function PrescriptionCard({
   }
 
   return (
-    <section className="rounded-3xl bg-gradient-to-br from-blue-200/60 via-blue-50/70 to-white p-5 shadow-sm ring-1 ring-blue-200 sm:p-6">
+    <section className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-blue-100">
+      <div className="p-5 sm:p-6">
       <div
         role="button"
         tabIndex={0}
@@ -190,8 +191,8 @@ export default function PrescriptionCard({
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-4">
-        <div className="rounded-2xl bg-gradient-to-br from-blue-100/90 to-blue-50/70 p-4 ring-1 ring-blue-200">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+        <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Appointment Date
           </p>
           <p className="mt-2 text-sm font-semibold text-slate-800">
@@ -199,8 +200,8 @@ export default function PrescriptionCard({
           </p>
         </div>
 
-        <div className="rounded-2xl bg-gradient-to-br from-blue-100/90 to-blue-50/70 p-4 ring-1 ring-blue-200">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+        <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Specialization
           </p>
           <p className="mt-2 text-sm font-semibold text-slate-800">
@@ -208,8 +209,8 @@ export default function PrescriptionCard({
           </p>
         </div>
 
-        <div className="rounded-2xl bg-gradient-to-br from-blue-100/90 to-blue-50/70 p-4 ring-1 ring-blue-200">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+        <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Prescription Entries
           </p>
           <p className="mt-2 text-sm font-semibold text-slate-800">
@@ -217,8 +218,8 @@ export default function PrescriptionCard({
           </p>
         </div>
 
-        <div className="rounded-2xl bg-gradient-to-br from-blue-100/90 to-blue-50/70 p-4 ring-1 ring-blue-200">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+        <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Issued Date
           </p>
           <p className="mt-2 text-sm font-semibold text-slate-800">
@@ -235,7 +236,7 @@ export default function PrescriptionCard({
         }`}
       >
         <div className="overflow-hidden">
-          <div className="border-t border-blue-100 pt-6">
+          <div className="border-t border-slate-200 pt-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-blue-700">Prescriptions</p>
@@ -246,7 +247,7 @@ export default function PrescriptionCard({
             </div>
 
             {prescriptions.length === 0 ? (
-              <div className="rounded-2xl bg-blue-50/60 p-6 text-center text-sm text-slate-500 ring-1 ring-blue-100">
+              <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm text-slate-500 ring-1 ring-slate-200">
                 No prescription entries were saved for this appointment.
               </div>
             ) : (
@@ -254,6 +255,7 @@ export default function PrescriptionCard({
             )}
           </div>
         </div>
+      </div>
       </div>
     </section>
   );

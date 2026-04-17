@@ -3,7 +3,8 @@ export const doctorNavRoutes = [
   { name: "Consultation", path: "/doctor-sessions" },
   { name: "Availability", path: "/availability" },
   { name: "Earnings", path: "/earnings" },
-  { name: "Rescheduled", path: "/appointments/rescheduled" },
-  { name: "Canceled", path: "/appointments/cancelled" },
+  { name: "Completed", path: "/appointments/doctor/completed" },
+  { name: "Rescheduled", path: "/appointments/doctor/rejected" },
+  
   { name: "Patients", path: "/patients" },
 ];

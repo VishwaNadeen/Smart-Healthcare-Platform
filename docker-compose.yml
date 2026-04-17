@@ -1,0 +1,152 @@
+services:
+  auth-service:
+    build:
+      context: ./services/auth-service
+    container_name: auth-service
+    ports:
+      - "5002:5002"
+    env_file:
+      - ./services/auth-service/.env.docker
+    volumes:
+      - ./services/auth-service:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  doctor-service:
+    build:
+      context: ./services/doctor-service
+    container_name: doctor-service
+    ports:
+      - "5003:5003"
+    env_file:
+      - ./services/doctor-service/.env.docker
+    volumes:
+      - ./services/doctor-service:/app
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+    container_name: notification-service
+    ports:
+      - "5004:5004"
+    env_file:
+      - ./services/notification-service/.env.docker
+    volumes:
+      - ./services/notification-service:/app
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - payment-service
+
+  patient-service:
+    build:
+      context: ./services/patient-service
+    container_name: patient-service
+    ports:
+      - "5005:5005"
+    env_file:
+      - ./services/patient-service/.env.docker
+    volumes:
+      - ./services/patient-service:/app
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+
+  payment-service:
+    build:
+      context: ./services/payment-service
+    container_name: payment-service
+    ports:
+      - "5006:5006"
+    env_file:
+      - ./services/payment-service/.env.docker
+    volumes:
+      - ./services/payment-service:/app
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - doctor-service
+      - appointment-service
+
+  telemedicine-service:
+    build:
+      context: ./services/telemedicine-service
+    container_name: telemedicine-service
+    ports:
+      - "5007:5007"
+    env_file:
+      - ./services/telemedicine-service/.env.docker
+    volumes:
+      - ./services/telemedicine-service:/app
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - appointment-service
+
+  appointment-service:
+    build:
+      context: ./services/appointment-service
+    container_name: appointment-service
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./services/appointment-service/.env.docker
+    volumes:
+      - ./services/appointment-service:/app
+      - /app/node_modules
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - doctor-service
+
+  ai-symptom-service:
+    build:
+      context: ./services/ai-symptom-service
+    container_name: ai-symptom-service
+    ports:
+      - "5010:5010"
+    env_file:
+      - ./services/ai-symptom-service/.env.docker
+    volumes:
+      - ./services/ai-symptom-service:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend/web-client
+      args:
+        VITE_AUTH_SERVICE_URL: http://localhost:5002
+        VITE_APPOINTMENT_SERVICE_URL: http://localhost:5001
+        VITE_TELEMEDICINE_SERVICE_URL: http://localhost:5007
+        VITE_AI_SYMPTOM_API_URL: http://localhost:5010/api/symptoms
+    container_name: frontend
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - appointment-service
+      - telemedicine-service
+      - ai-symptom-service
+
+  admin:
+    build:
+      context: ./admin
+      args:
+        VITE_AUTH_SERVICE_URL: http://localhost:5002
+    container_name: admin
+    ports:
+      - "5174:80"
+    restart: unless-stopped
+    depends_on:
+      - auth-service
+      - doctor-service
+      - patient-service

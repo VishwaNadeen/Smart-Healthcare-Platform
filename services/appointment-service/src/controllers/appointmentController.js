@@ -5,6 +5,7 @@ const {
   createTelemedicineSessionForAppointment,
 } = require("../services/telemedicineService");
 
+const { notify } = require("../services/notificationService"); // ADDED:notifications
 const ACTIVE_APPOINTMENT_STATUSES = ["pending", "confirmed"];
 const APPOINTMENT_STATUSES = ["pending", "confirmed", "completed", "cancelled"];
 const STATUS_TRANSITIONS = {
@@ -144,6 +145,20 @@ const createAppointment = async (req, res) => {
       message: "Appointment created successfully",
       appointment,
     });
+    //notification
+    notify({
+      type: "APPOINTMENT_BOOKED",
+      recipientId: patientId,
+      recipientType: "patient",
+      metadata: {
+        appointmentId: String(appointment._id),
+        doctorName,
+        specialization,
+        date: appointmentDate,
+        time: appointmentTime,
+      },
+    });
+
   } catch (error) {
     res.status(500).json({
       message: "Failed to create appointment",
@@ -165,6 +180,25 @@ const getAllAppointments = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Failed to fetch appointments",
+      error: error.message,
+    });
+  }
+};
+
+const getAllAppointmentsAdmin = async (req, res) => {
+  try {
+    const { status, doctorId, paymentStatus } = req.query;
+    const query = {};
+
+    if (status) query.status = status;
+    if (doctorId) query.doctorId = doctorId;
+    if (paymentStatus) query.paymentStatus = paymentStatus;
+
+    const appointments = await Appointment.find(query).sort({ createdAt: -1 });
+    res.status(200).json(appointments);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch admin appointments",
       error: error.message,
     });
   }
@@ -322,6 +356,19 @@ const cancelAppointment = async (req, res) => {
       message: "Appointment cancelled successfully",
       appointment,
     });
+
+    // ADDED: notify patient when appointment is cancelled
+    notify({
+      type: "APPOINTMENT_CANCELLED",
+      recipientId: String(appointment.patientId),
+      recipientType: "patient",
+      metadata: {
+        appointmentId: String(appointment._id),
+        doctorName: appointment.doctorName || "",
+        date: appointment.appointmentDate || "",
+        time: appointment.appointmentTime || "",
+      },
+    });
   } catch (error) {
     res.status(500).json({
       message: "Failed to cancel appointment",
@@ -389,10 +436,6 @@ const updateAppointmentStatus = async (req, res) => {
         });
       }
 
-      if (previousStatus === "pending" && status === "confirmed") {
-        await createTelemedicineSessionForAppointment(appointment._id);
-      }
-
       appointment.status = status;
       appointment.statusHistory.push({
         status,
@@ -400,6 +443,10 @@ const updateAppointmentStatus = async (req, res) => {
       });
 
       await appointment.save();
+
+      if (previousStatus === "pending" && status === "confirmed") {
+        await createTelemedicineSessionForAppointment(appointment._id);
+      }
     }
 
     res.status(200).json({
@@ -457,17 +504,10 @@ const getPatientAppointmentStatsAdmin = async (req, res) => {
 
     const stats = {
       totalBookings: appointments.length,
-      pendingBookings: appointments.filter((item) => item.status === "pending")
-        .length,
-      confirmedBookings: appointments.filter(
-        (item) => item.status === "confirmed"
-      ).length,
-      completedBookings: appointments.filter(
-        (item) => item.status === "completed"
-      ).length,
-      cancelledBookings: appointments.filter(
-        (item) => item.status === "cancelled"
-      ).length,
+      pendingBookings: appointments.filter((item) => item.status === "pending").length,
+      confirmedBookings: appointments.filter((item) => item.status === "confirmed").length,
+      completedBookings: appointments.filter((item) => item.status === "completed").length,
+      cancelledBookings: appointments.filter((item) => item.status === "cancelled").length,
     };
 
     return res.status(200).json(stats);
@@ -491,9 +531,7 @@ const getInternalAppointmentById = async (req, res) => {
       return res.status(404).json({ message: "Appointment not found" });
     }
 
-    return res.status(200).json({
-      appointment,
-    });
+    return res.status(200).json({ appointment });
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch appointment",
@@ -550,11 +588,185 @@ const updateAppointmentStatusInternal = async (req, res) => {
   }
 };
 
+const updateAppointmentPaymentStatusInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const { paymentStatus } = req.body;
+    const validStatuses = ["pending", "paid", "failed"];
+
+    if (!validStatuses.includes(paymentStatus)) {
+      return res.status(400).json({ message: "Invalid paymentStatus value" });
+    }
+
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    appointment.paymentStatus = paymentStatus;
+    if (paymentStatus === "paid") {
+      appointment.active = true;
+    }
+    await appointment.save();
+
+    return res.status(200).json({
+      message: "Appointment payment status updated successfully",
+      appointment,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to update appointment payment status",
+      error: error.message,
+    });
+  }
+};
+
+// PATCH /api/appointments/:id/reschedule — doctor proposes new date/time
+const rescheduleAppointment = async (req, res) => {
+  try {
+    const { rescheduledDate, rescheduledTime } = req.body;
+
+    if (!rescheduledDate || !rescheduledTime) {
+      return res.status(400).json({ message: "rescheduledDate and rescheduledTime are required" });
+    }
+
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    if (!enforceDoctorAppointmentOwnership(req, appointment)) {
+      return res.status(403).json({ message: "You can only reschedule your own appointments" });
+    }
+
+    if (appointment.paymentStatus !== "paid") {
+      return res.status(400).json({ message: "Cannot reschedule an unpaid appointment" });
+    }
+
+    if (appointment.status !== "pending") {
+      return res.status(409).json({ message: "Only pending appointments can be rescheduled" });
+    }
+
+    appointment.rescheduleStatus = "pending";
+    appointment.rescheduledDate = normalizeString(rescheduledDate);
+    appointment.rescheduledTime = normalizeString(rescheduledTime);
+    appointment.rescheduledAt = new Date();
+
+    await appointment.save();
+
+    //notification
+    notify({
+      type: "APPOINTMENT_RESCHEDULED",
+      recipientId: String(appointment.patientId),
+      recipientType: "patient",
+      metadata: {
+        appointmentId: String(appointment._id),
+        doctorName: appointment.doctorName,
+        date: appointment.rescheduledDate,
+        time: appointment.rescheduledTime,
+      },
+    });
+
+
+    return res.status(200).json({
+      message: "Reschedule proposed successfully",
+      appointment,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to reschedule appointment",
+      error: error.message,
+    });
+  }
+};
+
+// PATCH /api/appointments/:id/reschedule/respond — patient approves or rejects reschedule
+const respondToReschedule = async (req, res) => {
+  try {
+    const { response } = req.body; // "approved" or "rejected"
+
+    if (!["approved", "rejected"].includes(response)) {
+      return res.status(400).json({ message: "response must be 'approved' or 'rejected'" });
+    }
+
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+
+    if (!canPatientAccessAppointment(req, appointment)) {
+      return res.status(403).json({ message: "You can only respond to your own appointments" });
+    }
+
+    if (appointment.rescheduleStatus !== "pending") {
+      return res.status(409).json({ message: "No pending reschedule to respond to" });
+    }
+
+    appointment.rescheduleStatus = response;
+
+    if (response === "approved") {
+      appointment.appointmentDate = appointment.rescheduledDate;
+      appointment.appointmentTime = appointment.rescheduledTime;
+      appointment.status = "confirmed";
+      appointment.statusHistory.push({
+        status: "confirmed",
+        note: "Patient approved reschedule — appointment confirmed",
+      });
+    }
+
+    // Save first so the telemedicine service fetches the correct date/time and confirmed status
+    await appointment.save();
+
+    if (response === "approved") {
+      await createTelemedicineSessionForAppointment(appointment._id);
+    }
+
+    return res.status(200).json({
+      message: `Reschedule ${response} successfully`,
+      appointment,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to respond to reschedule",
+      error: error.message,
+    });
+  }
+};
+
+// GET /api/appointments/admin/refund-queue — appointments where patient rejected a reschedule
+const getRefundQueueAdmin = async (req, res) => {
+  try {
+    const appointments = await Appointment.find({
+      rescheduleStatus: "rejected",
+      paymentStatus: "paid",
+      status: { $ne: "cancelled" },
+    }).sort({ updatedAt: -1 });
+
+    const enriched = await Promise.all(
+      appointments.map((a) => enrichAppointmentWithPatientName(a))
+    );
+
+    return res.status(200).json(enriched);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch refund queue",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getSpecialtiesForDropdown,
   searchDoctorsBySpecialty,
   createAppointment,
   getAllAppointments,
+  getAllAppointmentsAdmin,
   getAppointmentById,
   getAppointmentsByDoctorId,
   updateAppointment,
@@ -565,4 +777,8 @@ module.exports = {
   getPatientAppointmentStatsAdmin,
   getInternalAppointmentById,
   updateAppointmentStatusInternal,
+  updateAppointmentPaymentStatusInternal,
+  rescheduleAppointment,
+  respondToReschedule,
+  getRefundQueueAdmin,
 };

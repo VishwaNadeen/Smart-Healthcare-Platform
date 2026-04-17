@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import ReportList from "../../components/report/ReportList";
+import PageLoading from "../../components/common/PageLoading";
 import { getCurrentPatientProfile } from "../../services/patientApi";
 import { getPatientReports } from "../../services/report";
 import type { Report } from "../../types/report";
@@ -72,13 +73,7 @@ export default function ReportsManagerPage() {
   }, [auth.token]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 px-4 py-8">
-        <div className="mx-auto max-w-6xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="text-sm font-medium text-slate-600">Loading reports...</p>
-        </div>
-      </div>
-    );
+    return <PageLoading message="Loading reports..." />;
   }
 
   if (error || !patientId) {
