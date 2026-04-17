@@ -102,13 +102,16 @@ export default function DoctorSessions() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-8 rounded-3xl bg-white p-6 text-center shadow-sm">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Approved Sessions
-          </h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Only approved consultation sessions are shown here.
-          </p>
+        <div className="mb-8 overflow-hidden rounded-3xl border border-blue-100 bg-white text-center shadow-sm">
+          <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
+          <div className="p-6">
+            <h1 className="text-3xl font-bold text-slate-900">
+            Consultation Sessions
+            </h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Only approved consultation sessions are shown here.
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">

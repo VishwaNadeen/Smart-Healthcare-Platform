@@ -339,6 +339,49 @@ const deleteUserByEmail = async (email) => {
   };
 };
 
+const updateUserIdentityById = async ({ userId, username, email }) => {
+  const normalizedEmail = normalizeEmail(email);
+  const normalizedUsername = normalizeUsername(username);
+
+  if (!normalizedUsername) {
+    throw new Error("Username is required");
+  }
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  const emailOwner = await User.findOne({
+    email: normalizedEmail,
+    _id: { $ne: user._id },
+  }).select("_id");
+
+  if (emailOwner) {
+    throw new Error("User already exists with this email");
+  }
+
+  let nextUsername = normalizedUsername;
+
+  if (normalizedUsername !== user.username) {
+    nextUsername = await buildUniqueUsername(normalizedUsername);
+  }
+
+  user.username = nextUsername;
+  user.email = normalizedEmail;
+  await user.save();
+
+  return {
+    id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+};
+
 const getUserById = async (userId) => {
   const user = await User.findById(userId);
 
@@ -485,6 +528,7 @@ module.exports = {
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
+  updateUserIdentityById,
   getUserById,
   requestEmailVerificationOtp,
   verifyEmailOtp,
