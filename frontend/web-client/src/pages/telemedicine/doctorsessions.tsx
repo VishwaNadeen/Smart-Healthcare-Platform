@@ -9,6 +9,21 @@ import {
 } from "../../services/telemedicineApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
+function formatSessionDate(dateString: string) {
+  const date = new Date(`${dateString}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
+
+  return date.toLocaleDateString("en-LK", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 export default function DoctorSessions() {
   const [sessions, setSessions] = useState<TelemedicineSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +78,23 @@ export default function DoctorSessions() {
       });
   }, [sessions]);
 
+  const groupedSessions = useMemo(() => {
+    const groups = new Map<string, TelemedicineSession[]>();
+
+    approvedSessions.forEach((session) => {
+      const key = session.scheduledDate || "Undated Sessions";
+      const currentGroup = groups.get(key) || [];
+      currentGroup.push(session);
+      groups.set(key, currentGroup);
+    });
+
+    return Array.from(groups.entries()).map(([date, items]) => ({
+      date,
+      label: date === "Undated Sessions" ? date : formatSessionDate(date),
+      items,
+    }));
+  }, [approvedSessions]);
+
   if (!doctorId) {
     return (
       <TelemedicineAccessNotice
@@ -114,9 +146,25 @@ export default function DoctorSessions() {
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {approvedSessions.map((session) => (
-            <DoctorSessionCard key={session._id} session={session} />
+        <div className="space-y-8">
+          {groupedSessions.map((group) => (
+            <section key={group.date} className="space-y-5">
+              <div className="flex items-center gap-4">
+                <div className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+                  {group.label}
+                </div>
+                <div className="h-px flex-1 bg-blue-100" />
+                <div className="shrink-0 text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                  {group.items.length} session{group.items.length === 1 ? "" : "s"}
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                {group.items.map((session) => (
+                  <DoctorSessionCard key={session._id} session={session} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </div>
