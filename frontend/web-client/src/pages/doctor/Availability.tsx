@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import PageLoading from "../../components/common/PageLoading";
 import { useToast } from "../../components/common/toastContext";
 import {
   getCurrentDoctorProfile,
@@ -875,13 +876,7 @@ export default function DoctorAvailabilityPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-lg font-semibold text-slate-700">
-          Loading availability...
-        </p>
-      </div>
-    );
+    return <PageLoading message="Loading availability..." />;
   }
 
   return (

@@ -4,6 +4,7 @@ const {
   logoutUser,
   deleteUserAccount,
   deleteUserByEmail,
+  updateUserIdentityById,
   requestEmailVerificationOtp,
   verifyEmailOtp,
   requestLoginOtp,
@@ -246,6 +247,36 @@ const getUserByIdInternal = async (req, res) => {
   }
 };
 
+const updateUserIdentityInternal = async (req, res) => {
+  try {
+    if (!hasValidInternalSecret(req)) {
+      return res.status(403).json({
+        message: "Forbidden",
+      });
+    }
+
+    const user = await updateUserIdentityById({
+      userId: req.params.id,
+      username: req.body.username,
+      email: req.body.email,
+    });
+
+    return res.status(200).json({
+      user,
+    });
+  } catch (error) {
+    const message = error.message || "Failed to update user identity";
+    const isNotFound = message === "User not found";
+    const isConflict = message === "User already exists with this email";
+    const isValidation = message === "Username is required";
+
+    return res.status(isNotFound ? 404 : isConflict || isValidation ? 400 : 500).json({
+      message,
+      error: message,
+    });
+  }
+};
+
 const requestLoginOtpController = async (req, res) => {
   try {
     const { identifier, role } = req.body;
@@ -394,6 +425,7 @@ module.exports = {
   deleteMe,
   deleteByEmailInternal,
   getUserByIdInternal,
+  updateUserIdentityInternal,
   me,
   stats,
   requestEmailVerification,

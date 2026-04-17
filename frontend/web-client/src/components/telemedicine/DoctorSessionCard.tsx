@@ -73,7 +73,7 @@ export default function DoctorSessionCard({ session }: Props) {
       return (
         <Link
           to={`/doctor-waiting-room/${session.appointmentId}`}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-5 py-2.5 text-sm font-semibold text-sky-700 transition-all duration-150 hover:border-sky-300 hover:bg-sky-100"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-5 py-2.5 text-sm font-semibold text-blue-700 transition-all duration-150 hover:border-blue-300 hover:bg-blue-100"
         >
           <svg
             width="16"
@@ -99,7 +99,7 @@ export default function DoctorSessionCard({ session }: Props) {
       return (
         <Link
           to={`/consultation/${session.appointmentId}`}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-700 to-sky-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-sky-200 transition-all duration-150 hover:-translate-y-px hover:shadow-lg hover:shadow-sky-300"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-200 transition-all duration-150 hover:-translate-y-px hover:shadow-lg hover:shadow-blue-300"
         >
           <svg
             width="16"
@@ -145,11 +145,11 @@ export default function DoctorSessionCard({ session }: Props) {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md hover:shadow-blue-100">
-      <div className="h-1 w-full bg-gradient-to-r from-sky-700 via-sky-400 to-sky-200" />
+      <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
 
       <div className="flex flex-col gap-4 p-5">
         <div className="flex items-center gap-3.5">
-          <div className="relative flex h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-sky-700 to-sky-400">
+          <div className="relative flex h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-700 to-blue-500">
             <div className="absolute inset-0 bg-gradient-to-br from-white/15 to-transparent" />
             <svg
               width="22"
@@ -185,9 +185,9 @@ export default function DoctorSessionCard({ session }: Props) {
           ].map(({ label, value }) => (
             <div
               key={label}
-              className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2.5"
+              className="rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2.5"
             >
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-sky-500">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-600">
                 {label}
               </p>
               <p className="mt-0.5 text-sm font-semibold text-slate-800">
@@ -198,7 +198,7 @@ export default function DoctorSessionCard({ session }: Props) {
         </div>
       </div>
 
-      <div className="mx-5 h-px bg-sky-100" />
+      <div className="mx-5 h-px bg-blue-100" />
 
       <div className="p-5">{renderPrimaryAction()}</div>
     </div>
