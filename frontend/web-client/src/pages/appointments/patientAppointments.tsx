@@ -53,14 +53,14 @@ export default function PatientAppointmentsPage() {
 
     return appointments
       .filter((a) => {
-        // never show these statuses — they belong elsewhere
         if (a.status === "cancelled") return false;
         if (a.status === "confirmed") return false;
         if (a.status === "completed") return false;
-        // paid + pending doctor review — always show
-        if (a.paymentStatus === "paid") return true;
-        // unpaid — show only within 30 min payment window
+        // paid + still pending doctor review — show
+        if (a.paymentStatus === "paid" && a.status === "pending") return true;
+        // unpaid pending — show only within 30 min payment window
         if (
+          a.status === "pending" &&
           a.paymentStatus === "pending" &&
           a.createdAt &&
           new Date(a.createdAt) >= thirtyMinAgo

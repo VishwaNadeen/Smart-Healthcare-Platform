@@ -3,7 +3,7 @@ import AdminLayout from "../components/layout/AdminLayout";
 import RequireAdminAuth from "../src/components/auth/RequireAdminAuth";
 import AdminDashboard from "../pages/dashboard/AdminDashboard";
 import AdminAppointments from "../pages/appointments/AdminAppointments";
-import AdminDoctorVerifications from "../pages/doctor-verifications/AdminDoctorVerifications";
+import AdminDoctors from "../pages/doctors/AdminDoctors";
 import AdminPayments from "../pages/payments/AdminPayments";
 import AdminOperations from "../pages/operations/AdminOperations";
 import AdminUsers from "../pages/users/AdminUsers";
@@ -31,11 +31,11 @@ export const adminRoutes = (
       }
     />
     <Route
-      path="/doctor-verifications"
+      path="/doctors"
       element={
         <RequireAdminAuth>
           <AdminLayout>
-            <AdminDoctorVerifications />
+            <AdminDoctors />
           </AdminLayout>
         </RequireAdminAuth>
       }
