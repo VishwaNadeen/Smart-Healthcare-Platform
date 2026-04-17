@@ -20,6 +20,59 @@ const chatMessageSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const analysisSchema = new mongoose.Schema(
+  {
+    urgency: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      trim: true,
+    },
+    category: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    department: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    nextStep: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    redFlags: {
+      type: [String],
+      default: [],
+    },
+    disclaimer: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+  },
+  { _id: false }
+);
+
+const recommendationSchema = new mongoose.Schema(
+  {
+    shouldBookAppointment: {
+      type: Boolean,
+      default: false,
+    },
+    shouldStartTelemedicine: {
+      type: Boolean,
+      default: false,
+    },
+    emergency: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { _id: false }
+);
+
 const symptomCheckSchema = new mongoose.Schema(
   {
     patientId: {
@@ -29,56 +82,44 @@ const symptomCheckSchema = new mongoose.Schema(
       index: true,
     },
 
+    flowType: {
+      type: String,
+      enum: ["form", "chat"],
+      default: "chat",
+    },
+
+    conversationStage: {
+      type: String,
+      enum: ["collecting", "completed", "closed"],
+      default: "collecting",
+      index: true,
+    },
+
+    initialMessage: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    currentQuestionId: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     symptoms: {
       type: mongoose.Schema.Types.Mixed,
-      required: true,
+      default: {},
     },
 
     analysis: {
-      urgency: {
-        type: String,
-        enum: ["low", "medium", "high"],
-        required: true,
-      },
-      category: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-      department: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-      nextStep: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-      redFlags: {
-        type: [String],
-        default: [],
-      },
-      disclaimer: {
-        type: String,
-        required: true,
-        trim: true,
-      },
+      type: analysisSchema,
+      default: () => ({}),
     },
 
     recommendation: {
-      shouldBookAppointment: {
-        type: Boolean,
-        default: false,
-      },
-      shouldStartTelemedicine: {
-        type: Boolean,
-        default: false,
-      },
-      emergency: {
-        type: Boolean,
-        default: false,
-      },
+      type: recommendationSchema,
+      default: () => ({}),
     },
 
     aiExplanation: {
@@ -95,7 +136,7 @@ const symptomCheckSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["completed", "follow_up_pending", "closed"],
-      default: "completed",
+      default: "follow_up_pending",
     },
   },
   {

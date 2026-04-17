@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SymptomResultSummaryCard from "../../components/ai/SymptomResultSummaryCard";
-import { getSymptomHistory } from "../../services/symptomAiApi";
+import {
+  getLatestSymptomCheck,
+  getSymptomHistory,
+} from "../../services/symptomAiApi";
 import type { SymptomCheckRecord } from "../../services/symptomAiApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 import RequirePatient from "../../components/auth/RequirePatient";
@@ -34,14 +37,29 @@ function timeAgo(value: string) {
   return date.toLocaleDateString();
 }
 
+function getStageBadgeClasses(stage: "collecting" | "completed" | "closed") {
+  if (stage === "closed") {
+    return "border-slate-300 bg-slate-100 text-slate-700";
+  }
+
+  if (stage === "completed") {
+    return "border-green-200 bg-green-50 text-green-700";
+  }
+
+  return "border-blue-200 bg-blue-50 text-blue-700";
+}
+
 function SymptomHistoryPageContent() {
   const auth = getStoredTelemedicineAuth();
   const patientId = auth?.userId || "";
 
   const [records, setRecords] = useState<SymptomCheckRecord[]>([]);
+  const [latestRecord, setLatestRecord] = useState<SymptomCheckRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingLatest, setLoadingLatest] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [latestError, setLatestError] = useState("");
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [hasMore, setHasMore] = useState(false);
@@ -76,6 +94,27 @@ function SymptomHistoryPageContent() {
     loadInitialHistory();
   }, [patientId, limit]);
 
+  useEffect(() => {
+    async function loadLatestRecord() {
+      try {
+        setLoadingLatest(true);
+        setLatestError("");
+
+        const data = await getLatestSymptomCheck();
+        setLatestRecord(data);
+      } catch (err) {
+        setLatestRecord(null);
+        setLatestError(
+          err instanceof Error ? err.message : "Failed to load latest symptom check."
+        );
+      } finally {
+        setLoadingLatest(false);
+      }
+    }
+
+    loadLatestRecord();
+  }, []);
+
   async function handleLoadMore() {
     if (!patientId || loadingMore || !hasMore) {
       return;
@@ -102,6 +141,14 @@ function SymptomHistoryPageContent() {
     }
   }
 
+  const filteredRecords = useMemo(() => {
+    if (!latestRecord) {
+      return records;
+    }
+
+    return records.filter((record) => record._id !== latestRecord._id);
+  }, [records, latestRecord]);
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -112,13 +159,69 @@ function SymptomHistoryPageContent() {
           </p>
         </div>
 
-        <Link
-          to="/ai"
-          className="inline-flex w-fit items-center rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-50"
-        >
-          Back to Symptom Checker
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            to="/ai"
+            className="inline-flex w-fit items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
+          >
+            Start New Conversation
+          </Link>
+
+          <Link
+            to="/ai"
+            className="inline-flex w-fit items-center rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow-sm transition hover:bg-blue-50"
+          >
+            Back to Symptom Checker
+          </Link>
+        </div>
       </div>
+
+      {loadingLatest ? (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-sm text-slate-500">Loading latest symptom conversation...</p>
+        </div>
+      ) : null}
+
+      {!loadingLatest && latestError ? (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-600 shadow-sm">
+          {latestError}
+        </div>
+      ) : null}
+
+      {!loadingLatest && !latestError && latestRecord ? (
+        <section className="mb-6 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">
+                Latest Symptom Conversation
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Last saved on {formatDateTime(latestRecord.createdAt)}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                Last active: {timeAgo(latestRecord.updatedAt)}
+              </p>
+            </div>
+
+            <div
+              className={`inline-flex w-fit rounded-full border px-4 py-2 text-sm font-semibold capitalize ${getStageBadgeClasses(
+                latestRecord.conversationStage
+              )}`}
+            >
+              {latestRecord.conversationStage}
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              to={`/ai/check/${latestRecord._id}`}
+              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              Continue Conversation
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-2xl border border-blue-100 bg-white shadow-sm">
         <div className="border-b border-blue-100 px-6 py-5">
@@ -151,7 +254,7 @@ function SymptomHistoryPageContent() {
       </section>
 
       <section className="mt-6 space-y-4">
-        {!loading && !error && records.length === 0 ? (
+        {!loading && !error && filteredRecords.length === 0 && !latestRecord ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
             <h3 className="text-lg font-semibold text-slate-800">
               No symptom history found
@@ -164,13 +267,24 @@ function SymptomHistoryPageContent() {
 
         {!loading &&
           !error &&
-          records.map((record) => (
-            <div key={record._id} className="space-y-3">
-              <div className="px-1 text-sm text-slate-500 flex flex-col">
-                <span>Saved on {formatDateTime(record.createdAt)}</span>
-                <span className="text-xs text-slate-400">
-                  Last active: {timeAgo(record.updatedAt)}
-                </span>
+          filteredRecords.map((record) => (
+            <div key={record._id} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="px-1 text-sm text-slate-500 flex flex-col">
+                  <span>Saved on {formatDateTime(record.createdAt)}</span>
+                  <span className="text-xs text-slate-400">
+                    Last active: {timeAgo(record.updatedAt)}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Link
+                    to={`/ai/check/${record._id}`}
+                    className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700"
+                  >
+                    Continue Conversation
+                  </Link>
+                </div>
               </div>
 
               <SymptomResultSummaryCard

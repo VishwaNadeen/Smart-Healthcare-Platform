@@ -8,6 +8,7 @@ const {
   getLatestSymptomCheck,
   closeSymptomCheck,
   reopenSymptomCheck,
+  startSymptomConversation,
 } = require("../controllers/symptomController");
 const requireAuth = require("../middlewares/requireAuth");
 const requirePatientRole = require("../middlewares/requirePatientRole");
@@ -19,6 +20,14 @@ const router = express.Router();
 router.get("/questions", requireAuth, requirePatientRole, getQuestions);
 
 router.get("/latest/me", requireAuth, requirePatientRole, getLatestSymptomCheck);
+
+router.post(
+  "/start",
+  requireAuth,
+  requirePatientRole,
+  validateSymptomChat,
+  startSymptomConversation
+);
 
 router.post(
   "/analyze",

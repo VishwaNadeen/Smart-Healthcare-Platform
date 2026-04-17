@@ -25,7 +25,7 @@ Write a short patient-friendly response with:
     contents: prompt,
   });
 
-  return response.text;
+  return response.text || "";
 }
 
 async function chatWithPatient({ symptomCheck, message }) {
@@ -71,7 +71,7 @@ Reply as a helpful healthcare assistant.
     contents: prompt,
   });
 
-  return response.text;
+  return response.text || "";
 }
 
 module.exports = {

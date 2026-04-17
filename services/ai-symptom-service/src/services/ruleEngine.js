@@ -30,7 +30,7 @@ function evaluateSymptoms(input) {
   let category = "general";
   let department = "General Physician";
   let nextStep = "Monitor symptoms and consult a doctor if they worsen.";
-  let redFlags = [];
+  const redFlags = [];
 
   if (chestPain && shortnessOfBreath) {
     urgency = "high";
@@ -75,4 +75,7 @@ function evaluateSymptoms(input) {
   };
 }
 
-module.exports = { evaluateSymptoms };
+module.exports = {
+  normalizeSymptoms,
+  evaluateSymptoms,
+};

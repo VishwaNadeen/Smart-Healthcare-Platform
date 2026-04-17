@@ -17,8 +17,13 @@ export type SymptomQuestion = {
 
 export type SymptomCheckRecord = {
   _id: string;
+  flowType: "form" | "chat";
+  conversationStage: "collecting" | "completed" | "closed";
+  initialMessage?: string;
+  currentQuestionId?: string;
+  currentQuestion?: SymptomQuestion | null;
   symptoms: Record<string, unknown>;
-  analysis: {
+  analysis?: {
     urgency: "low" | "medium" | "high";
     category: string;
     department: string;
@@ -26,7 +31,7 @@ export type SymptomCheckRecord = {
     redFlags: string[];
     disclaimer: string;
   };
-  recommendation: {
+  recommendation?: {
     shouldBookAppointment: boolean;
     shouldStartTelemedicine: boolean;
     emergency: boolean;
@@ -63,6 +68,24 @@ export async function getSymptomQuestions(): Promise<SymptomQuestion[]> {
 
   if (!response.ok || !result.success) {
     throw new Error(result.message || "Failed to fetch symptom questions.");
+  }
+
+  return result.data;
+}
+
+export async function startSymptomConversation(
+  message: string
+): Promise<SymptomCheckRecord> {
+  const response = await fetch(`${AI_SYMPTOM_API_BASE}/start`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ message }),
+  });
+
+  const result: ApiResponse<SymptomCheckRecord> = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || "Failed to start symptom conversation.");
   }
 
   return result.data;
@@ -108,6 +131,7 @@ export async function sendSymptomChatMessage(
   userMessage: ChatMessage;
   assistantMessage: ChatMessage;
   chatHistory: ChatMessage[];
+  symptomCheck: SymptomCheckRecord;
 }> {
   const response = await fetch(`${AI_SYMPTOM_API_BASE}/chat/${id}`, {
     method: "POST",
