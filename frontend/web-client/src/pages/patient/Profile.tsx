@@ -16,6 +16,7 @@ import { defaultCountries } from "react-international-phone";
 import { useNavigate } from "react-router-dom";
 import PhoneNumberInput from "../../components/common/PhoneNumberInput";
 import PasswordField from "../../components/common/PasswordField";
+import PageLoading from "../../components/common/PageLoading";
 import { useToast } from "../../components/common/toastContext";
 
 const PROFILE_NAME_KEY = "patientProfileName";
@@ -472,11 +473,7 @@ const PatientProfile = () => {
     `${formData.firstName?.[0] || ""}${formData.lastName?.[0] || ""}`.toUpperCase() || "P";
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-lg font-semibold text-slate-700">Loading profile...</p>
-      </div>
-    );
+    return <PageLoading message="Loading profile..." />;
   }
 
   return (
@@ -528,8 +525,9 @@ const PatientProfile = () => {
       )}
 
       <div className="mx-auto max-w-6xl space-y-4">
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-blue-200 bg-blue-100/70 px-8 py-10">
+        <div className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
+          <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
+          <div className="border-b border-blue-100 bg-white px-8 py-10">
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-5">
                 {profileImage ? (
