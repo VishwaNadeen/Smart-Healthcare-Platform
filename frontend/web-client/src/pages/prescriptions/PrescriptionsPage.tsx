@@ -221,15 +221,16 @@ export default function PrescriptionsPage() {
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-blue-600 to-blue-500 p-5 shadow-sm ring-1 ring-blue-300 sm:p-6">
-          <div className="flex flex-col items-center gap-5 text-center">
+        <div className="overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm sm:p-0">
+          <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
+          <div className="flex flex-col items-center gap-5 p-5 text-center sm:p-6">
             <div>
-              <h1 className="text-2xl font-bold text-white sm:text-3xl">
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
                 {isSingleAppointment ? "Appointment Prescriptions" : "My Prescriptions"}
               </h1>
 
               {!error && (
-                <p className="mt-3 text-sm text-blue-100">
+                <p className="mt-3 text-sm text-slate-600">
                   {isSingleAppointment
                     ? "Prescription records for the selected appointment are listed below."
                     : `Prescription records from ${groups.length} appointment${
@@ -243,7 +244,7 @@ export default function PrescriptionsPage() {
               {isSingleAppointment && (
                 <Link
                   to="/prescriptions"
-                  className="inline-flex items-center justify-center rounded-xl border border-blue-200/60 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+                  className="inline-flex items-center justify-center rounded-xl border border-blue-200 bg-white px-5 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
                 >
                   View All Prescriptions
                 </Link>

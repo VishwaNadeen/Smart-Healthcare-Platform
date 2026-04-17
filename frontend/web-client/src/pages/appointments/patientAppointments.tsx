@@ -186,7 +186,7 @@ export default function PatientAppointmentsPage() {
 
   return (
     <section className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+      <div className="mx-auto max-w-6xl">
         {errorMessage && (
           <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {errorMessage}
@@ -203,33 +203,32 @@ export default function PatientAppointmentsPage() {
           <NoPendingAppointments />
         ) : (
           <>
-            <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                    My Appointments
-                  </h1>
+            <div className="mb-8 overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-sm">
+              <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
+              <div className="relative px-6 py-8 sm:px-8 sm:py-10">
+                <div className="text-center">
+                  <div>
+                    <h1 className="text-3xl font-bold text-slate-900">
+                      My Appointments
+                    </h1>
+                    <p className="mt-3 text-sm text-slate-600">
+                      Manage your pending bookings and continue with the next step.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="mt-6 flex justify-center sm:absolute sm:bottom-6 sm:right-6 sm:mt-0">
                   <Link
                     to="/appointments/create"
                     className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
                   >
                     + Create Appointment
                   </Link>
-
-                  <Link
-                    to="/appointments/history"
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Canceled Appointments
-                  </Link>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               {visibleAppointments.map((appointment) => (
                 <PatientAppointmentCard
                   key={appointment._id}

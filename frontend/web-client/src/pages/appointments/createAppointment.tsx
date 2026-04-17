@@ -431,6 +431,7 @@ export default function CreateAppointmentPage() {
 
         {/* Page header */}
         <div className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
           <div className="px-6 py-6 text-center sm:px-8">
             <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
               Book an Appointment

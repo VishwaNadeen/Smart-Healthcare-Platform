@@ -117,16 +117,17 @@ export default function PatientAppointmentCard({
 
   return (
     <>
-      <div className="group h-full rounded-[28px] bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-500 p-[2px] shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-      <div className="relative flex h-full flex-col overflow-hidden rounded-[26px] bg-white">
+      <div className="group h-full overflow-hidden rounded-[20px] border border-blue-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-100">
+      <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
+      <div className="relative flex h-full flex-col bg-white">
 
-        <div className="flex items-start justify-between gap-3 px-5 pb-4 pt-5">
+        <div className="flex items-start justify-between gap-3 px-5 pb-3 pt-5">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[26px] font-bold leading-tight text-slate-900">
+            <h3 className="truncate text-[16px] font-bold leading-tight tracking-[-0.02em] text-slate-900">
               {appointment.doctorName}
             </h3>
 
-            <p className="mt-1 text-sm font-semibold text-cyan-700">
+            <p className="mt-1 text-sm font-semibold text-blue-700">
               {appointment.specialization}
             </p>
           </div>
@@ -134,7 +135,7 @@ export default function PatientAppointmentCard({
           <button
             type="button"
             onClick={handleOpenDetails}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-slate-200 bg-white text-slate-500 shadow-sm transition-all duration-200 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
             title="User Information"
           >
             <svg
@@ -153,9 +154,9 @@ export default function PatientAppointmentCard({
         </div>
 
         <div className="px-5 pb-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-              <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-[12px] bg-blue-100/80 px-4 py-4">
+              <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm">
                 <svg
                   className="h-5 w-5"
                   viewBox="0 0 24 24"
@@ -170,16 +171,16 @@ export default function PatientAppointmentCard({
                   <path d="M3 10h18" />
                 </svg>
               </div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-600">
                 Date
               </p>
-              <p className="mt-1 text-sm font-bold text-slate-900">
+              <p className="mt-0.5 text-[13px] font-semibold text-slate-900">
                 {formatDate(appointment.appointmentDate)}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-              <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600">
+            <div className="rounded-[12px] bg-blue-100/80 px-4 py-4">
+              <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm">
                 <svg
                   className="h-5 w-5"
                   viewBox="0 0 24 24"
@@ -192,15 +193,15 @@ export default function PatientAppointmentCard({
                   <path d="M12 7v5l3 2" />
                 </svg>
               </div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-600">
                 Time
               </p>
-              <p className="mt-1 text-sm font-bold text-slate-900">
+              <p className="mt-0.5 text-[13px] font-semibold text-slate-900">
                 {formatTime(appointment.appointmentTime)}
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+            <div className="rounded-[12px] bg-blue-100/80 px-4 py-4">
               <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
                 <svg
                   className="h-5 w-5"
@@ -214,11 +215,11 @@ export default function PatientAppointmentCard({
                   <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
               </div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-600">
                 Payment
               </p>
               <p
-                className={`mt-1 text-sm font-bold capitalize ${getPaymentTextColor(
+                className={`mt-0.5 text-[13px] font-semibold capitalize ${getPaymentTextColor(
                   appointment.paymentStatus
                 )}`}
               >
@@ -226,7 +227,7 @@ export default function PatientAppointmentCard({
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+            <div className="rounded-[12px] bg-blue-100/80 px-4 py-4">
               <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <svg
                   className="h-5 w-5"
@@ -240,11 +241,11 @@ export default function PatientAppointmentCard({
                   <circle cx="12" cy="12" r="9" />
                 </svg>
               </div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-600">
                 Status
               </p>
               <p
-                className={`mt-1 text-sm font-bold capitalize ${getStatusTextColor(
+                className={`mt-0.5 text-[13px] font-semibold capitalize ${getStatusTextColor(
                   appointment.status
                 )}`}
               >
@@ -335,8 +336,10 @@ export default function PatientAppointmentCard({
 
       {isDetailsOpen && (
         <div style={{transition:"background 250ms"}} className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm ${isVisible ? "bg-slate-900/60" : "bg-slate-900/0"}`}>
-          <div style={{transition:"opacity 250ms, transform 250ms"}} className={`relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white shadow-2xl ${isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}>
-            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur">
+          <div style={{transition:"opacity 250ms, transform 250ms"}} className={`relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-blue-100 bg-white shadow-2xl ${isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"}`}>
+            <div className="sticky top-0 z-10 overflow-hidden border-b border-slate-200 bg-white/95 backdrop-blur">
+              <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
+              <div className="px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 text-center">
                   <h3 className="text-2xl font-bold text-slate-900">
@@ -374,6 +377,7 @@ export default function PatientAppointmentCard({
                     />
                   </svg>
                 </button>
+              </div>
               </div>
             </div>
 
