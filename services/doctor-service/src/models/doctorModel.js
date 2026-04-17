@@ -31,6 +31,80 @@ const availabilitySlotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const blockedTimeRangeSchema = new mongoose.Schema(
+  {
+    startTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    endTime: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+  },
+  { _id: false }
+);
+
+const availabilityExceptionSchema = new mongoose.Schema(
+  {
+    date: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
+    blockedTimeRanges: {
+      type: [blockedTimeRangeSchema],
+      default: [],
+    },
+    note: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+  },
+  { _id: false }
+);
+
+const reviewNoteSchema = new mongoose.Schema(
+  {
+    note: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ["pending", "in-review", "approved", "rejected"],
+      required: true,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    createdByName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    createdByEmail: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    editableFields: {
+      type: [String],
+      default: [],
+    },
+  },
+  { _id: false }
+);
+
 const doctorSchema = new mongoose.Schema(
   {
     authUserId: {
@@ -83,17 +157,18 @@ const doctorSchema = new mongoose.Schema(
     availableTimeSlots: [String],
 
     consultationFee: Number,
-    isAvailableForVideo: {
-      type: Boolean,
-      default: false,
+    appointmentDurationMinutes: {
+      type: Number,
+      default: 15,
+      min: 5,
     },
     availabilitySchedule: {
       type: [availabilitySlotSchema],
       default: [],
     },
-    supportsDigitalPrescriptions: {
-      type: Boolean,
-      default: true,
+    availabilityExceptions: {
+      type: [availabilityExceptionSchema],
+      default: [],
     },
     acceptsNewAppointments: {
       type: Boolean,
@@ -101,12 +176,34 @@ const doctorSchema = new mongoose.Schema(
     },
 
     profileImage: String,
+    profileImagePublicId: {
+      type: String,
+      default: "",
+      select: false,
+    },
     about: String,
 
-    status: {
+    verificationStatus: {
       type: String,
-      enum: ["active", "inactive"],
-      default: "active",
+      enum: ["pending", "in-review","approved", "rejected"],
+      default: "pending",
+    },
+    verificationNote: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    reviewNotes: {
+      type: [reviewNoteSchema],
+      default: [],
+    },
+    editableFields: {
+      type: [String],
+      default: [],
+    },
+    verifiedAt: {
+      type: Date,
+      default: null,
     },
   },
   { timestamps: true }

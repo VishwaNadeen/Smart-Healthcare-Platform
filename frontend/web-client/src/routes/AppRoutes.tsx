@@ -10,6 +10,7 @@ import { aboutRoutes } from "./aboutRoute";
 import { contactRoutes } from "./contactRoute";
 import { telemedicineRoutes } from "./telemedicineRoutes";
 import { patientRoutes } from "./patientRoutes";
+import { doctorRoutes } from "./doctorRoutes";
 import { appointmentRoutes } from "./appointmentRoutes";
 import { profileRoutes } from "./profileRoutes";
 import { paymentRoutes } from "./paymentRoutes";
@@ -45,6 +46,7 @@ export default function AppRoutes() {
         {contactRoutes}
         {telemedicineRoutes}
         {patientRoutes}
+        {doctorRoutes}
         {appointmentRoutes}
         {profileRoutes}
         {paymentRoutes}

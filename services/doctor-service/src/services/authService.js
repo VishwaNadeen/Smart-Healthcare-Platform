@@ -36,7 +36,39 @@ const deleteAuthAccountByEmail = async (email) => {
   return response.data;
 };
 
+const updateAuthUserIdentity = async ({ authUserId, fullName, email }) => {
+  const response = await axios.patch(
+    `${getAuthServiceUrl()}/api/auth/internal/users/${encodeURIComponent(
+      String(authUserId || "").trim()
+    )}/identity`,
+    {
+      username: String(fullName || "").trim(),
+      email: String(email || "").trim().toLowerCase(),
+    },
+    {
+      headers: getInternalHeaders(),
+    }
+  );
+
+  return response.data;
+};
+
+const getAuthUserById = async (authUserId) => {
+  const response = await axios.get(
+    `${getAuthServiceUrl()}/api/auth/internal/users/${encodeURIComponent(
+      String(authUserId || "").trim()
+    )}`,
+    {
+      headers: getInternalHeaders(),
+    }
+  );
+
+  return response.data;
+};
+
 module.exports = {
   registerDoctorAuth,
   deleteAuthAccountByEmail,
+  updateAuthUserIdentity,
+  getAuthUserById,
 };
