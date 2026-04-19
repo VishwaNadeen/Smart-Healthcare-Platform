@@ -103,6 +103,53 @@ function formatLabelValue(value: string | undefined): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function formatDurationFromMinutes(totalMinutes: number): string {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+    return "Not available";
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) {
+    return `${hours} hr ${minutes} min`;
+  }
+
+  if (hours > 0) {
+    return `${hours} hr`;
+  }
+
+  return `${minutes} min`;
+}
+
+function getSessionDuration(session: TelemedicineSession): string {
+  const explicitDuration =
+    getSummaryValue(session, "duration") || getSummaryValue(session, "durationMinutes");
+
+  if (explicitDuration) {
+    return explicitDuration;
+  }
+
+  const createdAt = session.createdAt ? new Date(session.createdAt) : null;
+  const updatedAt = session.updatedAt ? new Date(session.updatedAt) : null;
+
+  if (
+    !createdAt ||
+    !updatedAt ||
+    Number.isNaN(createdAt.getTime()) ||
+    Number.isNaN(updatedAt.getTime()) ||
+    updatedAt.getTime() <= createdAt.getTime()
+  ) {
+    return "Not available";
+  }
+
+  const totalMinutes = Math.round(
+    (updatedAt.getTime() - createdAt.getTime()) / (1000 * 60)
+  );
+
+  return formatDurationFromMinutes(totalMinutes);
+}
+
 function DetailCard({
   label,
   value,
@@ -195,8 +242,13 @@ export default function SessionSummary() {
   const leftColumnRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelHeaderRef = useRef<HTMLDivElement | null>(null);
+  const sessionRef = useRef<TelemedicineSession | null>(null);
   const auth = getStoredTelemedicineAuth();
   const role = auth.actorRole;
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   useEffect(() => {
     async function loadSession() {
@@ -224,21 +276,39 @@ export default function SessionSummary() {
   }, [appointmentId]);
 
   useEffect(() => {
-    if (!appointmentId || role !== "patient" || !session || session.notes?.trim()) {
+    if (!appointmentId || role !== "patient") {
       return;
     }
 
     let isMounted = true;
+
+    function getSessionRefreshSignature(nextSession: TelemedicineSession | null) {
+      if (!nextSession) {
+        return "";
+      }
+
+      return JSON.stringify({
+        notes: nextSession.notes || "",
+        status: nextSession.status || "",
+        updatedAt: nextSession.updatedAt || "",
+        scheduledDate: nextSession.scheduledDate || "",
+        scheduledTime: nextSession.scheduledTime || "",
+      });
+    }
+
     const intervalId = window.setInterval(async () => {
       try {
         const latestSession = await getSessionByAppointmentId(appointmentId);
 
-        if (isMounted) {
-          setSession(latestSession);
+        if (!isMounted) {
+          return;
         }
 
-        if (latestSession.notes?.trim()) {
-          window.clearInterval(intervalId);
+        const currentSignature = getSessionRefreshSignature(sessionRef.current);
+        const latestSignature = getSessionRefreshSignature(latestSession);
+
+        if (currentSignature !== latestSignature) {
+          setSession(latestSession);
         }
       } catch (pollError) {
         console.error("Failed to refresh session summary data:", pollError);
@@ -249,7 +319,7 @@ export default function SessionSummary() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, [appointmentId, role, session]);
+  }, [appointmentId, role]);
 
   useEffect(() => {
     function syncPanelHeight() {
@@ -425,16 +495,14 @@ export default function SessionSummary() {
   }
 
   const doctor = getPersonDetails(session, "doctor");
-  const duration =
-    getSummaryValue(session, "duration") ||
-    getSummaryValue(session, "durationMinutes") ||
-    "Not available";
+  const duration = getSessionDuration(session);
   const sessionStatus = formatLabelValue(session.status);
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm shadow-blue-100/60 sm:p-8">
+          <div className="-mx-6 -mt-6 mb-6 h-1 bg-blue-500 sm:-mx-8 sm:-mt-8" />
           <div className="flex flex-col items-center justify-center gap-5 text-center">
             <div>
               <div className="mb-3 inline-flex rounded-full bg-slate-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
@@ -468,7 +536,7 @@ export default function SessionSummary() {
 
             <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <h2 className="mb-4 text-lg font-semibold text-slate-900">
-                Appointment Details
+                Consultation Session Details
               </h2>
 
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

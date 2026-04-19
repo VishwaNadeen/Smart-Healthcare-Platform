@@ -58,10 +58,6 @@ export default function PrescriptionPdfGenerator({
           setPrescriptions(nextPrescriptions);
         }
 
-        if (nextPrescriptions.length > 0 && intervalId !== null) {
-          window.clearInterval(intervalId);
-          intervalId = null;
-        }
       } catch (error) {
         console.error("Failed to load prescriptions for PDF:", error);
         if (isMounted) {

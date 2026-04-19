@@ -163,7 +163,7 @@ export default function DoctorRejectedAppointmentsPage() {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "Failed to load rejected appointments."
+            : "Failed to load rescheduled appointments."
         );
       } finally {
         setIsLoading(false);
@@ -173,8 +173,15 @@ export default function DoctorRejectedAppointmentsPage() {
     void loadDoctorAppointments();
   }, [auth.token, auth.userId]);
 
-  const rejectedAppointments = useMemo(
-    () => appointments.filter((appointment) => appointment.status === "cancelled"),
+  const rescheduledAppointments = useMemo(
+    () =>
+      appointments.filter(
+        (appointment) =>
+          appointment.status === "pending" &&
+          appointment.rescheduleStatus === "pending" &&
+          appointment.rescheduledDate &&
+          appointment.rescheduledTime
+      ),
     [appointments]
   );
 
@@ -189,9 +196,13 @@ export default function DoctorRejectedAppointmentsPage() {
     const oneMonthFromToday = new Date(today);
     oneMonthFromToday.setMonth(oneMonthFromToday.getMonth() + 1);
 
-    return rejectedAppointments
+    return rescheduledAppointments
       .filter((appointment) => {
-        const appointmentDateTime = getAppointmentDateTimeValue(appointment);
+        const appointmentDateTime = getAppointmentDateTimeValue({
+          ...appointment,
+          appointmentDate: appointment.rescheduledDate || appointment.appointmentDate,
+          appointmentTime: appointment.rescheduledTime || appointment.appointmentTime,
+        });
         const appointmentDay = new Date(appointmentDateTime);
         appointmentDay.setHours(0, 0, 0, 0);
 
@@ -218,8 +229,6 @@ export default function DoctorRejectedAppointmentsPage() {
         const patient = patientsById[appointment.patientId];
         const patientName = getPatientDisplayName(appointment, patient).toLowerCase();
         const reason = String(appointment.reason || "").toLowerCase();
-        const rejectReason = getLatestCancelledReason(appointment).toLowerCase();
-
         if (!normalizedSearchTerm) {
           return true;
         }
@@ -227,23 +236,30 @@ export default function DoctorRejectedAppointmentsPage() {
         return (
           patientName.includes(normalizedSearchTerm) ||
           appointment.specialization.toLowerCase().includes(normalizedSearchTerm) ||
-          appointment.appointmentDate.toLowerCase().includes(normalizedSearchTerm) ||
-          appointment.appointmentTime.toLowerCase().includes(normalizedSearchTerm) ||
-          reason.includes(normalizedSearchTerm) ||
-          rejectReason.includes(normalizedSearchTerm)
+          String(appointment.rescheduledDate || appointment.appointmentDate)
+            .toLowerCase()
+            .includes(normalizedSearchTerm) ||
+          String(appointment.rescheduledTime || appointment.appointmentTime)
+            .toLowerCase()
+            .includes(normalizedSearchTerm) ||
+          reason.includes(normalizedSearchTerm)
         );
       })
       .sort((left, right) => {
         const leftDate = new Date(
-          `${left.appointmentDate}T${left.appointmentTime}`
+          `${left.rescheduledDate || left.appointmentDate}T${
+            left.rescheduledTime || left.appointmentTime
+          }`
         ).getTime();
         const rightDate = new Date(
-          `${right.appointmentDate}T${right.appointmentTime}`
+          `${right.rescheduledDate || right.appointmentDate}T${
+            right.rescheduledTime || right.appointmentTime
+          }`
         ).getTime();
 
         return rightDate - leftDate;
       });
-  }, [patientsById, rejectedAppointments, scheduleFilter, searchTerm]);
+  }, [patientsById, rescheduledAppointments, scheduleFilter, searchTerm]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -263,7 +279,7 @@ export default function DoctorRejectedAppointmentsPage() {
   }, [currentPage, totalPages]);
 
   if (isLoading) {
-    return <PageLoading message="Loading rejected appointments..." />;
+    return <PageLoading message="Loading rescheduled appointments..." />;
   }
 
   return (
@@ -272,10 +288,10 @@ export default function DoctorRejectedAppointmentsPage() {
         <div className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="px-4 py-5 text-center md:px-6">
             <h1 className="text-3xl font-bold text-slate-900 sm:text-4xl">
-              Rejected Appointments
+              Rescheduled Appointments
             </h1>
             <p className="mx-auto mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-              Review rejected bookings and the reason shared with each patient.
+              Review appointments that have been sent to patients for reschedule approval.
             </p>
           </div>
         </div>
@@ -296,7 +312,7 @@ export default function DoctorRejectedAppointmentsPage() {
                 type="text"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search by patient, reason, rejection note, date, or time"
+                placeholder="Search by patient, reason, proposed date, or proposed time"
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-800 outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100"
               />
             </div>
@@ -323,9 +339,9 @@ export default function DoctorRejectedAppointmentsPage() {
           <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2">
             <p className="text-sm text-slate-600">
               <span className="font-semibold text-slate-900">
-                {rejectedAppointments.length}
+                {rescheduledAppointments.length}
               </span>{" "}
-              rejected appointments
+              rescheduled appointments
             </p>
 
             <div className="flex items-center gap-3">
@@ -349,9 +365,9 @@ export default function DoctorRejectedAppointmentsPage() {
 
         {filteredAppointments.length === 0 ? (
           <div className="rounded-2xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-slate-200">
-            <h3 className="text-xl font-bold text-slate-900">No rejected appointments</h3>
+            <h3 className="text-xl font-bold text-slate-900">No rescheduled appointments</h3>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              There are no rejected appointments matching your filter.
+              There are no rescheduled appointments matching your filter.
             </p>
           </div>
         ) : (
@@ -369,8 +385,8 @@ export default function DoctorRejectedAppointmentsPage() {
                 <thead className="bg-slate-50">
                   <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                     <th className="px-6 py-4">Patient</th>
-                    <th className="px-6 py-4 text-center">Date</th>
-                    <th className="px-6 py-4 text-center">Time</th>
+                    <th className="px-6 py-4 text-center">Rescheduled Date</th>
+                    <th className="px-6 py-4 text-center">Rescheduled Time</th>
                     <th className="px-6 py-4 text-center">Payment</th>
                     <th className="px-6 py-4 text-center">Details</th>
                   </tr>
@@ -387,11 +403,15 @@ export default function DoctorRejectedAppointmentsPage() {
                         </td>
 
                         <td className="px-6 py-4 text-center text-sm text-slate-700">
-                          {formatDate(appointment.appointmentDate)}
+                          {formatDate(
+                            appointment.rescheduledDate || appointment.appointmentDate
+                          )}
                         </td>
 
                         <td className="px-6 py-4 text-center text-sm text-slate-700">
-                          {formatTime(appointment.appointmentTime)}
+                          {formatTime(
+                            appointment.rescheduledTime || appointment.appointmentTime
+                          )}
                         </td>
 
                         <td className="px-6 py-4 text-center">
@@ -481,10 +501,10 @@ export default function DoctorRejectedAppointmentsPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  Rejected Appointment Details
+                  Rescheduled Appointment Details
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Review the full appointment information and rejection note.
+                  Review the proposed reschedule details sent to the patient.
                 </p>
               </div>
 
@@ -500,29 +520,34 @@ export default function DoctorRejectedAppointmentsPage() {
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Appointment Date
+                  Proposed Date
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {formatDate(selectedAppointmentDetails.appointmentDate)}
+                  {formatDate(
+                    selectedAppointmentDetails.rescheduledDate ||
+                      selectedAppointmentDetails.appointmentDate
+                  )}
                 </p>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Appointment Time
+                  Proposed Time
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {formatTime(selectedAppointmentDetails.appointmentTime)}
+                  {formatTime(
+                    selectedAppointmentDetails.rescheduledTime ||
+                      selectedAppointmentDetails.appointmentTime
+                  )}
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 md:col-span-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">
-                  Rejection Reason
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 md:col-span-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+                  Reason for Appointment
                 </p>
-                <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-rose-900">
-                  {getLatestCancelledReason(selectedAppointmentDetails) ||
-                    "No rejection note provided."}
+                <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-slate-900">
+                  {selectedAppointmentDetails.reason?.trim() || "No reason provided."}
                 </p>
               </div>
             </div>
