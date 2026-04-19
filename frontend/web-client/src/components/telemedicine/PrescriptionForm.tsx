@@ -108,6 +108,7 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
   const [savedMessage, setSavedMessage] = useState("");
   const [prescriptions, setPrescriptions] = useState<TelemedicinePrescription[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updateRevealLoading, setUpdateRevealLoading] = useState(false);
   const [notesValue, setNotesValue] = useState(consultationNotes);
   const [notesDraft, setNotesDraft] = useState(consultationNotes);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -120,6 +121,8 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
   const [activePrescriptionIndex, setActivePrescriptionIndex] = useState(0);
   const emptyStateAnimationRef = useRef<HTMLDivElement | null>(null);
   const loadingAnimationRef = useRef<HTMLDivElement | null>(null);
+  const prescriptionsRef = useRef<TelemedicinePrescription[]>([]);
+  const revealTimeoutRef = useRef<number | null>(null);
   const [hasAnimationError, setHasAnimationError] = useState(false);
   const [hasLoadingAnimationError, setHasLoadingAnimationError] = useState(false);
 
@@ -132,12 +135,31 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
   const title = "Prescription & Medical Notes";
 
   useEffect(() => {
+    prescriptionsRef.current = prescriptions;
+  }, [prescriptions]);
+
+  useEffect(() => {
     let isMounted = true;
     let intervalId: number | null = null;
 
-    async function loadPrescriptions() {
+    function getPrescriptionSignature(items: TelemedicinePrescription[]) {
+      return JSON.stringify(
+        items.map((item) => ({
+          id: item._id,
+          medicineName: item.medicineName,
+          dosage: item.dosage,
+          instructions: item.instructions,
+          updatedAt: item.updatedAt,
+        }))
+      );
+    }
+
+    async function loadPrescriptions(showLoadingIndicator = true) {
       try {
-        setLoading(true);
+        if (showLoadingIndicator) {
+          setLoading(true);
+        }
+
         const response = await getPrescriptionsByAppointmentId(appointmentId);
         const nextPrescriptions = response.data || [];
 
@@ -145,7 +167,29 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
           return [] as TelemedicinePrescription[];
         }
 
-        setPrescriptions(nextPrescriptions);
+        const previousPrescriptions = prescriptionsRef.current;
+        const hasChanged =
+          getPrescriptionSignature(previousPrescriptions) !==
+          getPrescriptionSignature(nextPrescriptions);
+
+        if (!showLoadingIndicator && hasChanged) {
+          setUpdateRevealLoading(true);
+
+          if (revealTimeoutRef.current !== null) {
+            window.clearTimeout(revealTimeoutRef.current);
+          }
+
+          revealTimeoutRef.current = window.setTimeout(() => {
+            if (!isMounted) {
+              return;
+            }
+
+            setPrescriptions(nextPrescriptions);
+            setUpdateRevealLoading(false);
+          }, 650);
+        } else {
+          setPrescriptions(nextPrescriptions);
+        }
 
         if (!readOnly && loadExistingIntoEditor) {
           if (nextPrescriptions.length > 0) {
@@ -164,11 +208,6 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
           setExpandedDraftId(null);
         }
 
-        if (nextPrescriptions.length > 0 && intervalId !== null) {
-          window.clearInterval(intervalId);
-          intervalId = null;
-        }
-
         return nextPrescriptions;
       } catch (error) {
         console.error("Failed to load prescriptions:", error);
@@ -184,11 +223,11 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
     }
 
     if (appointmentId) {
-      void loadPrescriptions();
+      void loadPrescriptions(true);
 
       if (readOnly && autoRefreshWhenEmpty && role === "patient") {
         intervalId = window.setInterval(() => {
-          void loadPrescriptions();
+          void loadPrescriptions(false);
         }, 5000);
       }
     } else {
@@ -197,6 +236,9 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
 
     return () => {
       isMounted = false;
+      if (revealTimeoutRef.current !== null) {
+        window.clearTimeout(revealTimeoutRef.current);
+      }
       if (intervalId !== null) {
         window.clearInterval(intervalId);
       }
@@ -221,24 +263,25 @@ const PrescriptionForm = forwardRef<PrescriptionFormHandle, Props>(function Pres
   const showPatientEmptyState =
     readOnly &&
     role === "patient" &&
+    !updateRevealLoading &&
     !notesValue.trim() &&
     prescriptions.length === 0;
 
   const showPatientPrescriptionLoading =
     readOnly &&
     role === "patient" &&
-    loading &&
+    (loading || updateRevealLoading) &&
     !showPatientEmptyState;
 
   const showDoctorPrescriptionLoading =
     readOnly &&
     role === "doctor" &&
-    loading;
+    (loading || updateRevealLoading);
 
   const showPrescriptionLoadingAnimation =
     showPatientPrescriptionLoading || showDoctorPrescriptionLoading;
   const showEditorPrescriptionLoading =
-    !readOnly && loadExistingIntoEditor && loading;
+    !readOnly && loadExistingIntoEditor && (loading || updateRevealLoading);
   const showAnyDotLoadingAnimation =
     showPrescriptionLoadingAnimation || showEditorPrescriptionLoading;
 
