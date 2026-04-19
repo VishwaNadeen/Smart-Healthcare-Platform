@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { PATIENT_API_URL } from "../../config/api";
+import {
+  getPatientDetailsByAuthUserId,
+  getPatientSummaryByAuthUserId,
+} from "../../services/patientApi";
+import { getPatientReports } from "../../services/report";
 import type { TelemedicineSession } from "../../services/telemedicineApi";
+import type { Report } from "../../types/report";
+import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 
 type PatientReportData = {
   _id: string;
@@ -15,35 +21,9 @@ type PatientReportData = {
   country?: string;
 };
 
-type TelemedicineReportsPanelProps = {
-  session: TelemedicineSession;
-  fallbackPatientName?: string;
-};
-
-async function parseResponse<T>(response: Response): Promise<T> {
-  const data = (await response.json().catch(() => null)) as
-    | (T & { message?: string; error?: string })
-    | null;
-
-  if (!response.ok) {
-    const errorMessage =
-      data?.error ||
-      data?.message ||
-      `Request failed with status ${response.status}`;
-
-    throw new Error(errorMessage);
-  }
-
-  if (data === null) {
-    throw new Error("Empty response received from service");
-  }
-
-  return data as T;
-}
-
-function formatDateLabel(value?: string) {
+function formatReportDate(value?: string) {
   if (!value) {
-    return "Not available";
+    return "Unknown date";
   }
 
   const date = new Date(value);
@@ -55,12 +35,31 @@ function formatDateLabel(value?: string) {
   return date.toLocaleDateString();
 }
 
+function formatReportType(value?: string) {
+  if (!value) {
+    return "General Report";
+  }
+
+  return value
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+type TelemedicineReportsPanelProps = {
+  session: TelemedicineSession;
+  fallbackPatientName?: string;
+};
+
 export default function TelemedicineReportsPanel({
   session,
   fallbackPatientName = "Patient",
 }: TelemedicineReportsPanelProps) {
+  const auth = getStoredTelemedicineAuth();
+  const isPatientView = auth.actorRole === "patient";
   const [isReportsOpen, setIsReportsOpen] = useState(false);
   const [patientReport, setPatientReport] = useState<PatientReportData | null>(null);
+  const [patientReports, setPatientReports] = useState<Report[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState("");
   const reportsPanelRef = useRef<HTMLDivElement | null>(null);
@@ -70,9 +69,10 @@ export default function TelemedicineReportsPanel({
     let isMounted = true;
 
     async function loadPatientReport() {
-      if (!session.patientId) {
+      if (!session.patientId || !auth.token) {
         if (isMounted) {
           setPatientReport(null);
+          setPatientReports([]);
           setReportsError("");
           setReportsLoading(false);
         }
@@ -82,17 +82,24 @@ export default function TelemedicineReportsPanel({
       try {
         setReportsLoading(true);
         setReportsError("");
-
-        const response = await fetch(`${PATIENT_API_URL}/${session.patientId}`);
-        const data = await parseResponse<PatientReportData>(response);
+        const patientSummary = await getPatientSummaryByAuthUserId(
+          auth.token,
+          session.patientId
+        );
+        const [patientDetails, reports] = await Promise.all([
+          getPatientDetailsByAuthUserId(auth.token, session.patientId),
+          getPatientReports(patientSummary._id),
+        ]);
 
         if (isMounted) {
-          setPatientReport(data);
+          setPatientReport(patientDetails);
+          setPatientReports(reports);
         }
       } catch (error) {
         console.error("Failed to load patient reports:", error);
         if (isMounted) {
           setPatientReport(null);
+          setPatientReports([]);
           setReportsError(
             error instanceof Error ? error.message : "Failed to load patient reports"
           );
@@ -109,7 +116,7 @@ export default function TelemedicineReportsPanel({
     return () => {
       isMounted = false;
     };
-  }, [session.patientId]);
+  }, [auth.token, session.patientId]);
 
   useEffect(() => {
     if (!isReportsOpen) {
@@ -144,10 +151,28 @@ export default function TelemedicineReportsPanel({
   const reportFullName =
     `${patientReport?.firstName || ""} ${patientReport?.lastName || ""}`.trim() ||
     fallbackPatientName;
-  const reportPhone =
-    patientReport?.countryCode && patientReport?.phone
-      ? `${patientReport.countryCode} ${patientReport.phone}`
-      : patientReport?.phone || "Not available";
+  const patientAge =
+    patientReport?.birthday
+      ? (() => {
+          const birthDate = new Date(patientReport.birthday);
+          if (Number.isNaN(birthDate.getTime())) {
+            return null;
+          }
+
+          const today = new Date();
+          let age = today.getFullYear() - birthDate.getFullYear();
+          const monthDifference = today.getMonth() - birthDate.getMonth();
+
+          if (
+            monthDifference < 0 ||
+            (monthDifference === 0 && today.getDate() < birthDate.getDate())
+          ) {
+            age -= 1;
+          }
+
+          return age >= 0 ? age : null;
+        })()
+      : null;
 
   return (
     <>
@@ -181,9 +206,16 @@ export default function TelemedicineReportsPanel({
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600">
                 Patient Reports
               </p>
-              <h2 className="mt-2 text-xl font-bold text-slate-900">
-                {reportFullName}
-              </h2>
+              {!isPatientView ? (
+                <>
+                  <h2 className="mt-2 text-xl font-bold text-slate-900">
+                    {reportFullName}
+                  </h2>
+                  <p className="mt-1 text-sm font-medium text-slate-500">
+                    {patientAge !== null ? `${patientAge} years old` : "Age not available"}
+                  </p>
+                </>
+              ) : null}
             </div>
 
             <button
@@ -220,59 +252,54 @@ export default function TelemedicineReportsPanel({
             ) : (
               <>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Email
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-slate-800">
-                    {patientReport?.email || "Not available"}
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Phone
+                      Uploaded Reports
                     </p>
-                    <p className="mt-2 text-sm font-medium text-slate-800">
-                      {reportPhone}
-                    </p>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                      {patientReports.length}
+                    </span>
                   </div>
 
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Gender
+                  {patientReports.length === 0 ? (
+                    <p className="mt-3 text-sm text-slate-600">
+                      No uploaded reports found for this patient.
                     </p>
-                    <p className="mt-2 text-sm font-medium capitalize text-slate-800">
-                      {patientReport?.gender || "Not available"}
-                    </p>
-                  </div>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      {patientReports.map((report) => (
+                        <div
+                          key={report._id}
+                          className="rounded-2xl border border-amber-100 bg-white p-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-slate-900">
+                                {report.reportTitle || report.fileName}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatReportType(report.reportType)} • {formatReportDate(report.reportDate)}
+                              </p>
+                              {report.providerName ? (
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {report.providerName}
+                                </p>
+                              ) : null}
+                            </div>
 
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Birthday
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-slate-800">
-                      {formatDateLabel(patientReport?.birthday)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Country
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-slate-800">
-                      {patientReport?.country || "Not available"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Address
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-slate-800">
-                    {patientReport?.address || "Not available"}
-                  </p>
+                            <a
+                              href={report.filePath}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="shrink-0 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
+                            >
+                              View
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}
