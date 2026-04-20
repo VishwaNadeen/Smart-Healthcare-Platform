@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { jsPDF } from "jspdf";
 import {
   getAdminAppointmentsAnalytics,
   getDoctorVerifications,
