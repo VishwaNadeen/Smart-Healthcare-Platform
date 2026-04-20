@@ -22,7 +22,9 @@ export default function PatientAppointmentsPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [completingPaymentId, setCompletingPaymentId] = useState<string | null>(null);
-  const [respondingRescheduleId, setRespondingRescheduleId] = useState<string | null>(null);
+  const [respondingRescheduleId, setRespondingRescheduleId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     async function loadAppointments() {
@@ -45,32 +47,57 @@ export default function PatientAppointmentsPage() {
       }
     }
 
-    loadAppointments();
+    void loadAppointments();
   }, [auth.token]);
 
   const visibleAppointments = useMemo(() => {
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
 
     return appointments
-      .filter((a) => {
-        if (a.status === "cancelled") return false;
-        if (a.status === "confirmed") return false;
-        if (a.status === "completed") return false;
-        // paid + still pending doctor review — show
-        if (a.paymentStatus === "paid" && a.status === "pending") return true;
-        // unpaid pending — show only within 30 min payment window
+      .filter((appointment) => {
+        const hasPendingReschedule =
+          appointment.rescheduleStatus === "pending" &&
+          Boolean(appointment.rescheduledDate) &&
+          Boolean(appointment.rescheduledTime);
+
+        if (hasPendingReschedule) return true;
+        if (appointment.status === "cancelled") return false;
+        if (appointment.status === "confirmed") return false;
+        if (appointment.status === "completed") return false;
+
         if (
-          a.status === "pending" &&
-          a.paymentStatus === "pending" &&
-          a.createdAt &&
-          new Date(a.createdAt) >= thirtyMinAgo
-        ) return true;
+          appointment.paymentStatus === "paid" &&
+          appointment.status === "pending"
+        ) {
+          return true;
+        }
+
+        if (
+          appointment.status === "pending" &&
+          appointment.paymentStatus === "pending" &&
+          appointment.createdAt &&
+          new Date(appointment.createdAt) >= thirtyMinAgo
+        ) {
+          return true;
+        }
+
         return false;
       })
-      .sort((a, b) => {
-        const aDate = new Date(`${a.appointmentDate}T${a.appointmentTime}`).getTime();
-        const bDate = new Date(`${b.appointmentDate}T${b.appointmentTime}`).getTime();
-        return aDate - bDate;
+      .sort((left, right) => {
+        const leftDateTime =
+          left.rescheduleStatus === "pending" &&
+          left.rescheduledDate &&
+          left.rescheduledTime
+            ? `${left.rescheduledDate}T${left.rescheduledTime}`
+            : `${left.appointmentDate}T${left.appointmentTime}`;
+        const rightDateTime =
+          right.rescheduleStatus === "pending" &&
+          right.rescheduledDate &&
+          right.rescheduledTime
+            ? `${right.rescheduledDate}T${right.rescheduledTime}`
+            : `${right.appointmentDate}T${right.appointmentTime}`;
+
+        return new Date(leftDateTime).getTime() - new Date(rightDateTime).getTime();
       });
   }, [appointments]);
 
@@ -118,8 +145,10 @@ export default function PatientAppointmentsPage() {
       const response = await cancelAppointment(auth.token, appointmentId);
 
       setAppointments((current) =>
-        current.map((a) =>
-          a._id === appointmentId ? { ...a, status: "cancelled" } : a
+        current.map((appointment) =>
+          appointment._id === appointmentId
+            ? { ...appointment, status: "cancelled" }
+            : appointment
         )
       );
 
@@ -150,26 +179,28 @@ export default function PatientAppointmentsPage() {
       const data = await respondToReschedule(auth.token, appointmentId, response);
 
       setAppointments((current) =>
-        current.map((a) =>
-          a._id === appointmentId
+        current.map((appointment) =>
+          appointment._id === appointmentId
             ? {
-                ...a,
+                ...appointment,
                 rescheduleStatus: response,
                 ...(response === "approved" && {
-                  appointmentDate: a.rescheduledDate ?? a.appointmentDate,
-                  appointmentTime: a.rescheduledTime ?? a.appointmentTime,
+                  appointmentDate:
+                    appointment.rescheduledDate ?? appointment.appointmentDate,
+                  appointmentTime:
+                    appointment.rescheduledTime ?? appointment.appointmentTime,
                   status: "confirmed" as const,
                 }),
               }
-            : a
+            : appointment
         )
       );
 
       setSuccessMessage(
         data.message ||
           (response === "approved"
-            ? "Reschedule approved — appointment confirmed."
-            : "Reschedule rejected — admin will process your refund.")
+            ? "Reschedule approved - appointment confirmed."
+            : "Reschedule rejected - refund processed automatically.")
       );
     } catch (error: unknown) {
       setErrorMessage(
@@ -212,7 +243,7 @@ export default function PatientAppointmentsPage() {
                       My Appointments
                     </h1>
                     <p className="mt-3 text-sm text-slate-600">
-                      Manage your pending bookings and continue with the next step.
+                      Manage your pending bookings and doctor reschedule requests.
                     </p>
                   </div>
                 </div>

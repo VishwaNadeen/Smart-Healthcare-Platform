@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { initiatePayment, type PayHereParams } from "../../services/paymentApi";
+import { initiatePayment } from "../../services/paymentApi";
 import { getStoredTelemedicineAuth } from "../../utils/telemedicineAuth";
 import PageLoading from "../../components/common/PageLoading";
 
@@ -18,29 +18,19 @@ export default function PaymentCheckoutPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = getStoredTelemedicineAuth();
-  const formRef = useRef<HTMLFormElement>(null);
-
   const state = location.state as CheckoutState | null;
 
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
 
-
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [paymentParams, setPaymentParams] = useState<(PayHereParams & { checkoutUrl: string }) | null>(null);
 
   useEffect(() => {
     if (!state) {
       navigate("/appointments/patient", { replace: true });
     }
   }, [state, navigate]);
-
-  useEffect(() => {
-    if (paymentParams && formRef.current) {
-      formRef.current.submit();
-    }
-  }, [paymentParams]);
 
   if (!state) return null;
 
@@ -80,7 +70,18 @@ async function handleProceedToPayment() {
       phone: phone.trim(),
     });
 
-    setPaymentParams({ ...result.params, checkoutUrl: result.checkoutUrl });
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = result.checkoutUrl;
+    Object.entries(result.params).forEach(([key, value]) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = key;
+      input.value = String(value);
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
   } catch (error: unknown) {
     setErrorMessage(
       error instanceof Error ? error.message : "Payment initiation failed."
@@ -180,19 +181,6 @@ async function handleProceedToPayment() {
         </div>
       </div>
 
-      {paymentParams && (
-        <form
-          ref={formRef}
-          method="POST"
-          action={paymentParams.checkoutUrl}
-          style={{ display: "none" }}
-        >
-          {Object.entries(paymentParams).map(([key, value]) => {
-            if (key === "checkoutUrl") return null;
-            return <input key={key} type="hidden" name={key} value={String(value)} />;
-          })}
-        </form>
-      )}
     </section>
   );
 }

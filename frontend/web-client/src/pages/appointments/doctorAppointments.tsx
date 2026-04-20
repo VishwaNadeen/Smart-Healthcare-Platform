@@ -3,9 +3,9 @@ import { useToast } from "../../components/common/toastContext";
 import PageLoading from "../../components/common/PageLoading";
 import {
   getDoctorAppointments,
+  rescheduleAppointment,
   updateDoctorAppointmentStatus,
   type Appointment,
-  type AppointmentStatus,
   type PaymentStatus,
 } from "../../services/appointmentApi";
 import {
@@ -46,14 +46,6 @@ function getAppointmentDateTimeValue(appointment: Appointment) {
   return new Date(`${appointment.appointmentDate}T${appointment.appointmentTime}`);
 }
 
-function getStatusLabel(status: AppointmentStatus) {
-  if (status === "cancelled") {
-    return "Rejected";
-  }
-
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
 function getPaymentBadgeClasses(paymentStatus?: PaymentStatus) {
   switch (paymentStatus) {
     case "paid":
@@ -85,22 +77,6 @@ function getPatientDisplayName(
   );
 }
 
-function getLatestCancelledReason(appointment: Appointment) {
-  const latestCancelledEntry = [...(appointment.statusHistory || [])]
-    .reverse()
-    .find((entry) => entry.status === "cancelled" && entry.note?.trim());
-
-  if (!latestCancelledEntry?.note?.trim()) {
-    return "";
-  }
-
-  if (latestCancelledEntry.note.trim().toLowerCase() === "appointment cancelled") {
-    return "";
-  }
-
-  return latestCancelledEntry.note.trim();
-}
-
 export default function DoctorAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
   const { showToast } = useToast();
@@ -116,12 +92,39 @@ export default function DoctorAppointmentsPage() {
   const [rowsPerPage, setRowsPerPage] = useState<5 | 10 | 20>(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-  const [rejectingAppointmentId, setRejectingAppointmentId] = useState<string | null>(
+  const [reschedulingAppointmentId, setReschedulingAppointmentId] = useState<string | null>(
     null
   );
-  const [rejectReason, setRejectReason] = useState("");
+  const [rescheduledDate, setRescheduledDate] = useState("");
+  const [rescheduledTime, setRescheduledTime] = useState("");
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] =
     useState<Appointment | null>(null);
+  const [isDetailsModalVisible, setIsDetailsModalVisible] = useState(false);
+
+  useEffect(() => {
+    if (!selectedAppointmentDetails) {
+      setIsDetailsModalVisible(false);
+      return;
+    }
+
+    const openTimer = window.setTimeout(() => {
+      setIsDetailsModalVisible(true);
+    }, 10);
+
+    return () => {
+      window.clearTimeout(openTimer);
+    };
+  }, [selectedAppointmentDetails]);
+
+  function handleCloseDetailsModal() {
+    setIsDetailsModalVisible(false);
+
+    window.setTimeout(() => {
+      setSelectedAppointmentDetails((currentAppointment) =>
+        currentAppointment ? null : currentAppointment
+      );
+    }, 250);
+  }
 
   useEffect(() => {
     async function loadDoctorAppointments() {
@@ -184,7 +187,12 @@ export default function DoctorAppointmentsPage() {
   }, [auth.token, auth.userId]);
 
   const pendingAppointments = useMemo(
-    () => appointments.filter((appointment) => appointment.status === "pending"),
+    () =>
+      appointments.filter(
+        (appointment) =>
+          appointment.status === "pending" &&
+          appointment.rescheduleStatus !== "pending"
+      ),
     [appointments]
   );
 
@@ -313,14 +321,66 @@ export default function DoctorAppointmentsPage() {
       );
 
       if (status === "cancelled") {
-        setRejectingAppointmentId(null);
-        setRejectReason("");
+        setReschedulingAppointmentId(null);
+        setRescheduledDate("");
+        setRescheduledTime("");
       }
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
           ? error.message
           : "Failed to update appointment request."
+      );
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
+  async function handleRescheduleAppointment(appointmentId: string) {
+    if (!auth.token) {
+      setErrorMessage("You must be logged in to manage appointment requests.");
+      return;
+    }
+
+    if (!rescheduledDate || !rescheduledTime) {
+      setErrorMessage("Please select both a reschedule date and time.");
+      return;
+    }
+
+    try {
+      setErrorMessage("");
+      setActionLoadingId(appointmentId);
+
+      const data = await rescheduleAppointment(
+        auth.token,
+        appointmentId,
+        rescheduledDate,
+        rescheduledTime
+      );
+
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment._id === appointmentId
+            ? {
+                ...appointment,
+                ...data.appointment,
+              }
+            : appointment
+        )
+      );
+
+      showToast(
+        data.message || "Appointment reschedule request sent successfully.",
+        "success",
+        3000
+      );
+
+      setReschedulingAppointmentId(null);
+      setRescheduledDate("");
+      setRescheduledTime("");
+    } catch (error: unknown) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to reschedule appointment."
       );
     } finally {
       setActionLoadingId(null);
@@ -528,12 +588,13 @@ export default function DoctorAppointmentsPage() {
                                     disabled={isActionLoading}
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      setRejectingAppointmentId(appointment._id);
-                                      setRejectReason("");
+                                      setReschedulingAppointmentId(appointment._id);
+                                      setRescheduledDate(appointment.appointmentDate);
+                                      setRescheduledTime(appointment.appointmentTime);
                                     }}
                                     className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    Reject
+                                    Reschedule
                                   </button>
                                 </div>
                               </div>
@@ -596,41 +657,58 @@ export default function DoctorAppointmentsPage() {
         </div>
       </div>
 
-      {rejectingAppointmentId ? (
+      {reschedulingAppointmentId ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
           onClick={() => {
-            setRejectingAppointmentId(null);
-            setRejectReason("");
+            setReschedulingAppointmentId(null);
+            setRescheduledDate("");
+            setRescheduledTime("");
           }}
         >
           <div
             className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-lg"
             onClick={(event) => event.stopPropagation()}
           >
-            <h2 className="text-xl font-bold text-slate-900">Reject Appointment</h2>
+            <h2 className="text-xl font-bold text-slate-900">Reschedule Appointment</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Please provide a clear reason. The patient will be able to see this
-              message.
+              Please select the new appointment date and time to send to the patient.
             </p>
 
-            <label className="mt-5 block text-sm font-semibold text-slate-700">
-              Rejection Reason
-            </label>
-            <textarea
-              value={rejectReason}
-              onChange={(event) => setRejectReason(event.target.value)}
-              rows={4}
-              placeholder="Example: Please upload recent lab reports and book again for next week."
-              className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-            />
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700">
+                  Reschedule Date
+                </label>
+                <input
+                  type="date"
+                  value={rescheduledDate}
+                  min={new Date().toISOString().split("T")[0]}
+                  onChange={(event) => setRescheduledDate(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700">
+                  Reschedule Time
+                </label>
+                <input
+                  type="time"
+                  value={rescheduledTime}
+                  onChange={(event) => setRescheduledTime(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+            </div>
 
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => {
-                  setRejectingAppointmentId(null);
-                  setRejectReason("");
+                  setReschedulingAppointmentId(null);
+                  setRescheduledDate("");
+                  setRescheduledTime("");
                 }}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
@@ -639,21 +717,21 @@ export default function DoctorAppointmentsPage() {
 
               <button
                 type="button"
-                disabled={!rejectReason.trim() || actionLoadingId === rejectingAppointmentId}
+                disabled={
+                  !rescheduledDate ||
+                  !rescheduledTime ||
+                  actionLoadingId === reschedulingAppointmentId
+                }
                 onClick={() => {
-                  if (!rejectingAppointmentId) return;
+                  if (!reschedulingAppointmentId) return;
 
-                  void handleUpdateAppointmentStatus(
-                    rejectingAppointmentId,
-                    "cancelled",
-                    rejectReason.trim()
-                  );
+                  void handleRescheduleAppointment(reschedulingAppointmentId);
                 }}
                 className="rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {actionLoadingId === rejectingAppointmentId
-                  ? "Rejecting..."
-                  : "Reject Appointment"}
+                {actionLoadingId === reschedulingAppointmentId
+                  ? "Sending..."
+                  : "Send Reschedule"}
               </button>
             </div>
           </div>
@@ -662,108 +740,105 @@ export default function DoctorAppointmentsPage() {
 
       {selectedAppointmentDetails ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-8"
-          onClick={() => setSelectedAppointmentDetails(null)}
+          className={`fixed inset-0 z-50 flex items-center justify-center px-4 py-8 backdrop-blur-sm transition-all duration-300 ${
+            isDetailsModalVisible ? "bg-slate-900/40" : "bg-slate-900/0 backdrop-blur-0"
+          }`}
+          onClick={handleCloseDetailsModal}
         >
           <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lg"
+            className={`max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl transition-all duration-300 ${
+              isDetailsModalVisible
+                ? "translate-y-0 scale-100 opacity-100"
+                : "translate-y-3 scale-95 opacity-0"
+            }`}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">
-                  Appointment Details
-                </h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  Review the full appointment information, including the patient's
-                  issue and booking status.
-                </p>
-              </div>
+            <div className="h-1 w-full bg-gradient-to-r from-blue-700 via-blue-500 to-blue-200" />
+            <div className="p-6">
+            {(() => {
+              const selectedPatient =
+                patientsById[selectedAppointmentDetails.patientId];
+              const patientName = getPatientDisplayName(
+                selectedAppointmentDetails,
+                selectedPatient
+              );
+              const patientAge =
+                typeof selectedPatient?.age === "number" &&
+                selectedPatient.age >= 0
+                  ? `${selectedPatient.age}`
+                  : "N/A";
 
-              <button
-                type="button"
-                onClick={() => setSelectedAppointmentDetails(null)}
-                className="px-3 py-2 text-sm font-semibold text-slate-700 hover:text-slate-900"
-              >
-                Close
-              </button>
-            </div>
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900">
+                        Appointment Details
+                      </h2>
+                      <p className="mt-2 text-sm text-slate-500">
+                        Review the key patient and appointment information.
+                      </p>
+                    </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Doctor
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {selectedAppointmentDetails.doctorName}
-                </p>
-              </div>
+                    <button
+                      type="button"
+                      onClick={handleCloseDetailsModal}
+                      className="px-3 py-2 text-sm font-semibold text-slate-700 hover:text-slate-900"
+                    >
+                      Close
+                    </button>
+                  </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Specialization
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {selectedAppointmentDetails.specialization}
-                </p>
-              </div>
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Patient Name
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {patientName}
+                      </p>
+                    </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Appointment Date
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {formatDate(selectedAppointmentDetails.appointmentDate)}
-                </p>
-              </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Age
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {patientAge}
+                      </p>
+                    </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Appointment Time
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {formatTime(selectedAppointmentDetails.appointmentTime)}
-                </p>
-              </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Appointment Date
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {formatDate(selectedAppointmentDetails.appointmentDate)}
+                      </p>
+                    </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Payment Status
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {getPaymentLabel(selectedAppointmentDetails.paymentStatus)}
-                </p>
-              </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Appointment Time
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">
+                        {formatTime(selectedAppointmentDetails.appointmentTime)}
+                      </p>
+                    </div>
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Status
-                </p>
-                <p className="mt-2 text-sm font-semibold text-slate-900">
-                  {getStatusLabel(selectedAppointmentDetails.status)}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Reason for Appointment
-                </p>
-                <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-slate-900">
-                  {selectedAppointmentDetails.reason?.trim() ||
-                    "No reason provided by the patient."}
-                </p>
-              </div>
-
-              {getLatestCancelledReason(selectedAppointmentDetails) ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 md:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">
-                    Rejection Reason
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-rose-900">
-                    {getLatestCancelledReason(selectedAppointmentDetails)}
-                  </p>
-                </div>
-              ) : null}
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Reason for Appointment
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-slate-900">
+                        {selectedAppointmentDetails.reason?.trim() ||
+                          "No reason provided by the patient."}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
             </div>
           </div>
         </div>

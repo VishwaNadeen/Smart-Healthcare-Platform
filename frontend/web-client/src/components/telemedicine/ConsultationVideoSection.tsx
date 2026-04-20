@@ -21,12 +21,12 @@ export default function ConsultationVideoSection({
   sessionStatus,
 }: ConsultationVideoSectionProps) {
   return (
-    <div className="relative flex min-h-[16rem] flex-1 items-center justify-center bg-slate-900 px-6 text-center text-white sm:min-h-[20rem]">
+    <div className="relative flex min-h-[16rem] min-w-0 flex-1 items-center justify-center overflow-hidden bg-slate-900 text-center text-white sm:min-h-[20rem]">
       {meetingOpen && canOpenMeetingLink ? (
         <>
           <div
             ref={meetingContainerRef}
-            className="h-full w-full overflow-hidden"
+            className="absolute inset-0 h-full w-full overflow-hidden"
           />
 
           {meetingLoading ? (

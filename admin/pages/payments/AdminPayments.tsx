@@ -14,6 +14,7 @@ type RefundAppointment = {
   rescheduledTime: string | null;
   paymentStatus: string;
   rescheduleStatus: string;
+  status: string;
 };
 
 type Payment = {
@@ -219,19 +220,19 @@ export default function AdminPayments() {
             </div>
           ) : refundQueue.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-              <p className="text-sm font-medium text-slate-500">No pending refunds</p>
+              <p className="text-sm font-medium text-slate-500">No refund records found</p>
               <p className="mt-1 text-xs text-slate-400">
-                Refunds appear here when a patient rejects a doctor's reschedule proposal.
+                Refund requests and completed refund records appear here when a patient rejects a doctor's reschedule proposal.
               </p>
             </div>
           ) : (
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-4">
                 <h3 className="text-base font-semibold text-slate-800">
-                  Pending Refunds ({refundQueue.length})
+                  Refund Records ({refundQueue.length})
                 </h3>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Patients who rejected a rescheduled appointment. Verify and process refund.
+                  Patients who rejected a rescheduled appointment and their refund status.
                 </p>
               </div>
 
@@ -244,7 +245,9 @@ export default function AdminPayments() {
                           {appointment.patientName ?? `Patient ${appointment.patientId.slice(-6)}`}
                         </span>
                         <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
-                          Reschedule Rejected
+                          {appointment.status === "cancelled"
+                            ? "Refunded"
+                            : "Reschedule Rejected"}
                         </span>
                       </div>
 
@@ -269,12 +272,21 @@ export default function AdminPayments() {
                     <button
                       type="button"
                       onClick={() => handleProcessRefund(appointment)}
-                      disabled={processingRefundId === appointment._id}
-                      className="shrink-0 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={
+                        processingRefundId === appointment._id ||
+                        appointment.status === "cancelled"
+                      }
+                      className={`shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold transition ${
+                        appointment.status === "cancelled"
+                          ? "cursor-not-allowed border border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "bg-rose-600 text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      }`}
                     >
-                      {processingRefundId === appointment._id
-                        ? "Processing..."
-                        : "Process Refund"}
+                      {appointment.status === "cancelled"
+                        ? "Refunded"
+                        : processingRefundId === appointment._id
+                          ? "Processing..."
+                          : "Process Refund"}
                     </button>
                   </div>
                 ))}

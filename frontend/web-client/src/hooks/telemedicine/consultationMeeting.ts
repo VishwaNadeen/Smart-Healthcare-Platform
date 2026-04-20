@@ -366,6 +366,21 @@ export function consultationMeeting({
             ],
           },
         });
+
+        window.requestAnimationFrame(() => {
+          const iframe = meetingContainerRef.current?.querySelector("iframe");
+
+          if (!iframe) {
+            return;
+          }
+
+          iframe.style.width = "100%";
+          iframe.style.height = "100%";
+          iframe.style.border = "0";
+          iframe.style.display = "block";
+          iframe.setAttribute("scrolling", "no");
+        });
+
         setMeetingReady(true);
       } catch (error) {
         setMeetingReady(false);

@@ -17,6 +17,56 @@ const STATUS_TRANSITIONS = {
 
 const normalizeString = (value) => String(value || "").trim();
 
+const getPaymentServiceUrl = () =>
+  process.env.PAYMENT_SERVICE_URL || "http://localhost:5006";
+
+const refundPaymentForAppointment = async (appointmentId, authorizationHeader) => {
+  if (!authorizationHeader) {
+    throw new Error("Missing authorization header for refund request");
+  }
+
+  const paymentLookupResponse = await fetch(
+    `${getPaymentServiceUrl()}/api/payments/appointment/${appointmentId}`,
+    {
+      headers: {
+        Authorization: authorizationHeader,
+      },
+    }
+  );
+
+  const paymentLookupData = await paymentLookupResponse.json().catch(() => null);
+
+  if (!paymentLookupResponse.ok) {
+    throw new Error(
+      paymentLookupData?.message || "Failed to find payment for appointment refund"
+    );
+  }
+
+  const orderId = normalizeString(paymentLookupData?.orderId);
+
+  if (!orderId) {
+    throw new Error("Payment order ID is missing for refund");
+  }
+
+  const refundResponse = await fetch(
+    `${getPaymentServiceUrl()}/api/payments/${orderId}/refund`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: authorizationHeader,
+      },
+    }
+  );
+
+  const refundData = await refundResponse.json().catch(() => null);
+
+  if (!refundResponse.ok) {
+    throw new Error(refundData?.message || "Failed to refund appointment payment");
+  }
+
+  return refundData;
+};
+
 const enrichAppointmentWithPatientName = async (appointmentDoc) => {
   const appointment =
     typeof appointmentDoc?.toObject === "function"
@@ -727,6 +777,10 @@ const respondToReschedule = async (req, res) => {
       await createTelemedicineSessionForAppointment(appointment._id);
     }
 
+    if (response === "rejected") {
+      await refundPaymentForAppointment(appointment._id, req.headers.authorization);
+    }
+
     return res.status(200).json({
       message: `Reschedule ${response} successfully`,
       appointment,
@@ -745,7 +799,6 @@ const getRefundQueueAdmin = async (req, res) => {
     const appointments = await Appointment.find({
       rescheduleStatus: "rejected",
       paymentStatus: "paid",
-      status: { $ne: "cancelled" },
     }).sort({ updatedAt: -1 });
 
     const enriched = await Promise.all(

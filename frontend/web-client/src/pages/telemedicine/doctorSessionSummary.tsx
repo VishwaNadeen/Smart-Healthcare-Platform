@@ -32,6 +32,61 @@ function formatLabelValue(value: string | undefined): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function formatDurationFromMinutes(totalMinutes: number): string {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+    return "Not available";
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) {
+    return `${hours} hr ${minutes} min`;
+  }
+
+  if (hours > 0) {
+    return `${hours} hr`;
+  }
+
+  return `${minutes} min`;
+}
+
+function getSessionDuration(session: TelemedicineSession): string {
+  const explicitDuration =
+    getSummaryValue(session, "duration") || getSummaryValue(session, "durationMinutes");
+
+  if (explicitDuration) {
+    return explicitDuration;
+  }
+
+  const createdAt = session.createdAt ? new Date(session.createdAt) : null;
+  const updatedAt = session.updatedAt ? new Date(session.updatedAt) : null;
+
+  if (
+    !createdAt ||
+    !updatedAt ||
+    Number.isNaN(createdAt.getTime()) ||
+    Number.isNaN(updatedAt.getTime()) ||
+    updatedAt.getTime() <= createdAt.getTime()
+  ) {
+    return "Not available";
+  }
+
+  const totalMinutes = Math.round(
+    (updatedAt.getTime() - createdAt.getTime()) / (1000 * 60)
+  );
+
+  return formatDurationFromMinutes(totalMinutes);
+}
+
+function formatCountdownLabel(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, totalSeconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 function DetailCard({
   label,
   value,
@@ -64,6 +119,8 @@ export default function DoctorSessionSummary() {
   const [formVersion, setFormVersion] = useState(0);
   const [matchedPanelHeight, setMatchedPanelHeight] = useState<number | null>(null);
   const [readOnlyNotesHeight, setReadOnlyNotesHeight] = useState<number | null>(null);
+  const [sessionEndedAtMs, setSessionEndedAtMs] = useState<number | null>(null);
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const detailsPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelHeaderRef = useRef<HTMLDivElement | null>(null);
@@ -99,6 +156,51 @@ export default function DoctorSessionSummary() {
   useEffect(() => {
     setEditNotes(session?.notes || "");
   }, [session?.notes]);
+
+  useEffect(() => {
+    if (session?.status !== "completed" || !session.updatedAt) {
+      return;
+    }
+
+    const updatedAtMs = new Date(session.updatedAt).getTime();
+
+    if (Number.isNaN(updatedAtMs)) {
+      return;
+    }
+
+    setSessionEndedAtMs((currentValue) => {
+      if (currentValue === null) {
+        return updatedAtMs;
+      }
+
+      return Math.min(currentValue, updatedAtMs);
+    });
+  }, [session?.status, session?.updatedAt]);
+
+  useEffect(() => {
+    if (sessionEndedAtMs === null) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [sessionEndedAtMs]);
+
+  const editDeadlineMs = sessionEndedAtMs !== null ? sessionEndedAtMs + 60_000 : null;
+  const remainingEditSeconds =
+    editDeadlineMs !== null ? Math.max(0, Math.ceil((editDeadlineMs - currentTimeMs) / 1000)) : null;
+  const hasEditWindowExpired = editDeadlineMs !== null && remainingEditSeconds === 0;
+
+  useEffect(() => {
+    if (hasEditWindowExpired && isEditModalOpen) {
+      setIsEditModalOpen(false);
+    }
+  }, [hasEditWindowExpired, isEditModalOpen]);
 
   useEffect(() => {
     function syncPanelHeight() {
@@ -189,13 +291,15 @@ export default function DoctorSessionSummary() {
     session.patientName ||
     "Patient name not available";
 
-  const duration =
-    getSummaryValue(session, "duration") ||
-    getSummaryValue(session, "durationMinutes") ||
-    "Not available";
+  const duration = getSessionDuration(session);
   const sessionStatus = formatLabelValue(session.status);
   const sessionStatusClassName =
     session.status === "completed" ? "text-emerald-600" : "text-slate-800";
+  const canEditSessionSummary = session.status !== "completed" || !hasEditWindowExpired;
+  const editButtonLabel =
+    session.status === "completed" && remainingEditSeconds !== null
+      ? `Edit (${formatCountdownLabel(remainingEditSeconds)})`
+      : "Edit";
 
   async function reloadSession() {
     if (!appointmentId) {
@@ -242,7 +346,8 @@ export default function DoctorSessionSummary() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className={`mx-auto max-w-6xl space-y-6 transition ${isEditModalOpen ? "blur-sm" : ""}`}>
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm shadow-blue-100/60 sm:p-8">
+          <div className="-mx-6 -mt-6 mb-6 h-1 bg-blue-500 sm:-mx-8 sm:-mt-8" />
           <div className="flex flex-col items-center justify-center gap-5 text-center">
             <div>
               <div className="mb-3 inline-flex rounded-full bg-slate-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
@@ -266,7 +371,7 @@ export default function DoctorSessionSummary() {
             className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
           >
             <h2 className="mb-4 text-lg font-semibold text-slate-900">
-              Appointment Details
+              Consultation Session Details
             </h2>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -294,14 +399,22 @@ export default function DoctorSessionSummary() {
               </h2>
               <button
                 type="button"
+                disabled={!canEditSessionSummary}
                 onClick={() => {
+                  if (!canEditSessionSummary) {
+                    return;
+                  }
                   setEditNotes(session.notes || "");
                   setFormVersion((current) => current + 1);
                   setIsEditModalOpen(true);
                 }}
-                className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50"
+                className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+                  canEditSessionSummary
+                    ? "border-blue-200 text-blue-600 hover:bg-blue-50"
+                    : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                }`}
               >
-                Edit
+                {editButtonLabel}
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
