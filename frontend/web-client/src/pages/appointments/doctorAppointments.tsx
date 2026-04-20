@@ -6,8 +6,10 @@ import {
   rescheduleAppointment,
   updateDoctorAppointmentStatus,
   type Appointment,
+  type AppointmentStatus,
   type PaymentStatus,
 } from "../../services/appointmentApi";
+
 import {
   getPatientSummaryByAuthUserId,
   type PatientSummaryResponse,

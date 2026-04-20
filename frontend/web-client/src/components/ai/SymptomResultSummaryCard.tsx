@@ -26,6 +26,7 @@ export default function SymptomResultSummaryCard({
   compact = false,
 }: Props) {
   const { analysis, recommendation, aiExplanation } = record;
+  if (!analysis || !recommendation) return null;
   const [isExpanded, setIsExpanded] = useState(!compact);
 
   function handleToggle() {
