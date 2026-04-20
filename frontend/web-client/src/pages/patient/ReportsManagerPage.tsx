@@ -92,8 +92,9 @@ export default function ReportsManagerPage() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-4 border-b border-slate-200 px-8 py-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm shadow-blue-100/60">
+          <div className="h-1 w-full bg-blue-500" />
+          <div className="flex flex-col gap-4 px-8 py-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-slate-900">Uploaded Reports</h1>
               <p className="mt-2 text-sm text-slate-500">
@@ -108,7 +109,9 @@ export default function ReportsManagerPage() {
               Upload New Report
             </Link>
           </div>
+        </div>
 
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="p-6">
             <ReportList
               patientId={patientId}
