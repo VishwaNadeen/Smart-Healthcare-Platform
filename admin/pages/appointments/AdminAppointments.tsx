@@ -5,6 +5,8 @@ import {
   type AdminAnalyticsAppointment,
   type DoctorVerification,
 } from "../../services/adminApi";
+import { jsPDF } from "jspdf";
+
 
 type StatusFilter = "all" | AdminAnalyticsAppointment["status"];
 type PaymentFilter = "all" | "pending" | "paid" | "failed";
