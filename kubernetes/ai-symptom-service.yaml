@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-symptom-service
+  namespace: smart-healthcare
+spec:
+  selector:
+    app: ai-symptom-service
+  ports:
+    - protocol: TCP
+      port: 5010
+      targetPort: 5010
+  type: ClusterIP
