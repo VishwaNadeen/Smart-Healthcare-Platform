@@ -1,4 +1,4 @@
-# Stage 1: Build
+# Stage 1: Build the app
 FROM node:22-alpine AS builder
 
 WORKDIR /app
@@ -8,23 +8,13 @@ RUN npm install
 
 COPY . .
 
-# pass env at build time
-ARG VITE_AUTH_SERVICE_URL
-ARG VITE_APPOINTMENT_SERVICE_URL
-ARG VITE_TELEMEDICINE_SERVICE_URL
-ARG VITE_AI_SYMPTOM_API_URL
-
-ENV VITE_AUTH_SERVICE_URL=$VITE_AUTH_SERVICE_URL
-ENV VITE_APPOINTMENT_SERVICE_URL=$VITE_APPOINTMENT_SERVICE_URL
-ENV VITE_TELEMEDICINE_SERVICE_URL=$VITE_TELEMEDICINE_SERVICE_URL
-ENV VITE_AI_SYMPTOM_API_URL=$VITE_AI_SYMPTOM_API_URL
-
 RUN npm run build
 
-# Stage 2: Serve
+# Stage 2: Serve with nginx
 FROM nginx:alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

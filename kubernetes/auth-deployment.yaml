@@ -20,20 +20,55 @@ spec:
           ports:
             - containerPort: 5002
           env:
-            - name: PORT
-              value: "5002"
-            - name: MONGO_URI
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: AUTH_MONGO_URI
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: JWT_SECRET
-            - name: INTERNAL_SERVICE_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: app-secrets
-                  key: INTERNAL_SERVICE_SECRET
+          - name: PORT
+            value: "5002"
+
+          - name: MONGO_URI
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: AUTH_MONGO_URI
+
+          - name: JWT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: JWT_SECRET
+
+          - name: INTERNAL_SERVICE_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: INTERNAL_SERVICE_SECRET
+
+          - name: ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: ADMIN_USERNAME
+
+          - name: ADMIN_EMAIL
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: ADMIN_EMAIL
+
+          - name: ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: ADMIN_PASSWORD
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5002
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5002
+            initialDelaySeconds: 20
+            periodSeconds: 20

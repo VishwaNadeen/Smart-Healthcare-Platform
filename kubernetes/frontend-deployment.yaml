@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-web-client
+  namespace: smart-healthcare
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-web-client
+  template:
+    metadata:
+      labels:
+        app: frontend-web-client
+    spec:
+      containers:
+        - name: frontend-web-client
+          image: frontend-web-client:k8s-local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-client
+  namespace: smart-healthcare
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admin-client
+  template:
+    metadata:
+      labels:
+        app: admin-client
+    spec:
+      containers:
+        - name: admin-client
+          image: admin-client:k8s-local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
