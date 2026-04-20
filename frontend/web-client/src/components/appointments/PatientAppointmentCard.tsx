@@ -94,8 +94,9 @@ export default function PatientAppointmentCard({
 
   const hasPendingReschedule =
     appointment.rescheduleStatus === "pending" &&
-    appointment.rescheduledDate &&
-    appointment.rescheduledTime;
+    !!appointment.rescheduledDate &&
+    !!appointment.rescheduledTime;
+
 
   const canCancel = appointment.status === "pending" && !hasPendingReschedule;
 

@@ -70,22 +70,6 @@ function getPatientDisplayName(
   return backendPatientName || fullName || `Patient ${appointment.patientId.slice(-6)}`;
 }
 
-function getLatestCancelledReason(appointment: Appointment) {
-  const latestCancelledEntry = [...(appointment.statusHistory || [])]
-    .reverse()
-    .find((entry) => entry.status === "cancelled" && entry.note?.trim());
-
-  if (!latestCancelledEntry?.note?.trim()) {
-    return "";
-  }
-
-  if (latestCancelledEntry.note.trim().toLowerCase() === "appointment cancelled") {
-    return "";
-  }
-
-  return latestCancelledEntry.note.trim();
-}
-
 export default function DoctorRejectedAppointmentsPage() {
   const auth = getStoredTelemedicineAuth();
 

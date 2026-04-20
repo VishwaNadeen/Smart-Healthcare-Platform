@@ -7,6 +7,7 @@ import {
   type DoctorVerification,
 } from "../../services/adminApi";
 
+
 type StatusFilter = "all" | AdminAnalyticsAppointment["status"];
 type PaymentFilter = "all" | "pending" | "paid" | "failed";
 
@@ -93,16 +94,6 @@ function getCreatedDateKey(appointment: AdminAnalyticsAppointment) {
   return appointment.appointmentDate;
 }
 
-function downloadBlob(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
 
 export default function AdminAppointments() {
   const [appointments, setAppointments] = useState<AdminAnalyticsAppointment[]>([]);
@@ -241,168 +232,7 @@ export default function AdminAppointments() {
   const pageStart = tableRows.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const pageEnd = Math.min(currentPage * rowsPerPage, tableRows.length);
 
-  function handleExportCsv() {
-    if (tableRows.length === 0) {
-      setErrorMessage("No appointments match the current filters to export.");
-      return;
-    }
-
-    setErrorMessage("");
-
-    const csvContent = [
-      [
-        "Doctor",
-        "Specialization",
-        "Appointment Date",
-        "Appointment Time",
-        "Booked On",
-        "Payment",
-        "Status",
-        "Amount",
-        "Reason",
-      ],
-      ...tableRows.map((row) => [
-        row.doctorName,
-        row.specialization,
-        formatDate(row.appointmentDate),
-        formatTime(row.appointmentTime),
-        formatDate(row.bookedOn),
-        getPaymentLabel(row.paymentStatus),
-        getStatusLabel(row.status),
-        String(row.amount),
-        row.reason || "",
-      ]),
-    ]
-      .map((row) =>
-        row
-          .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-          .join(",")
-      )
-      .join("\r\n");
-
-    downloadBlob(
-      new Blob([csvContent], { type: "text/csv;charset=utf-8;" }),
-      "admin-appointments.csv"
-    );
-  }
-
-  function handleExportPdf() {
-    if (tableRows.length === 0) {
-      setErrorMessage("No appointments match the current filters to export.");
-      return;
-    }
-
-    setErrorMessage("");
-
-    const pdf = new jsPDF({
-      orientation: "landscape",
-      unit: "pt",
-      format: "a4",
-    });
-
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const marginX = 28;
-    const topY = 34;
-    const rowPaddingY = 8;
-    const columnWidths = [110, 95, 82, 72, 82, 70, 72, 75, 150];
-    const headers = [
-      "Doctor",
-      "Specialty",
-      "Date",
-      "Time",
-      "Booked On",
-      "Payment",
-      "Status",
-      "Amount",
-      "Reason",
-    ];
-
-    const drawHeader = (y: number) => {
-      pdf.setFillColor(15, 23, 42);
-      pdf.roundedRect(marginX, y, pageWidth - marginX * 2, 36, 10, 10, "F");
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(11);
-      pdf.setTextColor(255, 255, 255);
-
-      let x = marginX + 10;
-      headers.forEach((header, index) => {
-        pdf.text(header, x, y + 22);
-        x += columnWidths[index];
-      });
-    };
-
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(20);
-    pdf.setTextColor(15, 23, 42);
-    pdf.text("Admin Appointments Report", marginX, topY);
-
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    pdf.setTextColor(71, 85, 105);
-    pdf.text(
-      `Generated ${new Date().toLocaleString()}  |  Records: ${tableRows.length}`,
-      marginX,
-      topY + 18
-    );
-
-    let currentY = topY + 36;
-    drawHeader(currentY);
-    currentY += 48;
-
-    tableRows.forEach((row) => {
-      const cells = [
-        row.doctorName,
-        row.specialization,
-        formatDate(row.appointmentDate),
-        formatTime(row.appointmentTime),
-        formatDate(row.bookedOn),
-        getPaymentLabel(row.paymentStatus),
-        getStatusLabel(row.status),
-        formatCurrency(row.amount),
-        row.reason || "No reason provided",
-      ];
-
-      const splitRows = cells.map((cell, index) =>
-        pdf.splitTextToSize(cell, columnWidths[index] - 12)
-      );
-      const rowHeight =
-        Math.max(...splitRows.map((lines) => lines.length), 1) * 14 + rowPaddingY * 2;
-
-      if (currentY + rowHeight > pageHeight - 28) {
-        pdf.addPage();
-        currentY = 28;
-        drawHeader(currentY);
-        currentY += 48;
-      }
-
-      pdf.setDrawColor(226, 232, 240);
-      pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(
-        marginX,
-        currentY - 8,
-        pageWidth - marginX * 2,
-        rowHeight,
-        8,
-        8,
-        "FD"
-      );
-
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
-      pdf.setTextColor(15, 23, 42);
-
-      let x = marginX + 10;
-      splitRows.forEach((lines, index) => {
-        pdf.text(lines, x, currentY + 6);
-        x += columnWidths[index];
-      });
-
-      currentY += rowHeight + 8;
-    });
-
-    pdf.save("admin-appointments.pdf");
-  }
+  
 
   return (
     <div className="space-y-6">

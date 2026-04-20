@@ -186,18 +186,178 @@ const ReportList: React.FC<ReportListProps> = ({
         return (
           <article
             key={report._id}
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+            className="border-b border-slate-200 py-4 last:border-b-0 lg:py-5"
           >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex-1 space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {formatReportType(report.reportType)}
-                  </span>
-                  <span className="text-xs font-medium text-slate-500">
-                    Report date {formatDate(report.reportDate)}
-                  </span>
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex-1 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                      {formatReportType(report.reportType)}
+                    </span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-500 shadow-sm ring-1 ring-slate-200">
+                      Report date {formatDate(report.reportDate)}
+                    </span>
+                  </div>
+
+                  {!isEditing ? (
+                    <div>
+                      <h3 className="text-[1.55rem] font-bold leading-tight tracking-[-0.03em] text-slate-900">
+                        {report.reportTitle}
+                      </h3>
+                      <p className="mt-1.5 text-sm text-slate-500">
+                        Attached file: <span className="font-medium text-slate-700">{report.fileName}</span>
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
+
+                <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+                  <a
+                    href={report.filePath}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="View report"
+                    aria-label="View report"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white transition hover:bg-blue-700"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </a>
+
+                  {isEditing ? (
+                    <>
+                      <button
+                        type="button"
+                      onClick={() => void handleSave(report._id)}
+                      disabled={isBusy}
+                      title="Save report"
+                      aria-label="Save report"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-70"
+                    >
+                        {isBusy ? (
+                          <span className="text-xs font-semibold">...</span>
+                        ) : (
+                          <svg
+                            className="h-5 w-5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" />
+                            <path d="M17 21v-8H7v8" />
+                            <path d="M7 3v5h8" />
+                          </svg>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingReportId("");
+                          clearReplacementFile();
+                        }}
+                        disabled={isBusy}
+                        title="Cancel editing"
+                        aria-label="Cancel editing"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-70"
+                      >
+                        <svg
+                          className="h-5 w-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M18 6 6 18" />
+                          <path d="m6 6 12 12" />
+                        </svg>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingReportId(report._id);
+                          clearReplacementFile();
+                          setEditingForm({
+                            reportType: report.reportType,
+                            reportTitle: report.reportTitle || "",
+                            providerName: report.providerName || "",
+                            reportDate: toDateInputValue(report.reportDate),
+                            notes: report.notes || "",
+                          });
+                        }}
+                        disabled={isBusy}
+                        title="Edit report"
+                        aria-label="Edit report"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-blue-200 bg-white text-blue-700 transition hover:bg-blue-50 disabled:opacity-70"
+                      >
+                        <svg
+                          className="h-5 w-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 20h9" />
+                          <path d="m16.5 3.5 4 4L8 20l-5 1 1-5 12.5-12.5Z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(report._id)}
+                        disabled={isBusy}
+                        title="Delete report"
+                        aria-label="Delete report"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 disabled:opacity-70"
+                      >
+                        {isBusy ? (
+                          <span className="text-xs font-semibold">...</span>
+                        ) : (
+                          <svg
+                            className="h-5 w-5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4h8v2" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                          </svg>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
 
                 {isEditing ? (
                   <div className="grid gap-4 md:grid-cols-2">
@@ -429,110 +589,45 @@ const ReportList: React.FC<ReportListProps> = ({
                   </div>
                 ) : (
                   <>
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">
-                        {report.reportTitle}
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        File: {report.fileName}
-                      </p>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="grid w-full gap-3 md:grid-cols-3">
+                      <div className="min-h-[92px] rounded-2xl bg-slate-50 px-4 py-3.5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                           Category
                         </p>
-                        <p className="mt-1 text-sm font-medium text-slate-800">
+                        <p className="mt-2 text-base font-semibold text-slate-900">
                           {formatReportType(report.reportType)}
                         </p>
                       </div>
 
-                      <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <div className="min-h-[92px] rounded-2xl bg-slate-50 px-4 py-3.5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                           Hospital / Lab / Clinic
                         </p>
-                        <p className="mt-1 text-sm font-medium text-slate-800">
+                        <p className="mt-2 text-base font-semibold text-slate-900">
                           {report.providerName || "Not specified"}
+                        </p>
+                      </div>
+
+                      <div className="min-h-[92px] rounded-2xl bg-slate-50 px-4 py-3.5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Report File
+                        </p>
+                        <p className="mt-2 break-words text-base font-semibold text-slate-900">
+                          {report.fileName}
                         </p>
                       </div>
                     </div>
 
                     {report.notes ? (
-                      <div className="rounded-2xl bg-blue-50 px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                      <div className="w-full rounded-2xl bg-blue-50 px-5 py-3.5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
                           Notes
                         </p>
-                        <p className="mt-1 text-sm text-slate-700">{report.notes}</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-700">{report.notes}</p>
                       </div>
                     ) : null}
                   </>
                 )}
-              </div>
-
-              <div className="flex flex-wrap gap-3 lg:justify-end">
-                <a
-                  href={report.filePath}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
-                >
-                  View Report
-                </a>
-
-                {isEditing ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void handleSave(report._id)}
-                      disabled={isBusy}
-                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-70"
-                    >
-                      {isBusy ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingReportId("");
-                        clearReplacementFile();
-                      }}
-                      disabled={isBusy}
-                      className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-70"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingReportId(report._id);
-                        clearReplacementFile();
-                        setEditingForm({
-                          reportType: report.reportType,
-                          reportTitle: report.reportTitle || "",
-                          providerName: report.providerName || "",
-                          reportDate: toDateInputValue(report.reportDate),
-                          notes: report.notes || "",
-                        });
-                      }}
-                      disabled={isBusy}
-                      className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:opacity-70"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(report._id)}
-                      disabled={isBusy}
-                      className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-70"
-                    >
-                      {isBusy ? "Deleting..." : "Delete"}
-                    </button>
-                  </>
-                )}
-              </div>
             </div>
           </article>
         );
