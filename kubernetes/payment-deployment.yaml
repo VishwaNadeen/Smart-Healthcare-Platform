@@ -97,3 +97,8 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: CANCEL_URL
+            - name: AUTH_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: AUTH_SERVICE_URL
