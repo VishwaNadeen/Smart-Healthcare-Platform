@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: auth-service:latest`n          imagePullPolicy: Never
+          image: auth-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5002
@@ -32,8 +32,63 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: JWT_SECRET
+            - name: JWT_EXPIRES_IN
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_EXPIRES_IN
             - name: INTERNAL_SERVICE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: INTERNAL_SERVICE_SECRET
+            - name: DOCTOR_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DOCTOR_SERVICE_URL
+            - name: ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ADMIN_USERNAME
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ADMIN_EMAIL
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: ADMIN_PASSWORD
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SMTP_HOST
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SMTP_PORT
+            - name: SMTP_SECURE
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SMTP_SECURE
+            - name: SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SMTP_USER
+            - name: SMTP_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SMTP_PASS
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: SMTP_FROM

@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: payment-service
-          image: payment-service:latest`n          imagePullPolicy: Never
+          image: payment-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5006
@@ -27,8 +27,73 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: PAYMENT_MONGO_URI
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
             - name: INTERNAL_SERVICE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: INTERNAL_SERVICE_SECRET
+            - name: DOCTOR_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DOCTOR_SERVICE_URL
+            - name: PATIENT_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PATIENT_SERVICE_URL
+            - name: APPOINTMENT_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: APPOINTMENT_SERVICE_URL
+            - name: NOTIFICATION_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: NOTIFICATION_SERVICE_URL
+            - name: PAYHERE_MERCHANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PAYHERE_MERCHANT_ID
+            - name: PAYHERE_MERCHANT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PAYHERE_MERCHANT_SECRET
+            - name: PAYHERE_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PAYHERE_APP_ID
+            - name: PAYHERE_APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PAYHERE_APP_SECRET
+            - name: PAYHERE_SANDBOX
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PAYHERE_SANDBOX
+            - name: NOTIFY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: NOTIFY_URL
+            - name: RETURN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: RETURN_URL
+            - name: CANCEL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: CANCEL_URL

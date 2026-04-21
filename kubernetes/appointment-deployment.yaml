@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: appointment-service
-          image: appointment-service:latest`n          imagePullPolicy: Never
+          image: appointment-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5001
@@ -27,23 +27,33 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: APPOINTMENT_MONGO_URI
-            - name: AUTH_SERVICE_URL
+            - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
-                  key: AUTH_SERVICE_URL
+                  key: JWT_SECRET
             - name: INTERNAL_SERVICE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: INTERNAL_SERVICE_SECRET
+            - name: DOCTOR_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DOCTOR_SERVICE_URL
+            - name: PATIENT_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PATIENT_SERVICE_URL
             - name: NOTIFICATION_SERVICE_URL
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: NOTIFICATION_SERVICE_URL
-            - name: PAYMENT_SERVICE_URL
+            - name: TELEMEDICINE_SERVICE_URL
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
-                  key: PAYMENT_SERVICE_URL
+                  key: TELEMEDICINE_SERVICE_URL

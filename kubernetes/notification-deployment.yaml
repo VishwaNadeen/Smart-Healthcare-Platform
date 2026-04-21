@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: notification-service
-          image: notification-service:latest`n          imagePullPolicy: Never
+          image: notification-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5004
@@ -27,8 +27,48 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: NOTIFICATION_MONGO_URI
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
             - name: INTERNAL_SERVICE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: INTERNAL_SERVICE_SECRET
+            - name: PAYMENT_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PAYMENT_SERVICE_URL
+            - name: EMAIL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: EMAIL_USER
+            - name: EMAIL_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: EMAIL_PASS
+            - name: TWILIO_ACCOUNT_SID
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: TWILIO_ACCOUNT_SID
+            - name: TWILIO_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: TWILIO_AUTH_TOKEN
+            - name: TWILIO_PHONE_NUMBER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: TWILIO_PHONE_NUMBER
+            - name: TWILIO_WHATSAPP_NUMBER
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: TWILIO_WHATSAPP_NUMBER
