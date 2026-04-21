@@ -1,0 +1,52 @@
+config:
+  target: "http://localhost:5006"
+  phases:
+    - name: "Warm up"
+      duration: 10
+      arrivalRate: 2
+    - name: "Ramp up load"
+      duration: 20
+      arrivalRate: 2
+      rampTo: 10
+    - name: "Peak load"
+      duration: 30
+      arrivalRate: 10
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "Check payment status"
+    weight: 50
+    flow:
+      - get:
+          url: "/api/payments/ORD-PERF-TEST-001"
+          expect:
+            - statusCode: 404
+
+  - name: "Initiate payment"
+    weight: 30
+    flow:
+      - post:
+          url: "/api/payments/initiate"
+          json:
+            patientId: "perf-patient-1"
+            doctorId: "perf-doctor-1"
+            doctorName: "Dr. Performance"
+            specialization: "Cardiology"
+            appointmentId: "perf-appt-{{ $randomInt(1, 99999) }}"
+            amount: 4000
+            firstName: "Test"
+            lastName: "User"
+            email: "test@example.com"
+            phone: "0771234567"
+
+  - name: "Get patient payment history"
+    weight: 20
+    flow:
+      - get:
+          url: "/api/payments/patient/perf-patient-1"
+          headers:
+            Authorization: "Bearer test-token"
+          expect:
+            - statusCode: 401
