@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: doctor-service
-          image: doctor-service:latest
+          image: doctor-service:latest`n          imagePullPolicy: Never
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5003
