@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon --legacy-watch --quiet src/server.js",
+    "start": "node init && node src/server.js",
+    "dev": "node init && nodemon --legacy-watch --quiet src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

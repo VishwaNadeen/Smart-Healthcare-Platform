@@ -4,8 +4,8 @@
   "description": "Patient service for smart healthcare platform",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon --legacy-watch --quiet src/server.js"
+    "start": "node init && node src/server.js",
+    "dev": "node init && nodemon --legacy-watch --quiet src/server.js"
   },
   "author": "",
   "license": "ISC",
