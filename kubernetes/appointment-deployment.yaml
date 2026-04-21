@@ -57,3 +57,13 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: TELEMEDICINE_SERVICE_URL
+            - name: AUTH_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: AUTH_SERVICE_URL
+            - name: PAYMENT_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PAYMENT_SERVICE_URL
