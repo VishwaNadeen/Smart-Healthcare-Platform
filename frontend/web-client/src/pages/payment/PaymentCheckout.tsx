@@ -47,6 +47,11 @@ async function handleProceedToPayment() {
     return;
   }
 
+  if (phone.length !== 10) {
+    setPhoneError("Please enter a valid 10-digit phone number.");
+    return;
+  }
+
   setPhoneError("");
 
   const nameParts = auth.username.trim().split(" ");
@@ -133,7 +138,7 @@ async function handleProceedToPayment() {
             <input
               type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, "").slice(0, 10))}
               placeholder="e.g. 0771234567"
               disabled={isLoading}
               className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500 disabled:opacity-60"
