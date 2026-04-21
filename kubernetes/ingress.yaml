@@ -9,86 +9,96 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: smart-healthcare.local
-    http:
-      paths:
-      - path: /api/auth
-        pathType: Prefix
-        backend:
-          service:
-            name: auth-service
-            port:
-              number: 5002
-      - path: /api/appointments
-        pathType: Prefix
-        backend:
-          service:
-            name: appointment-service
-            port:
-              number: 5001
-      - path: /api/doctors
-        pathType: Prefix
-        backend:
-          service:
-            name: doctor-service
-            port:
-              number: 5003
-      - path: /api/specialties
-        pathType: Prefix
-        backend:
-          service:
-            name: doctor-service
-            port:
-              number: 5003
-      - path: /api/patients
-        pathType: Prefix
-        backend:
-          service:
-            name: patient-service
-            port:
-              number: 5005
-      - path: /api/payments
-        pathType: Prefix
-        backend:
-          service:
-            name: payment-service
-            port:
-              number: 5006
-      - path: /api/notifications
-        pathType: Prefix
-        backend:
-          service:
-            name: notification-service
-            port:
-              number: 5004
-      - path: /api/telemedicine
-        pathType: Prefix
-        backend:
-          service:
-            name: telemedicine-service
-            port:
-              number: 5007
-      - path: /api/symptoms
-        pathType: Prefix
-        backend:
-          service:
-            name: ai-symptom-service
-            port:
-              number: 5010
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: frontend
-            port:
-              number: 80
-  - host: admin.smart-healthcare.local
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: admin
-            port:
-              number: 80
+    - host: smart-healthcare.local
+      http:
+        paths:
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 5002
+
+          - path: /api/appointments
+            pathType: Prefix
+            backend:
+              service:
+                name: appointment-service
+                port:
+                  number: 5001
+
+          - path: /api/doctors
+            pathType: Prefix
+            backend:
+              service:
+                name: doctor-service
+                port:
+                  number: 5003
+
+          - path: /api/specialties
+            pathType: Prefix
+            backend:
+              service:
+                name: doctor-service
+                port:
+                  number: 5003
+
+          - path: /api/patients
+            pathType: Prefix
+            backend:
+              service:
+                name: patient-service
+                port:
+                  number: 5005
+
+          - path: /api/payments
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-service
+                port:
+                  number: 5006
+
+          - path: /api/notifications
+            pathType: Prefix
+            backend:
+              service:
+                name: notification-service
+                port:
+                  number: 5004
+
+          - path: /api/telemedicine
+            pathType: Prefix
+            backend:
+              service:
+                name: telemedicine-service
+                port:
+                  number: 5007
+
+          - path: /api/symptoms
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-symptom-service
+                port:
+                  number: 5010
+
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-web-client
+                port:
+                  number: 80
+
+    - host: admin.smart-healthcare.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-client
+                port:
+                  number: 80
