@@ -274,7 +274,7 @@ const ensureAdminUser = async () => {
   const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, 10);
 
   const adminUser = await User.findOneAndUpdate(
-    { email: normalizedEmail },
+    { $or: [{ username: ADMIN_USERNAME }, { email: normalizedEmail }] },
     {
       $set: {
         username: ADMIN_USERNAME,

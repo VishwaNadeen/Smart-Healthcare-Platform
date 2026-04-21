@@ -27,13 +27,38 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: TELEMEDICINE_MONGO_URI
-            - name: AUTH_SERVICE_URL
+            - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
-                  key: AUTH_SERVICE_URL
+                  key: JWT_SECRET
             - name: INTERNAL_SERVICE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: INTERNAL_SERVICE_SECRET
+            - name: APPOINTMENT_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: APPOINTMENT_SERVICE_URL
+            - name: AUTH_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: AUTH_SERVICE_URL
+            - name: NOTIFICATION_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: NOTIFICATION_SERVICE_URL
+            - name: PATIENT_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: PATIENT_SERVICE_URL
+            - name: DOCTOR_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: DOCTOR_SERVICE_URL
