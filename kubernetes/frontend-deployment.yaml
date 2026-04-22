@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: frontend:latest
-          imagePullPolicy: IfNotPresent
+          image: smart-healthcare-platform-frontend:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 80
