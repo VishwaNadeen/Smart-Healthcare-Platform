@@ -4,8 +4,8 @@
   "description": "",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon --legacy-watch --quiet src/server.js",
-    "start": "node src/server.js"
+    "dev": "node init && nodemon --legacy-watch --quiet src/server.js",
+    "start": "node init && node src/server.js"
   },
   "keywords": [],
   "author": "",

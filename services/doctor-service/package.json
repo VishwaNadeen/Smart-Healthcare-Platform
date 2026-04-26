@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --legacy-watch --quiet src/server.js",
-    "start": "node src/server.js"
+    "dev": "node init && nodemon --legacy-watch --quiet src/server.js",
+    "start": "node init && node src/server.js"
   },
   "dependencies": {
     "axios": "^1.13.6",

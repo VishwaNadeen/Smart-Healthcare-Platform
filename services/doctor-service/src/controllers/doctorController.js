@@ -632,10 +632,14 @@ const createDoctor = async (req, res) => {
       error?.response?.data?.error ||
       error.message ||
       "Failed to create doctor";
+    const errors = Array.isArray(error?.response?.data?.errors)
+      ? error.response.data.errors
+      : undefined;
 
     return res.status(status).json({
       message,
       error: message,
+      ...(errors ? { errors } : {}),
     });
   }
 };
