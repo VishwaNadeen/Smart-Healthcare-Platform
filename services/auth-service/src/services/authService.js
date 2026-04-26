@@ -270,28 +270,69 @@ const ensureAdminUser = async () => {
     return null;
   }
 
-  const normalizedEmail = ADMIN_EMAIL.toLowerCase().trim();
+  const normalizedUsername = normalizeUsername(ADMIN_USERNAME);
+  const normalizedEmail = normalizeEmail(ADMIN_EMAIL);
   const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, 10);
 
-  const adminUser = await User.findOneAndUpdate(
-    { $or: [{ username: ADMIN_USERNAME }, { email: normalizedEmail }] },
-    {
-      $set: {
-        username: ADMIN_USERNAME,
-        email: normalizedEmail,
-        password: hashedPassword,
-        role: "admin",
-      },
-    },
-    {
-      returnDocument: "after",
-      upsert: true,
-      runValidators: true,
-      setDefaultsOnInsert: true,
-    }
-  );
+  const [userByUsername, userByEmail] = await Promise.all([
+    User.findOne({ username: normalizedUsername }),
+    User.findOne({ email: normalizedEmail }),
+  ]);
 
-  return adminUser;
+  let adminUser = null;
+
+  // Same user found by both username and email
+  if (
+    userByUsername &&
+    userByEmail &&
+    String(userByUsername._id) === String(userByEmail._id)
+  ) {
+    adminUser = userByUsername;
+  }
+  // Username already exists on one user, email exists on another user
+  else if (userByUsername && userByEmail) {
+    adminUser = userByUsername;
+
+    adminUser.password = hashedPassword;
+    adminUser.role = "admin";
+
+    // Keep existing username. Only update email if it is already the same user.
+    // This avoids duplicate key conflicts on both unique fields.
+    await adminUser.save();
+
+    console.warn(
+      "Admin username and admin email belong to different users. Keeping existing username owner as admin."
+    );
+
+    return adminUser;
+  }
+  // Username already exists
+  else if (userByUsername) {
+    adminUser = userByUsername;
+  }
+  // Email already exists
+  else if (userByEmail) {
+    adminUser = userByEmail;
+  }
+
+  if (adminUser) {
+    adminUser.username = normalizedUsername;
+    adminUser.email = normalizedEmail;
+    adminUser.password = hashedPassword;
+    adminUser.role = "admin";
+
+    await adminUser.save();
+    return adminUser;
+  }
+
+  const createdAdmin = await User.create({
+    username: normalizedUsername,
+    email: normalizedEmail,
+    password: hashedPassword,
+    role: "admin",
+  });
+
+  return createdAdmin;
 };
 
 const loginUser = async ({ email, password }) => {

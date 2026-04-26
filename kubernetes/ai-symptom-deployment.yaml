@@ -22,26 +22,37 @@ spec:
           env:
             - name: PORT
               value: "5010"
+
             - name: MONGO_URI
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: AI_SYMPTOM_MONGO_URI
+
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: JWT_SECRET
+
+            - name: AUTH_SERVICE_URL   # 👈 IMPORTANT (add this back)
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: AUTH_SERVICE_URL
+
             - name: INTERNAL_SERVICE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: INTERNAL_SERVICE_SECRET
+
             - name: GEMINI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: GEMINI_API_KEY
+
             - name: GEMINI_MODEL
               valueFrom:
                 secretKeyRef:

@@ -95,6 +95,14 @@ spec:
     - host: admin.smart-healthcare.local
       http:
         paths:
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 5002
+
           - path: /
             pathType: Prefix
             backend:

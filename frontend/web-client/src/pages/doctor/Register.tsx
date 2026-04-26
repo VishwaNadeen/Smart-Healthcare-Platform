@@ -78,6 +78,10 @@ function getFieldClass(hasError: boolean) {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_PATTERN = /^\+[1-9]\d{9,14}$/;
 const COUNTRY_CODE_ONLY_PATTERN = /^\+[1-9]\d{0,3}$/;
+const FULL_NAME_PATTERN =
+  /^[A-Za-z]+(?:[ '-][A-Za-z]+)*(\s[A-Za-z]+(?:[ '-][A-Za-z]+)*)*$/;
+const STRONG_PASSWORD_PATTERN =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/;
 
 function hasMeaningfulPhoneValue(value: string) {
   const normalized = value.replace(/\s+/g, "");
@@ -94,6 +98,12 @@ function validateDoctorField(
   switch (field) {
     case "fullName":
       if (!trimmedValue) return "Full name is required.";
+      if (trimmedValue.length < 2) {
+        return "Full name must be at least 2 characters.";
+      }
+      if (!FULL_NAME_PATTERN.test(trimmedValue)) {
+        return "Full name can contain only letters, spaces, apostrophes, and hyphens.";
+      }
       return "";
 
     case "email":
@@ -107,6 +117,9 @@ function validateDoctorField(
       if (!value) return "Password is required.";
       if (value.length < 6) {
         return "Password must be at least 6 characters.";
+      }
+      if (!STRONG_PASSWORD_PATTERN.test(value)) {
+        return "Password must include uppercase, lowercase, number, and special character.";
       }
       return "";
 
@@ -248,6 +261,27 @@ function getServerFieldError(message: string): {
     return {
       field: "city",
       message: message,
+    };
+  }
+
+  if (normalizedMessage.includes("username") || normalizedMessage.includes("full name")) {
+    return {
+      field: "fullName",
+      message,
+    };
+  }
+
+  if (normalizedMessage.includes("password")) {
+    return {
+      field: "password",
+      message,
+    };
+  }
+
+  if (normalizedMessage.includes("specialization")) {
+    return {
+      field: "specialization",
+      message,
     };
   }
 

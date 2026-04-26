@@ -8,8 +8,11 @@ import type {
 import { getAuthHeaders } from "../../utils/auth";
 import { APPOINTMENT_API_URL } from "../../src/config/api";
 
-const PATIENT_SERVICE_BASE_URL =
-  import.meta.env.VITE_PATIENT_SERVICE_URL || "http://localhost:5005";
+const PATIENT_SERVICE_BASE_URL = import.meta.env.VITE_PATIENT_SERVICE_URL;
+
+if (!PATIENT_SERVICE_BASE_URL) {
+  throw new Error("VITE_PATIENT_SERVICE_URL is not defined");
+}
 
 const ADMIN_PATIENT_BASE = `${PATIENT_SERVICE_BASE_URL}/api/patients/admin`;
 
