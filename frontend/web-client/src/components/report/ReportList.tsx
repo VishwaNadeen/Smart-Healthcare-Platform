@@ -92,6 +92,7 @@ const ReportList: React.FC<ReportListProps> = ({
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [busyReportId, setBusyReportId] = useState("");
   const [isDraggingReplacement, setIsDraggingReplacement] = useState(false);
+  const [deleteConfirmReportId, setDeleteConfirmReportId] = useState("");
 
   function clearReplacementFile() {
     setReplacementFile(null);
@@ -106,18 +107,11 @@ const ReportList: React.FC<ReportListProps> = ({
   }
 
   async function handleDelete(reportId: string) {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this report?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     try {
       setBusyReportId(reportId);
       const response = await deletePatientReport(patientId, reportId);
       showToast(response.message || "Report deleted successfully.", "success");
+      setDeleteConfirmReportId("");
       await onRefresh();
     } catch (error) {
       const message =
@@ -126,6 +120,14 @@ const ReportList: React.FC<ReportListProps> = ({
     } finally {
       setBusyReportId("");
     }
+  }
+
+  function handleDeleteConfirmationClose() {
+    if (busyReportId === deleteConfirmReportId) {
+      return;
+    }
+
+    setDeleteConfirmReportId("");
   }
 
   async function handleSave(reportId: string) {
@@ -177,7 +179,15 @@ const ReportList: React.FC<ReportListProps> = ({
     );
   }
 
+  const reportToDelete = reports.find(
+    (report) => report._id === deleteConfirmReportId
+  );
+  const isDeletingReport = Boolean(
+    deleteConfirmReportId && busyReportId === deleteConfirmReportId
+  );
+
   return (
+    <>
     <div className="grid gap-4">
       {reports.map((report) => {
         const isEditing = editingReportId === report._id;
@@ -327,7 +337,7 @@ const ReportList: React.FC<ReportListProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => void handleDelete(report._id)}
+                        onClick={() => setDeleteConfirmReportId(report._id)}
                         disabled={isBusy}
                         title="Delete report"
                         aria-label="Delete report"
@@ -633,6 +643,40 @@ const ReportList: React.FC<ReportListProps> = ({
         );
       })}
     </div>
+
+    {reportToDelete ? (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+        <div className="w-full max-w-2xl rounded-3xl border border-red-200 bg-white p-6 shadow-2xl">
+          <h2 className="text-2xl font-semibold text-red-800">
+            Delete Report
+          </h2>
+          <p className="mt-3 text-sm text-red-700">
+            Are you sure you want to delete this report?
+          </p>
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => void handleDelete(reportToDelete._id)}
+              disabled={isDeletingReport}
+              className="rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700 disabled:opacity-70"
+            >
+              {isDeletingReport ? "Deleting..." : "Delete Report"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDeleteConfirmationClose}
+              disabled={isDeletingReport}
+              className="rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-70"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 };
 
